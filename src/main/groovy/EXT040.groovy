@@ -10,6 +10,8 @@
  * 20240327     PATBEA       Correction Key to read table CCUCON. CCEMRE missing
  * 20240402     PATBEA       Execute EXT041 (ECOM_PROD_STO File) when assortiment is complet
  * 20240412     YVOYOU       Addition of delete EXT045,EXT046 and no line in calendar if sapr < pupr
+ * 20240419     FLEBARS     Chemin fichier dans docnumber à rendre dynamique **ATTENTION NE PAS FAIRE VALIDER**
+ * 20240524     FLEBARS     Alcool et controle prix
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -149,10 +151,12 @@ public class EXT040 extends ExtendM3Batch {
   private String temperature
   private double sumCNQT
   private String typeBox
+  private boolean isAlcool //A°FLB 20240524
   private String nombreComposantBox
   private int count_OASITN = 0
   private String fileJobNumber
   private boolean iscomplet = false
+  private boolean isReedition = false
 
   public EXT040(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -169,7 +173,6 @@ public class EXT040 extends ExtendM3Batch {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     fileJobNumber = program.getJobNumber()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
-    logger.debug("fileJobNumber=${fileJobNumber}")
 
     if(batch.getReferenceId().isPresent()){
       Optional<String> data = getJobData(batch.getReferenceId().get())
@@ -203,9 +206,11 @@ public class EXT040 extends ExtendM3Batch {
     DBContainer EXT042_Type = query_EXT042_Type.getContainer()
     EXT042_Type.set("EXCONO", currentCompany)
     EXT042_Type.set("EXCDNN", inCalendar)
-    if(!query_EXT042_Type.readAll(EXT042_Type, 2, outData_EXT042_Type)){
+    EXT042_Type.set("EXCUNO", inCustomer) // 20240507 PBEAUDOUIN
+    if(!query_EXT042_Type.readAll(EXT042_Type, 3, outData_EXT042_Type)){// 20240507 PBEAUDOUIN
     }
-
+    iscomplet = assortment.trim().equals(inCustomer.trim() + "0")//A° 20240503 FLEBARS
+    logger.debug("isComplet:${iscomplet} assortment:${assortment} client:${inCustomer}")
 
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -232,10 +237,12 @@ public class EXT040 extends ExtendM3Batch {
     writePriceControlFile()
 
     writeEndFile()
+    writeEndFileSFTP()
     if (iscomplet){
       executeEXT820MISubmitBatch(String.valueOf(currentCompany),"EXT041", program.getUser(),String.valueOf(inCustomer),String.valueOf(inCalendar),String.valueOf(inAllContacts))
     }
-    deleteTemporaryFiles()
+    if (!isReedition)
+      deleteTemporaryFiles()
 
     deleteEXTJOB()
   }
@@ -245,11 +252,14 @@ public class EXT040 extends ExtendM3Batch {
     previousCalendarYearWeek = ""
     previousCalendarSuffix = ""
     previousCalendarNextSuffix = ""
-    DBAction query = database.table("EXT042").index("10").selection("EXCDNN").reverse().build()
-    DBContainer EXT042 = query.getContainer()
-    EXT042.set("EXCONO", currentCompany)
-    EXT042.set("EXCUNO", inCustomer)
-    if(!query.readAll(EXT042, 2, 1, outData_EXT042)){}
+    DBAction query = database.table("EXT041").index("10").selection("EXCDNN").reverse().build()
+    DBContainer EXT041 = query.getContainer()
+    EXT041.set("EXCONO", currentCompany)
+    EXT041.set("EXCUNO", inCustomer)
+    if(!query.readAll(EXT041, 2, 1, outData_EXT041)){}
+    if (inCalendar == previousCalendar)
+      isReedition = true
+    logger.debug("retrievePreviousCalendar previousCalendar:${previousCalendar}")
     if(previousCalendar.trim() != "") {
       previousCalendarYearWeek = previousCalendar.substring(0,6)
       previousCalendarSuffix = previousCalendar.substring(6,9)
@@ -383,15 +393,13 @@ public class EXT040 extends ExtendM3Batch {
     inFormatTXT = EXT042_Type.get("EXFLTX")
     inFormatCSV = EXT042_Type.get("EXFLCS")
     inFormatXLSX = EXT042_Type.get("EXFLXL")
+    assortment = EXT042_Type.get("EXASCD") as String//A°20240503 FLEBARS
   }
   // Retrieve EXT040
   Closure<?> outData_EXT040_2 = { DBContainer EXT040 ->
     foundSigma6 = true
   }
-  // Retrieve EXT041
-  Closure<?> outData_EXT041 = { DBContainer EXT041 ->
-    previousCalendar = EXT041.get("EXCDNN")
-  }
+
   // Retrieve EXT041
   Closure<?> outData_EXT041_2 = { DBContainer EXT041 ->
     sigma6 = EXT041.get("EXPOPN")
@@ -433,9 +441,15 @@ public class EXT040 extends ExtendM3Batch {
       }
     }
   }
+
+  // Retrieve EXT041
+  Closure<?> outData_EXT041 = { DBContainer EXT041 ->
+    previousCalendar = EXT041.get("EXCDNN")
+  }
+
   // Retrieve EXT042
   Closure<?> outData_EXT042 = { DBContainer EXT042 ->
-    assortment = EXT042.get("EXASCD")
+    //assortment = EXT042.get("EXASCD")//D° 20240503 FLEBARS
     DBAction assortmentQuery = database.table("OASITN").index("00").selection("OIITNO", "OIASCD").build()
     DBContainer OASITN = assortmentQuery.getContainer()
     OASITN.set("OICONO", currentCompany)
@@ -542,8 +556,10 @@ public class EXT040 extends ExtendM3Batch {
   // Retrieve OASCUS
   Closure<?> outData_OASITN = { DBContainer OASITN ->
     sigma9 = OASITN.get("OIITNO")
-    assortment = OASITN.get("OIASCD")
-    iscomplet = assortment.substring(assortment.length() - 1, assortment.length()) == "0"
+    //assortment = OASITN.get("OIASCD")//D° 20240503 FLEBARS
+    //iscomplet = assortment.substring(assortment.length() - 1, assortment.length()) == "0"//D°20240503 FLEBARS
+    logger.debug("#PB OUTDATA_OASITN START${sigma9}")
+    logger.debug("#PB OUTDATA_OASITN item isOK : "+itemIsOK())
     if(itemIsOK()) {
       retrieveSigma6()
       retrieveSalesPrice()
@@ -718,7 +734,6 @@ public class EXT040 extends ExtendM3Batch {
         inFormatTXT = CUGEX1.get("F1N296") as Integer
         inFormatCSV = CUGEX1.get("F1N396") as Integer
         inFormatXLSX = CUGEX1.get("F1N496") as Integer
-        logger.debug("Fin format schedule : "+inFormatTXT + "-" + inFormatCSV)
       }
     }
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "formats.txt"
@@ -863,7 +878,7 @@ public class EXT040 extends ExtendM3Batch {
   public void writeCalendar() {
     if(sigma9_DirectDelivery.trim() != "") {
       sigma9 = sigma9_DirectDelivery
-      assortment = sigma9_DirectDelivery_assortment
+      //assortment = sigma9_DirectDelivery_assortment//D°20240503 FLEBARS
       ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
       expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
       DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXCMDE").build()
@@ -875,7 +890,7 @@ public class EXT040 extends ExtendM3Batch {
     }
     if(sigma9_NoDirectDelivery.trim() != "") {
       sigma9 = sigma9_NoDirectDelivery
-      assortment = sigma9_NoDirectDelivery_assortment
+      //assortment = sigma9_NoDirectDelivery_assortment//D°20240503 FLEBARS
       ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
       expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
       DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXCMDE").build()
@@ -960,9 +975,20 @@ public class EXT040 extends ExtendM3Batch {
   public void writeEndFile() {
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
-    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>CADENCIER</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>F:\\CadencierClient\\</DocumentPath></Document>"
+    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>CADENCIER</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>\\\\XC006WKS\\CadencierClient\\</DocumentPath></Document>"
     logMessage(header, "")
   }
+
+  public void writeEndFileSFTP() {
+    //logFileName = fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
+    logFileName = fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "cadencier-docNumber.xml"
+    //docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
+    docnumber =fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "cadencier"
+    header = "<?xml version='1.0' encoding='UTF-8' standalone='no'?><LoaddocumentNumber xmlns='http://schema.infor.com/InforOAGIS/2' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' releaseID='9.2' versionID='2.14.6' xsi:schemaLocation='http://schema.infor.com/InforOAGIS/2 http://schema.infor.com/InforOAGIS/BODs/LoaddocumentNumber.xsd'><ApplicationArea><Sender><LogicalID>casino.com</LogicalID><ConfirmationCode>OnError</ConfirmationCode></Sender><CreationDateTime>2023-04-04</CreationDateTime></ApplicationArea><DataArea><Load><TenantID>CASINO_TST</TenantID><AccountingEntityID>100_</AccountingEntityID><ActionCriteria><ActionExpression actionCode='' expressionLanguage=''/></ActionCriteria></Load><documentNumber><DocumentType>CADENCIER</DocumentType><DocumentNumber>${docnumber}.txt</DocumentNumber><DocumentPath>/FileImport/CadencierClient/${docnumber}.txt</DocumentPath></documentNumber></DataArea></LoaddocumentNumber>"
+    logMessage(header, "")
+  }
+
+
   // Retrieve EXT010
   Closure<?> outData_EXT010_2 = { DBContainer EXT010 ->
     initLine()
@@ -981,10 +1007,12 @@ public class EXT040 extends ExtendM3Batch {
     if (query.read(MITFAC)) {
       appr = MITFAC.get("M9APPR")
     }
-    if(sapr < appr)
+    //if(sapr < appr)//D°FLB 20240524
+    if(sapr < appr && !isAlcool)//A°FLB 20240524
       writeEXT046()
 
-    if(sapr >= appr) {
+    //if(sapr >= appr) { //D°FLB 20240524
+    if(sapr >= appr || isAlcool) {//A°FLB 20240524
       line = sigma6.trim()+";"+UL.trim()+";"+sigma9.trim()+";"+EAN13.trim()+";"+libelleArticle.trim()+";"+codeArticleRemplace.trim()+";"+libelleArticleRemplace.trim()+";"+prixCadencierPrecedent.trim()+";"+prixVente.trim()+";"+evolutionPrixCadencierPrecedent.trim()+";"+unitePrixVente.trim()+";"+DLC.trim()+";"+DLGR.trim()+";"+codeMarque.trim()+";"+libelleCodeMarque.trim()+";"+codeMarketing.trim()+";"+libelleCodeMarketing.trim()+";"+saisonnalite.trim()+";"+nouveaute.trim()+";"+languePackaging.trim()+";"+codeDepartement.trim()+";"+nomDepartement.trim()+";"+codeRayon.trim()+";"+nomRayon.trim()+";"+codeFamille.trim()+";"+nomFamille.trim()+";"+codeSousFamille.trim()+";"+nomSousFamille.trim()+";"+uniteBesoin.trim()+";"+nomUniteBesoin.trim()+";"+fournisseur.trim()+";"+nomFournisseur.trim()+";"+fournisseurOrigine.trim()+";"+nomFournisseurOrigine.trim()+";"+nomPaysOrigine.trim()+";"+codeDouanier.trim()+";"+typeAppro.trim()+";"+entrepot.trim()+";"+taille.trim()+";"+couleur.trim()+";"+modele.trim()+";"+diffusion.trim()+";"+FBA.trim()+";"+DUN14.trim()+";"+minimumCommande.trim()+";"+parCombien.trim()+";"+nbCouche_palette.trim()+";"+nbColisParCouche.trim()+";"+nbColisParPalette.trim()+";"+nbUVCParPalette.trim()+";"+contenance.trim()+";"+poidsNet.trim()+";"+poidsBrut.trim()+";"+volumeColis.trim()+";"+hauteurUVC.trim()+";"+largeurUVC.trim()+";"+longueurUVC.trim()+";"+hauteurColis.trim()+";"+largeurColis.trim()+";"+longueurColis.trim()+";"+degreAlcool.trim()+";"+refDroit.trim()+";"+typeBox.trim()+";"+nombreComposantBox.trim()+";"+temperature.trim()+";"+assortimentLogistique.trim()
       //logMessage("", line)
       lines += line + "\r\n"
@@ -1030,7 +1058,7 @@ public class EXT040 extends ExtendM3Batch {
     degreAlcool = ""
     temperature = ""
     typeBox = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMECVE","MMFUDS","MMSPE2","MMSPE1", "MMBUAR","MMCFI1","MMSPE3","MMHIE1","MMHIE2","MMHIE3","MMHIE4","MMHIE5","MMSUNO","MMDIM1","MMDIM2","MMDIM3","MMSPGV","MMNEWE","MMIHEI","MMIWID","MMILEN","MMCFI2","MMITCL").build()
+    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMECVE","MMFUDS","MMSPE2","MMSPE1", "MMBUAR","MMCFI1","MMSPE3","MMHIE1","MMHIE2","MMHIE3","MMHIE4","MMHIE5","MMSUNO","MMDIM1","MMDIM2","MMDIM3","MMSPGV","MMNEWE","MMIHEI","MMIWID","MMILEN","MMCFI2","MMITCL", "MMCFI4").build()
     DBContainer MITMAS = query_MITMAS.getContainer()
     MITMAS.set("MMCONO", currentCompany)
     MITMAS.set("MMITNO", sigma9)
@@ -1149,6 +1177,8 @@ public class EXT040 extends ExtendM3Batch {
       degreAlcool = MITMAS.get("MMCFI2")
       temperature = MITMAS.get("MMITCL")
       typeBox = MITMAS.get("MMDIM3")
+      String cfi4 = MITMAS.get("MMCFI4") as String//A°FLB 20240524
+      isAlcool = cfi4.trim().length() > 0//A°FLB 20240524
     }
 
     typeAppro = ""
@@ -1494,16 +1524,30 @@ public class EXT040 extends ExtendM3Batch {
   }
   // Delete EXT040 and EXT041 records for previous calendar
   public void deleteTemporaryFiles(){
+    logger.debug("isComplet:${iscomplet} inCalendar:${inCalendar} previousCalendar:${previousCalendar}")
     ExpressionFactory expressionEXT040 = database.getExpressionFactory("EXT040")
-    expressionEXT040 = expressionEXT040.ne("EXCDNN", inCalendar).and(expressionEXT040.ne("EXCDNN", previousCalendar))
+    //expressionEXT040 = expressionEXT040.ne("EXCDNN", inCalendar).and(expressionEXT040.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT040 = expressionEXT040.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT040 = expressionEXT040.ne("EXCDNN", inCalendar).and(expressionEXT040.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT040 = database.table("EXT040").index("00").matching(expressionEXT040).build()
     DBContainer EXT040 = query_EXT040.getContainer()
     EXT040.set("EXCONO", currentCompany)
     EXT040.set("EXCUNO", inCustomer)
     if(!query_EXT040.readAllLock(EXT040, 2, updateCallBack_EXT040)){
     }
+
     ExpressionFactory expressionEXT041 = database.getExpressionFactory("EXT041")
-    expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))
+    //expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT041 = expressionEXT041.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT041 = database.table("EXT041").index("00").matching(expressionEXT041).build()
     DBContainer EXT041 = query_EXT041.getContainer()
     EXT041.set("EXCONO", currentCompany)
@@ -1513,7 +1557,13 @@ public class EXT040 extends ExtendM3Batch {
     }
 
     ExpressionFactory expressionEXT042 = database.getExpressionFactory("EXT042")
-    expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))
+    //expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT042 = expressionEXT042.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT042 = database.table("EXT042").index("00").matching(expressionEXT042).build()
     DBContainer EXT042 = query_EXT042.getContainer()
     EXT042.set("EXCONO", currentCompany)
@@ -1522,7 +1572,13 @@ public class EXT040 extends ExtendM3Batch {
     }
 
     ExpressionFactory expressionEXT043 = database.getExpressionFactory("EXT043")
-    expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))
+    //expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT043 = expressionEXT043.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT043 = database.table("EXT043").index("00").matching(expressionEXT043).build()
     DBContainer EXT043 = query_EXT043.getContainer()
     EXT043.set("EXCONO", currentCompany)
@@ -1531,7 +1587,13 @@ public class EXT040 extends ExtendM3Batch {
     }
 
     ExpressionFactory expressionEXT044 = database.getExpressionFactory("EXT044")
-    expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))
+    //expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT044 = expressionEXT044.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT044 = database.table("EXT044").index("00").matching(expressionEXT044).build()
     DBContainer EXT044 = query_EXT044.getContainer()
     EXT044.set("EXCONO", currentCompany)
@@ -1539,7 +1601,13 @@ public class EXT040 extends ExtendM3Batch {
     if(!query_EXT044.readAllLock(EXT044, 2, updateCallBack_EXT044)){
     }
     ExpressionFactory expressionEXT045 = database.getExpressionFactory("EXT045")
-    expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar).and(expressionEXT045.ne("EXCDNN", previousCalendar))
+    //expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar).and(expressionEXT045.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT045 = expressionEXT045.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar).and(expressionEXT045.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT045 = database.table("EXT045").index("00").matching(expressionEXT045).build()
     DBContainer EXT045 = query_EXT045.getContainer()
     EXT045.set("EXCONO", currentCompany)
@@ -1548,7 +1616,13 @@ public class EXT040 extends ExtendM3Batch {
     }
 
     ExpressionFactory expressionEXT046 = database.getExpressionFactory("EXT046")
-    expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))
+    //expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
+    //A°20240503 FLEBARS START
+    if (!iscomplet)
+      expressionEXT046 = expressionEXT046.ne("EXCDNN", previousCalendar)
+    if (iscomplet)
+      expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))
+    //A°20240503 FLEBARS END
     DBAction query_EXT046 = database.table("EXT046").index("00").matching(expressionEXT046).build()
     DBContainer EXT046 = query_EXT046.getContainer()
     EXT046.set("EXCONO", currentCompany)
@@ -1640,8 +1714,10 @@ public class EXT040 extends ExtendM3Batch {
     }
     if (logFileName.endsWith("docNumber.xml")) {
       textFiles.write(logFileName, "UTF-8", false, consumer)
+      logger.debug("PB## Ecrtiture DocNumber:${logFileName} message:${message} ")
     } else {
       textFiles.write(logFileName, "UTF-8", true, consumer)
+      logger.debug("PB## pas Ecrtiture DocNumber:${logFileName} message:${message} ")
     }
   }
   private Optional<String> getJobData(String referenceId){

@@ -8,9 +8,10 @@ import java.time.temporal.ChronoUnit
 /**
  * ConstraintUtil
  * This utily is used to handle constraints
- *
+ * QUAX01 Gestion du référentiel qualité
  * Date         Changed By    Description
  * 20230215     ARENARD       Creation
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 
 /**

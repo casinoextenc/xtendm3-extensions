@@ -1,26 +1,23 @@
 /**
  * README
  * This extension is used by Mashup
- *
+ * QUAX01 Gestion du référentiel qualité
  * Name : EXT030MI.SelConstraint
  * Description : Select records to the EXT030 table.
  * Date         Changed By   Description
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20230620     FLEBARS      QUAX01 - evol contrainte 
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
-
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 public class SelConstraint extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
+
+  private int currentCompany
   private int countLine
   private int nbli
   private int nbsl
@@ -36,26 +33,17 @@ public class SelConstraint extends ExtendM3Transaction {
   }
 
   public void main() {
-
-    Integer currentCompany
-    int zcid = (mi.in.get("ZCID") != null ? (Integer)mi.in.get("ZCID") : 0)
-    String zcod =  (mi.in.get("ZCOD") != null ? (String)mi.in.get("ZCOD") : "")
-    String stat = (mi.in.get("STAT") != null ?  (String)mi.in.get("STAT") : "")
-    int zblo =  (mi.in.get("ZBLO") != null ? (Integer)mi.in.get("ZBLO") : 0)
-    String cscd = (mi.in.get("CSCD") != null ?  (String)mi.in.get("CSCD") : "")
-    String cuno = (mi.in.get("CUNO") != null ? (String)mi.in.get("CUNO") : "")
-    nbli = (mi.in.get("NBLI") != null ? (Integer)mi.in.get("NBLI") : 0)
-    nbsl = (mi.in.get("NBSL") != null ? (Integer)mi.in.get("NBSL") : 50)
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer)program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
+    nbli = (mi.in.get("NBLI") != null ? (Integer)mi.in.get("NBLI") : 0)
+    nbsl = (mi.in.get("NBSL") != null ? (Integer)mi.in.get("NBSL") : 50)
 
     // Set Record to return
     maxSel = nbli + nbsl
 
-    LocalDateTime timeOfCreation = LocalDateTime.now()
     //Check if record exists
     String constraintID_ex = (mi.in.get("ZCID") != null ? (Integer)mi.in.get("ZCID") : 0)
     String constraintCode =  (String)(mi.in.get("ZCOD") != null ? mi.in.get("ZCOD") : "")
@@ -63,63 +51,62 @@ public class SelConstraint extends ExtendM3Transaction {
     String status = (String)(mi.in.get("STAT") != null ? mi.in.get("STAT") : "")
     String customer = (String)(mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
     String assortmentBloc = (mi.in.get("ZBLO") != null ? (Integer)mi.in.get("ZBLO") : 0)
-    ExpressionFactory expression = database.getExpressionFactory("EXT030")
 
+    ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
     int countExpression = 0
-
     if (mi.in.get("ZCID") != null) {
-      expression = expression.eq("EXZCID", constraintID_ex)
+      ext030Expression = ext030Expression.eq("EXZCID", constraintID_ex)
       countExpression++
     }
 
     if (constraintCode.length() > 0) {
       if (countExpression == 0) {
-        expression = expression.eq("EXZCOD", constraintCode)
+        ext030Expression = ext030Expression.eq("EXZCOD", constraintCode)
       } else {
-        expression = expression.and(expression.eq("EXZCOD", constraintCode))
+        ext030Expression = ext030Expression.and(ext030Expression.eq("EXZCOD", constraintCode))
       }
       countExpression++
     }
 
     if (countryCode.length() > 0) {
       if (countExpression == 0) {
-        expression = expression.eq("EXCSCD", countryCode)
+        ext030Expression = ext030Expression.eq("EXCSCD", countryCode)
       } else {
-        expression = expression.and(expression.eq("EXCSCD", countryCode))
+        ext030Expression = ext030Expression.and(ext030Expression.eq("EXCSCD", countryCode))
       }
       countExpression++
     }
 
     if (status.length() > 0) {
       if (countExpression == 0) {
-        expression = expression.eq("EXSTAT", status)
+        ext030Expression = ext030Expression.eq("EXSTAT", status)
       } else {
-        expression = expression.and(expression.eq("EXSTAT", status))
+        ext030Expression = ext030Expression.and(ext030Expression.eq("EXSTAT", status))
       }
       countExpression++
     }
 
     if (customer.length() > 0) {
       if (countExpression == 0) {
-        expression = expression.eq("EXCUNO", customer)
+        ext030Expression = ext030Expression.eq("EXCUNO", customer)
       } else {
-        expression = expression.and(expression.eq("EXCUNO", customer))
+        ext030Expression = ext030Expression.and(ext030Expression.eq("EXCUNO", customer))
       }
       countExpression++
     }
 
     if (mi.in.get("ZBLO") != null) {
       if (countExpression == 0) {
-        expression = expression.eq("EXZBLO", assortmentBloc)
+        ext030Expression = ext030Expression.eq("EXZBLO", assortmentBloc)
       } else {
-        expression = expression.and(expression.eq("EXZBLO", assortmentBloc))
+        ext030Expression = ext030Expression.and(ext030Expression.eq("EXZBLO", assortmentBloc))
       }
       countExpression++
     }
 
-    DBAction queryEXT030 = database.table("EXT030")
+    DBAction ext030Query = database.table("EXT030")
         .index("00")
-        .matching(expression)
+        .matching(ext030Expression)
         .selection(
         "EXZCID",
         "EXZCOD",
@@ -150,21 +137,18 @@ public class SelConstraint extends ExtendM3Transaction {
         )
         .build()
 
-    DBContainer containerEXT030 = queryEXT030.getContainer()
-    containerEXT030.set("EXCONO", currentCompany)
+    DBContainer ext030request = ext030Query.getContainer()
+    ext030request.set("EXCONO", currentCompany)
     
     //Record exists
-    if (!queryEXT030.readAll(containerEXT030, 1, outData)){
+    if (!ext030Query.readAll(ext030request, 1, maxSel,ext030Reader)){
       //mi.error("L'enregistrement n'existe pas")
       return
     }
   }
 
-  Closure<?> outData = { DBContainer containerEXT030 ->
+  Closure<?> ext030Reader = { DBContainer containerEXT030 ->
     countLine++
-    logger.debug("countLine=${countLine}")
-    logger.debug("nbli=${nbli}")
-    logger.debug("maxSel=${maxSel}")
     if (countLine > nbli && countLine <= maxSel) {
       String constraintCode = containerEXT030.get("EXZCOD")
       String constraintID = containerEXT030.get("EXZCID")

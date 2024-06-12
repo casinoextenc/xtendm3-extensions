@@ -2,21 +2,21 @@
  * name: LstConstraints
  * program: EXT030MI
  * description: Lst contraints for item customer
- *
+ * QUAX01 Gestion du référentiel qualité
  * Date         Changed By    Description
  * 20231010     FLEBARS       Creation
- *
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 public class LstConstraints extends ExtendM3Transaction {
-  private final MIAPI mi;
+  private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
   private final ProgramAPI program
   private final UtilityAPI utility
 
   int currentCompany
-  private def datasITEM
-  private def datasORDER
+  private Map<String, String> datasITEM
+  private Map<String, String> datasORDER
   private boolean in60 = false
   private String msgd
 
@@ -34,8 +34,7 @@ public class LstConstraints extends ExtendM3Transaction {
     String cuno = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
     String itno = (String) (mi.in.get("ITNO") != null ? mi.in.get("ITNO") : "")
 
-    // todo load default faci
-    getItemDatas(itno, "E10")
+    getItemDatas(itno, "E10")// E10 is the main FACI
     if (in60) {
       mi.error(msgd)
       return
@@ -75,7 +74,7 @@ public class LstConstraints extends ExtendM3Transaction {
         , "OKCSCD"
         , "OKADID"
       )
-      .build();
+      .build()
 
     DBContainer OCUSMA_request = OCUSMA_query.getContainer()
     OCUSMA_request.set("OKCONO", currentCompany)
@@ -109,11 +108,12 @@ public class LstConstraints extends ExtendM3Transaction {
 
 
   /**
-   * Get Item Informations and load them into itemDatas map object
+   * Get Item Informations and store them into itemDatas map object
+   * @param itno
+   * @param faci
    */
   public void getItemDatas(itno, faci) {
     //GetItem informations
-    logger.debug("getItemDatas itno=${itno}")
     datasITEM = [
       "HAZI"  : ""
       , "HIE5": ""
@@ -178,18 +178,18 @@ public class LstConstraints extends ExtendM3Transaction {
     String znag = ""
 
     //Get infos from MITMAS
-    DBAction MITMAS_query = database.table("MITMAS").index("00").selection("MMHAZI", "MMHIE5", "MMCFI4", "MMSUNO", "MMPROD", "MMITGR", "MMGRWE", "MMNEWE").build()
-    DBContainer MITMAS = MITMAS_query.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", itno)
-    if (MITMAS_query.read(MITMAS)) {
-      hazi = MITMAS.get("MMHAZI")
-      hie5 = MITMAS.get("MMHIE5")
-      cfi4 = MITMAS.get("MMCFI4")
-      suno = MITMAS.get("MMSUNO")
-      prod = MITMAS.get("MMPROD")
-      grwe = MITMAS.get("MMGRWE") as Double
-      newe = MITMAS.get("MMNEWE") as Double
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMHAZI", "MMHIE5", "MMCFI4", "MMSUNO", "MMPROD", "MMITGR", "MMGRWE", "MMNEWE").build()
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", itno)
+    if (mitmasQuery.read(mitmasRequest)) {
+      hazi = mitmasRequest.get("MMHAZI")
+      hie5 = mitmasRequest.get("MMHIE5")
+      cfi4 = mitmasRequest.get("MMCFI4")
+      suno = mitmasRequest.get("MMSUNO")
+      prod = mitmasRequest.get("MMPROD")
+      grwe = mitmasRequest.get("MMGRWE") as Double
+      newe = mitmasRequest.get("MMNEWE") as Double
       if (grwe != 0 && alqt != 0) {
         ztgr = grwe * alqt
       }
@@ -203,96 +203,95 @@ public class LstConstraints extends ExtendM3Transaction {
     }
     
     //Get infos from MITPOP
-    ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
-    expression_MITPOP = expression_MITPOP.eq("MPREMK", "SIGMA6")
-    DBAction MITPOP_query = database.table("MITPOP")
+    ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
+    mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")
+    DBAction mitpopQuery = database.table("MITPOP")
       .index("00")
-      .matching(expression_MITPOP)
+      .matching(mitpopExpression)
       .selection("MPPOPN").build()
 
-    DBContainer MITPOP_request = MITPOP_query.getContainer()
-    MITPOP_request.set("MPCONO", currentCompany)
-    MITPOP_request.set("MPALWT", 1)
-    MITPOP_request.set("MPALWQ", "")
-    MITPOP_request.set("MPITNO", itno)
+    DBContainer mitpopRequest = mitpopQuery.getContainer()
+    mitpopRequest.set("MPCONO", currentCompany)
+    mitpopRequest.set("MPALWT", 1)
+    mitpopRequest.set("MPALWQ", "")
+    mitpopRequest.set("MPITNO", itno)
 
-    Closure<?> MITPOP_reader = { DBContainer MITPOP_result ->
-      //logger.debug("found MITPOP")
-      sig6 = MITPOP_result.getString("MPPOPN").trim()
+    Closure<?> mitpopReader = { DBContainer mitpopResult ->
+      sig6 = mitpopResult.getString("MPPOPN").trim()
     }
 
-    if (!MITPOP_query.readAll(MITPOP_request, 4, MITPOP_reader)) {
+    if (!mitpopQuery.readAll(mitpopRequest, 4, 1, mitpopReader)) {
     }
 
     //Get infos from MITFAC
-    DBAction MITFAC_query = database.table("MITFAC")
+    DBAction mitfacQuery = database.table("MITFAC")
       .index("00")
       .selection("M9CSNO"
         , "M9ORCO")
       .build()
-    DBContainer MITFAC_request = MITFAC_query.getContainer()
-    MITFAC_request.set("M9CONO", currentCompany)
-    MITFAC_request.set("M9FACI", faci)
-    MITFAC_request.set("M9ITNO", itno)
-    if (MITFAC_query.read(MITFAC_request)) {
-      csno = MITFAC_request.get("M9CSNO")
-      orco = MITFAC_request.getString("M9ORCO").trim()
+    DBContainer mitfacRequest = mitfacQuery.getContainer()
+    mitfacRequest.set("M9CONO", currentCompany)
+    mitfacRequest.set("M9FACI", faci)
+    mitfacRequest.set("M9ITNO", itno)
+    if (mitfacQuery.read(mitfacRequest)) {
+      csno = mitfacRequest.get("M9CSNO")
+      orco = mitfacRequest.getString("M9ORCO").trim()
     }
 
     //Get infos from EXT032
-    DBAction EXT032_query = database.table("EXT032").index("00").selection("EXZALC", "EXZSAN", "EXZCA1", "EXZCA2", "EXZCA3", "EXZCA4", "EXZCA5", "EXZCA6", "EXZCA7", "EXZCA8", "EXZORI", "EXZPHY", "EXZALI").build()
-    DBContainer EXT032_request = EXT032_query.getContainer()
-    EXT032_request.set("EXCONO", currentCompany)
-    EXT032_request.set("EXPOPN", sig6)
-    EXT032_request.set("EXSUNO", suno)
-    EXT032_request.set("EXORCO", orco)
-    if (EXT032_query.read(EXT032_request)) {
-      zalc = EXT032_request.get("EXZALC") as Integer
-      zsan = EXT032_request.get("EXZSAN") as Integer
-      zcap = EXT032_request.get("EXZCA1")
-      zca1 = EXT032_request.get("EXZCA1")
-      zca2 = EXT032_request.get("EXZCA2")
-      zca3 = EXT032_request.get("EXZCA3")
-      zca4 = EXT032_request.get("EXZCA4")
-      zca5 = EXT032_request.get("EXZCA5")
-      zca6 = EXT032_request.get("EXZCA6")
-      zca7 = EXT032_request.get("EXZCA7")
-      zca8 = EXT032_request.get("EXZCA8")
-      zori = EXT032_request.get("EXZORI") as Integer
-      zphy = EXT032_request.get("EXZPHY") as Integer
-      zagr = EXT032_request.get("EXZAGR") as Integer
-      zali = EXT032_request.get("EXZALI") as Integer
+    DBAction ext032Query = database.table("EXT032").index("00").selection("EXZALC", "EXZSAN", "EXZCA1", "EXZCA2", "EXZCA3", "EXZCA4", "EXZCA5", "EXZCA6", "EXZCA7", "EXZCA8", "EXZORI", "EXZPHY", "EXZALI").build()
+    DBContainer ext032Request = ext032Query.getContainer()
+    ext032Request.set("EXCONO", currentCompany)
+    ext032Request.set("EXPOPN", sig6)
+    ext032Request.set("EXSUNO", suno)
+    ext032Request.set("EXORCO", orco)
+    if (ext032Query.read(ext032Request)) {
+      zalc = ext032Request.get("EXZALC") as Integer
+      zsan = ext032Request.get("EXZSAN") as Integer
+      zcap = ext032Request.get("EXZCA1")
+      zca1 = ext032Request.get("EXZCA1")
+      zca2 = ext032Request.get("EXZCA2")
+      zca3 = ext032Request.get("EXZCA3")
+      zca4 = ext032Request.get("EXZCA4")
+      zca5 = ext032Request.get("EXZCA5")
+      zca6 = ext032Request.get("EXZCA6")
+      zca7 = ext032Request.get("EXZCA7")
+      zca8 = ext032Request.get("EXZCA8")
+      zori = ext032Request.get("EXZORI") as Integer
+      zphy = ext032Request.get("EXZPHY") as Integer
+      zagr = ext032Request.get("EXZAGR") as Integer
+      zali = ext032Request.get("EXZALI") as Integer
     }
 
-    DBAction CUGEX1_CIDMAS_query = database.table("CUGEX1").index("00").selection("F1A030").build()
-    DBContainer CUGEX1_CIDMAS = CUGEX1_CIDMAS_query.getContainer()
-    CUGEX1_CIDMAS.set("F1CONO", currentCompany)
-    CUGEX1_CIDMAS.set("F1FILE", "CIDMAS")
+    DBAction cugex1CidmasQuery = database.table("CUGEX1").index("00").selection("F1A030").build()
+    DBContainer cugex1CidmasRequest = cugex1CidmasQuery.getContainer()
+    cugex1CidmasRequest.set("F1CONO", currentCompany)
+    cugex1CidmasRequest.set("F1FILE", "CIDMAS")
     if (prod.trim() != "") {
-      CUGEX1_CIDMAS.set("F1PK01", prod)
+      cugex1CidmasRequest.set("F1PK01", prod)
     } else {
-      CUGEX1_CIDMAS.set("F1PK01", suno)
+      cugex1CidmasRequest.set("F1PK01", suno)
     }
-    CUGEX1_CIDMAS.set("F1PK02", "")
-    CUGEX1_CIDMAS.set("F1PK03", "")
-    CUGEX1_CIDMAS.set("F1PK04", "")
-    CUGEX1_CIDMAS.set("F1PK05", "")
-    CUGEX1_CIDMAS.set("F1PK06", "")
-    CUGEX1_CIDMAS.set("F1PK07", "")
-    CUGEX1_CIDMAS.set("F1PK08", "")
-    if (CUGEX1_CIDMAS_query.read(CUGEX1_CIDMAS)) {
-      znag = CUGEX1_CIDMAS.get("F1A030")
+    cugex1CidmasRequest.set("F1PK02", "")
+    cugex1CidmasRequest.set("F1PK03", "")
+    cugex1CidmasRequest.set("F1PK04", "")
+    cugex1CidmasRequest.set("F1PK05", "")
+    cugex1CidmasRequest.set("F1PK06", "")
+    cugex1CidmasRequest.set("F1PK07", "")
+    cugex1CidmasRequest.set("F1PK08", "")
+    if (cugex1CidmasQuery.read(cugex1CidmasRequest)) {
+      znag = cugex1CidmasRequest.get("F1A030")
     }
     double cofa = 0
     double zqco = 0
-    DBAction query_MITAUN = database.table("MITAUN").index("00").selection("MUCOFA").build()
-    DBContainer MITAUN = query_MITAUN.getContainer()
-    MITAUN.set("MUCONO", currentCompany)
-    MITAUN.set("MUITNO", itno)
-    MITAUN.set("MUAUTP", 1)
-    MITAUN.set("MUALUN", "COL")
-    if (query_MITAUN.read(MITAUN)) {
-      cofa = MITAUN.get("MUCOFA") as Double
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itno)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", "COL")
+    if (mitaunQuery.read(mitaunRequest)) {
+      cofa = mitaunRequest.get("MUCOFA") as Double
       if (alqt != 0 && cofa != 0)
         zqco = alqt / cofa
     }
@@ -364,63 +363,61 @@ public class LstConstraints extends ExtendM3Transaction {
     String zagr = datasITEM["ZAGR"]
     String znag = datasITEM["ZNAG"]
 
+    ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
+    ext030Expression = (ext030Expression.eq("EXCUNO", cuno)).or(ext030Expression.eq("EXCUNO", ""))
 
-    ExpressionFactory expression_EXT030 = database.getExpressionFactory("EXT030")
-    expression_EXT030 = (expression_EXT030.eq("EXCUNO", cuno)).or(expression_EXT030.eq("EXCUNO", ""))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSCD", cscd)).or(ext030Expression.eq("EXCSCD", "")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCSCD", cscd)).or(expression_EXT030.eq("EXCSCD", "")))
-
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXHAZI", hazi as String)).or(expression_EXT030.eq("EXHAZI", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXHAZI", hazi as String)).or(ext030Expression.eq("EXHAZI", "2")))
 
     if (hie5 != "") {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXHIE0", hie5)).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 2) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 4) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 7) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 9) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 11) + "*")).or(expression_EXT030.eq("EXHIE0", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXHIE0", hie5)).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 2) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 4) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 7) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 9) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 11) + "*")).or(ext030Expression.eq("EXHIE0", "")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXHIE0", hie5)).or(expression_EXT030.eq("EXHIE0", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXHIE0", hie5)).or(ext030Expression.eq("EXHIE0", "")))
     }
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCFI4", cfi4)).or(expression_EXT030.eq("EXCFI4", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXCFI4", cfi4)).or(ext030Expression.eq("EXCFI4", "")))
 
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXPOPN", sig6)).or(expression_EXT030.eq("EXPOPN", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXPOPN", sig6)).or(ext030Expression.eq("EXPOPN", "")))
 
     if (csno != "") {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCSNO", csno)).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 1) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 2) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 3) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 4) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 5) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 6) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 7) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 8) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 9) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 10) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 11) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 12) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 13) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 14) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 15) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 16) + "*")).or(expression_EXT030.eq("EXCSNO", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSNO", csno)).or(ext030Expression.eq("EXCSNO", csno.substring(0, 1) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 2) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 3) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 4) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 5) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 6) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 7) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 8) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 9) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 10) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 11) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 12) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 13) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 14) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 15) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 16) + "*")).or(ext030Expression.eq("EXCSNO", "")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCSNO", csno)).or(expression_EXT030.eq("EXCSNO", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSNO", csno)).or(ext030Expression.eq("EXCSNO", "")))
     }
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXORCO", orco)).or(expression_EXT030.eq("EXORCO", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXORCO", orco)).or(ext030Expression.eq("EXORCO", "")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZALC", zalc as String)).or(expression_EXT030.eq("EXZALC", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZALC", zalc as String)).or(ext030Expression.eq("EXZALC", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZSAN", zsan as String)).or(expression_EXT030.eq("EXZSAN", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZSAN", zsan as String)).or(ext030Expression.eq("EXZSAN", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZCAP", zca1)).or(expression_EXT030.eq("EXZCAP", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZCAP", zca1)).or(ext030Expression.eq("EXZCAP", "")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZCAS", zca1)).or(expression_EXT030.eq("EXZCAS", zca2)).or(expression_EXT030.eq("EXZCAS", zca3)).or(expression_EXT030.eq("EXZCAS", zca4)).or(expression_EXT030.eq("EXZCAS", zca5)).or(expression_EXT030.eq("EXZCAS", zca6)).or(expression_EXT030.eq("EXZCAS", zca7)).or(expression_EXT030.eq("EXZCAS", zca8)).or(expression_EXT030.eq("EXZCAS", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZCAS", zca1)).or(ext030Expression.eq("EXZCAS", zca2)).or(ext030Expression.eq("EXZCAS", zca3)).or(ext030Expression.eq("EXZCAS", zca4)).or(ext030Expression.eq("EXZCAS", zca5)).or(ext030Expression.eq("EXZCAS", zca6)).or(ext030Expression.eq("EXZCAS", zca7)).or(ext030Expression.eq("EXZCAS", zca8)).or(ext030Expression.eq("EXZCAS", "")))
 
     if (znag != "") {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZNAG", znag)).or(expression_EXT030.eq("EXZNAG", znag.substring(0, 4) + "*")).or(expression_EXT030.eq("EXZNAG", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZNAG", znag)).or(ext030Expression.eq("EXZNAG", znag.substring(0, 4) + "*")).or(ext030Expression.eq("EXZNAG", "")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZNAG", znag)).or(expression_EXT030.eq("EXZNAG", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZNAG", znag)).or(ext030Expression.eq("EXZNAG", "")))
     }
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZALI", zali as String)).or(expression_EXT030.eq("EXZALI", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZALI", zali as String)).or(ext030Expression.eq("EXZALI", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZORI", zori as String)).or(expression_EXT030.eq("EXZORI", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZORI", zori as String)).or(ext030Expression.eq("EXZORI", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZPHY", zphy as String)).or(expression_EXT030.eq("EXZPHY", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZPHY", zphy as String)).or(ext030Expression.eq("EXZPHY", "2")))
 
     if (orco == "FR"){
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZOHF", "0")).or(expression_EXT030.eq("EXZOHF", "2")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZOHF", "0")).or(ext030Expression.eq("EXZOHF", "2")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZOHF", "1")).or(expression_EXT030.eq("EXZOHF", "2")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZOHF", "1")).or(ext030Expression.eq("EXZOHF", "2")))
     }
 
-
-    DBAction EXT030_query = database.table("EXT030")
+    DBAction ext030Query = database.table("EXT030")
       .index("20")
-      .matching(expression_EXT030)
+      .matching(ext030Expression)
       .selection("EXZCID"
         , "EXZCOD"
         , "EXSTAT"
@@ -443,11 +440,10 @@ public class LstConstraints extends ExtendM3Transaction {
         , "EXZORI"
         , "EXZOHF"
       ).build()
-    DBContainer EXT030 = EXT030_query.getContainer()
-    EXT030.set("EXCONO", currentCompany)
-    EXT030.set("EXSTAT", "20")
-
-    if (!EXT030_query.readAll(EXT030, 2, EXT030_reader)) {
+    DBContainer ext030Request = ext030Query.getContainer()
+    ext030Request.set("EXCONO", currentCompany)
+    ext030Request.set("EXSTAT", "20")
+    if (!ext030Query.readAll(ext030Request, 2, 10000, ext030Reader)) {
       in60 = true
       msgd = "Aucun enregistrement pour client:${cuno} sigma:${sig6}"
     }
@@ -455,7 +451,7 @@ public class LstConstraints extends ExtendM3Transaction {
   /**
    * Read EXT030 constraint
    */
-  Closure<?> EXT030_reader = { DBContainer EXT030_result ->
+  Closure<?> ext030Reader = { DBContainer EXT030_result ->
     mi.outData.put("ZCID", EXT030_result.get("EXZCID") as String)
     mi.outData.put("ZCOD", EXT030_result.get("EXZCOD") as String)
     mi.outData.put("STAT", EXT030_result.get("EXSTAT") as String)

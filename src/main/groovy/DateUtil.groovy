@@ -13,7 +13,8 @@ import java.time.temporal.ChronoUnit
  * 
  * Date         Changed By    Description
  * 20221122     FLEBARS       Creation
-*/
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ */
 public class DateUtil extends ExtendM3Utility {
 
   /**

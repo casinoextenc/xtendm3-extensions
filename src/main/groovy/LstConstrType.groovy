@@ -1,21 +1,22 @@
 /**
  * README
  * This extension is used by Mashup
- * 
+ * QUAX01 Gestion du référentiel qualité
  * Name : EXT031MI.LstConstrType
  * Description : List records from the EXT031 table.
  * Date         Changed By   Description
  * 20210125     SEAR         QUAX01 - Constraints matrix 
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
+
 
 public class LstConstrType extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
   private final ProgramAPI program
+
+  private int currentCompany
 
   public LstConstrType(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
     this.mi = mi
@@ -25,42 +26,42 @@ public class LstConstrType extends ExtendM3Transaction {
   }
 
   public void main() {
-    Integer currentCompany
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
+
     if (mi.in.get("ZCTY") == null) {
-      DBAction query = database.table("EXT031").index("00").selection("EXZCTY", "EXZTYP", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
-      DBContainer EXT031 = query.getContainer()
-      EXT031.set("EXCONO", currentCompany)
-      if(!query.readAll(EXT031, 1, outData)){
+      DBAction ext031Query = database.table("EXT031").index("00").selection("EXZCTY", "EXZTYP", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
+      DBContainer ext031Request = ext031Query.getContainer()
+      ext031Request.set("EXCONO", currentCompany)
+      if (!ext031Query.readAll(ext031Request, 1, 10000, ext031Reader)) {
         mi.error("L'enregistrement n'existe pas")
         return
       }
     } else {
       String constraintType = mi.in.get("ZCTY")
-      ExpressionFactory expression = database.getExpressionFactory("EXT031")
-      expression = expression.ge("EXZCTY", constraintType)
-      DBAction query = database.table("EXT031").index("00").matching(expression).selection("EXZCTY", "EXZTYP", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
-      DBContainer EXT031 = query.getContainer()
-      EXT031.set("EXCONO", currentCompany)
-      if(!query.readAll(EXT031, 1, outData)){
+      ExpressionFactory ext031Expression = database.getExpressionFactory("EXT031")
+      ext031Expression = ext031Expression.ge("EXZCTY", constraintType)
+      DBAction ext031Query = database.table("EXT031").index("00").matching(ext031Expression).selection("EXZCTY", "EXZTYP", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
+      DBContainer ext031Request = ext031Query.getContainer()
+      ext031Request.set("EXCONO", currentCompany)
+      if (!ext031Query.readAll(ext031Request, 1, 10000, ext031Reader)) {
         mi.error("L'enregistrement n'existe pas")
         return
       }
     }
   }
 
-  Closure<?> outData = { DBContainer EXT031 ->
-    String constraintType = EXT031.get("EXZCTY")
-    String description = EXT031.get("EXZTYP")
-    String entryDate = EXT031.get("EXRGDT")
-    String entryTime = EXT031.get("EXRGTM")
-    String changeDate = EXT031.get("EXLMDT")
-    String changeNumber = EXT031.get("EXCHNO")
-    String changedBy = EXT031.get("EXCHID")
+  Closure<?> ext031Reader = { DBContainer ext031Result ->
+    String constraintType = ext031Result.get("EXZCTY")
+    String description = ext031Result.get("EXZTYP")
+    String entryDate = ext031Result.get("EXRGDT")
+    String entryTime = ext031Result.get("EXRGTM")
+    String changeDate = ext031Result.get("EXLMDT")
+    String changeNumber = ext031Result.get("EXCHNO")
+    String changedBy = ext031Result.get("EXCHID")
     mi.outData.put("ZCTY", constraintType)
     mi.outData.put("ZTYP", description)
     mi.outData.put("RGDT", entryDate)

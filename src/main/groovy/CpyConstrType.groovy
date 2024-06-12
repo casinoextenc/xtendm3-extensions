@@ -1,11 +1,12 @@
 /**
  * README
  * This extension is used by Mashup
- * 
+ * QUAX01 Gestion du référentiel qualité
  * Name : EXT031MI.CpyConstrType
  * Description : Copy records to the EXT031 table.
  * Date         Changed By   Description
- * 20230125     SEAR         QUAX01 - Constraints matrix 
+ * 20230125     SEAR         QUAX01 - Constraints matrix
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -15,42 +16,43 @@ public class CpyConstrType extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
 
-  public CpyConstrType(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+  private int currentCompany
+
+  public CpyConstrType(MIAPI mi, DatabaseAPI database, ProgramAPI program, LoggerAPI logger) {
     this.mi = mi
     this.database = database
     this.program = program
+    this.logger = logger
   }
 
   public void main() {
-    Integer currentCompany
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
+
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("EXT031").index("00").selection("EXZTYP").build()
-    DBContainer EXT031 = query.getContainer()
-    EXT031.set("EXCONO", currentCompany)
-    EXT031.set("EXZCTY", mi.in.get("ZCTY"))
-    if(query.read(EXT031)){
-      EXT031.set("EXZCTY", mi.in.get("CZCT"))
-      if (!query.read(EXT031)) {
-        EXT031.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-        EXT031.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-        EXT031.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-        EXT031.setInt("EXCHNO", 1)
-        EXT031.set("EXCHID", program.getUser())
-        query.insert(EXT031)
+    DBAction ext031Query = database.table("EXT031").index("00").selection("EXZTYP").build()
+    DBContainer ext031Request = ext031Query.getContainer()
+    ext031Request.set("EXCONO", currentCompany)
+    ext031Request.set("EXZCTY", mi.in.get("ZCTY"))
+
+    if (ext031Query.read(ext031Request)) {
+      ext031Request.set("EXZCTY", mi.in.get("CZCT"))
+      if (!ext031Query.read(ext031Request)) {
+        ext031Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+        ext031Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+        ext031Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+        ext031Request.setInt("EXCHNO", 1)
+        ext031Request.set("EXCHID", program.getUser())
+        ext031Query.insert(ext031Request)
       } else {
         mi.error("L'enregistrement existe déjà")
       }
     } else {
       mi.error("L'enregistrement n'existe pas")
-      return
     }
   }
 }

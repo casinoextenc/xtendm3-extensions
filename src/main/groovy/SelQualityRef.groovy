@@ -1,30 +1,28 @@
 /**
  * README
  * This extension is used by Mashup
- *
+ * QUAX01 Gestion du référentiel qualité
  * Name : EXT032MI.SelQualityRef
  * Description : List records to the EXT032 table.
  * Date         Changed By   Description
  * 20230210     SEAR         QUAX01 - Constraints matrix
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
-
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 public class SelQualityRef extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
+
+
+  private int currentCompany
   private int countLine
   private int nbli
   private int nbsl
   private int maxSel
-  
+
   public SelQualityRef(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.mi = mi
     this.database = database
@@ -35,67 +33,62 @@ public class SelQualityRef extends ExtendM3Transaction {
   }
 
   public void main() {
-
-    Integer currentCompany
-    String suno = (mi.in.get("SUNO") != null ? (String)mi.in.get("SUNO") : "")
-    String popn = (mi.in.get("POPN") != null ? (String)mi.in.get("POPN") : "")
-    String orco = (mi.in.get("ORCO") != null ? (String)mi.in.get("ORCO") : "")
-    nbli = (mi.in.get("NBLI") != null ? (Integer)mi.in.get("NBLI") : 0)
-    nbsl = (mi.in.get("NBSL") != null ? (Integer)mi.in.get("NBSL") : 50)
-    int desc = (mi.in.get("DESC") != null ? (Integer)mi.in.get("DESC") : 0)
+    nbli = (mi.in.get("NBLI") != null ? (Integer) mi.in.get("NBLI") : 0)
+    nbsl = (mi.in.get("NBSL") != null ? (Integer) mi.in.get("NBSL") : 50)
+    int desc = (mi.in.get("DESC") != null ? (Integer) mi.in.get("DESC") : 0)
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
-    
+
     maxSel = nbli + nbsl
 
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    String sigma6 =  (String)(mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
-    String supplier = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
-    String alimental = (mi.in.get("ZALI") != null ? (Integer)mi.in.get("ZALI") : 0)
-    String quality = (mi.in.get("ZQUA") != null ? (Integer)mi.in.get("ZQUA") : 0)
-    ExpressionFactory expression = database.getExpressionFactory("EXT032")
+    String sigma6 = (String) (mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
+    String supplier = (String) (mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
+    String alimental = (mi.in.get("ZALI") != null ? (Integer) mi.in.get("ZALI") : 0)
+    String quality = (mi.in.get("ZQUA") != null ? (Integer) mi.in.get("ZQUA") : 0)
+
+    ExpressionFactory ext032Expression = database.getExpressionFactory("EXT032")
 
     int countExpression = 0
-    
+
     if (sigma6.length() > 0) {
-      expression = expression.eq("EXPOPN", sigma6)
+      ext032Expression = ext032Expression.eq("EXPOPN", sigma6)
       countExpression++
     }
-    
+
     if (supplier.length() > 0) {
       if (countExpression == 0) {
-        expression = expression.eq("EXSUNO", supplier)
+        ext032Expression = ext032Expression.eq("EXSUNO", supplier)
       } else {
-        expression = expression.and(expression.eq("EXSUNO", supplier))
+        ext032Expression = ext032Expression.and(ext032Expression.eq("EXSUNO", supplier))
       }
       countExpression++
     }
     if (mi.in.get("ZALI") != null) {
       if (countExpression == 0) {
-        expression = expression.eq("EXZALI", alimental)
+        ext032Expression = ext032Expression.eq("EXZALI", alimental)
       } else {
-        expression = expression.and(expression.eq("EXZALI", alimental))
+        ext032Expression = ext032Expression.and(ext032Expression.eq("EXZALI", alimental))
       }
       countExpression++
     }
     if (mi.in.get("ZQUA") != null) {
       if (countExpression == 0) {
-        expression = expression.eq("EXZQUA", quality)
+        ext032Expression = ext032Expression.eq("EXZQUA", quality)
       } else {
-        expression = expression.and(expression.eq("EXZQUA", quality))
+        ext032Expression = ext032Expression.and(ext032Expression.eq("EXZQUA", quality))
       }
       countExpression++
     }
-   
+
     if (desc == 1) {
       //Check if record exists
-      DBAction queryEXT032Desc = database.table("EXT032")
-          .index("20")
-          .matching(expression)
-          .selection(
+      DBAction ext032QueryDesc = database.table("EXT032")
+        .index("20")
+        .matching(ext032Expression)
+        .selection(
           "EXSUNO",
           "EXPOPN",
           "EXORCO",
@@ -136,23 +129,22 @@ public class SelQualityRef extends ExtendM3Transaction {
           "EXLMDT",
           "EXCHNO",
           "EXCHID"
-          )
-          .build()
-  
-      DBContainer containerEXT032 = queryEXT032Desc.getContainer()
-      containerEXT032.set("EXCONO", currentCompany)
-  
+        )
+        .build()
+
+      DBContainer ext032Request = ext032QueryDesc.getContainer()
+      ext032Request.set("EXCONO", currentCompany)
+
       //Record exists
-      if (!queryEXT032Desc.readAll(containerEXT032, 1, outData)){
-        //mi.error("L'enregistrement n'existe pas")
+      if (!ext032QueryDesc.readAll(ext032Request, 1, maxSel, ext032Reader)) {
         return
       }
     } else {
       //Check if record exists
-      DBAction queryEXT032 = database.table("EXT032")
-          .index("00")
-          .matching(expression)
-          .selection(
+      DBAction ext032Query = database.table("EXT032")
+        .index("00")
+        .matching(ext032Expression)
+        .selection(
           "EXSUNO",
           "EXPOPN",
           "EXORCO",
@@ -193,70 +185,69 @@ public class SelQualityRef extends ExtendM3Transaction {
           "EXLMDT",
           "EXCHNO",
           "EXCHID"
-          )
-          .build()
-  
-      DBContainer containerEXT032 = queryEXT032.getContainer()
-      containerEXT032.set("EXCONO", currentCompany)
-  
+        )
+        .build()
+
+      DBContainer ext032Request = ext032Query.getContainer()
+      ext032Request.set("EXCONO", currentCompany)
+
       //Record exists
-      if (!queryEXT032.readAll(containerEXT032, 1, outData)){
-        //mi.error("L'enregistrement n'existe pas")
+      if (!ext032Query.readAll(ext032Request, 1, maxSel, ext032Reader)) {
         return
       }
     }
 
   }
 
-  Closure<?> outData = { DBContainer containerEXT032 ->
+  Closure<?> ext032Reader = { DBContainer ext032Result ->
     countLine++
     if (countLine > nbli && countLine <= maxSel) {
-      String supplier = containerEXT032.get("EXSUNO")
-      String sigma6 = containerEXT032.get("EXPOPN")
-      String countryOrig = containerEXT032.get("EXORCO")
-      String countryOrigin = containerEXT032.get("EXZORI")
-      String alohol = containerEXT032.get("EXZALC")
-      String carac1 = containerEXT032.get("EXZCA1")
-      String carac2 = containerEXT032.get("EXZCA2")
-      String carac3 = containerEXT032.get("EXZCA3")
-      String carac4 = containerEXT032.get("EXZCA4")
-      String carac5 = containerEXT032.get("EXZCA5")
-      String carac6 = containerEXT032.get("EXZCA6")
-      String carac7 = containerEXT032.get("EXZCA7")
-      String carac8 = containerEXT032.get("EXZCA8")
-      String textID = containerEXT032.get("EXTXID")
-      String storage = containerEXT032.get("EXZCON")
-      String weight = containerEXT032.get("EXZPEG")
-      String sanitary = containerEXT032.get("EXZSAN")
-      String agreement = containerEXT032.get("EXZAGR")
-      String codeIdentity = containerEXT032.get("EXZCOI")
-      String phyto = containerEXT032.get("EXZPHY")
-      String latin = containerEXT032.get("EXZLAT")
-      String nutri = containerEXT032.get("EXZNUT")
-      String Kcalori = containerEXT032.get("EXZCAL")
-      String Kjoule = containerEXT032.get("EXZJOU")
-      String fat = containerEXT032.get("EXZMAT")
-      String fattyAcid = containerEXT032.get("EXZAGS")
-      String carbohydrate = containerEXT032.get("EXZGLU")
-      String sugar = containerEXT032.get("EXZSUC")
-      String fiber = containerEXT032.get("EXZFIB")
-      String protein = containerEXT032.get("EXZPRO")
-      String salt = containerEXT032.get("EXZSEL")
-      String alcoholyn = containerEXT032.get("EXZALL")
-      String agreementyn = containerEXT032.get("EXZAGT")
-      String quality = containerEXT032.get("EXZQUA")
-      String alimental = containerEXT032.get("EXZALI")
-      String entryDate = containerEXT032.get("EXRGDT")
-      String entryTime = containerEXT032.get("EXRGTM")
-      String changeDate = containerEXT032.get("EXLMDT")
-      String changeNumber = containerEXT032.get("EXCHNO")
-      String changedBy = containerEXT032.get("EXCHID")
+      String supplier = ext032Result.get("EXSUNO")
+      String sigma6 = ext032Result.get("EXPOPN")
+      String countryOrig = ext032Result.get("EXORCO")
+      String countryOrigin = ext032Result.get("EXZORI")
+      String alohol = ext032Result.get("EXZALC")
+      String carac1 = ext032Result.get("EXZCA1")
+      String carac2 = ext032Result.get("EXZCA2")
+      String carac3 = ext032Result.get("EXZCA3")
+      String carac4 = ext032Result.get("EXZCA4")
+      String carac5 = ext032Result.get("EXZCA5")
+      String carac6 = ext032Result.get("EXZCA6")
+      String carac7 = ext032Result.get("EXZCA7")
+      String carac8 = ext032Result.get("EXZCA8")
+      String textID = ext032Result.get("EXTXID")
+      String storage = ext032Result.get("EXZCON")
+      String weight = ext032Result.get("EXZPEG")
+      String sanitary = ext032Result.get("EXZSAN")
+      String agreement = ext032Result.get("EXZAGR")
+      String codeIdentity = ext032Result.get("EXZCOI")
+      String phyto = ext032Result.get("EXZPHY")
+      String latin = ext032Result.get("EXZLAT")
+      String nutri = ext032Result.get("EXZNUT")
+      String Kcalori = ext032Result.get("EXZCAL")
+      String Kjoule = ext032Result.get("EXZJOU")
+      String fat = ext032Result.get("EXZMAT")
+      String fattyAcid = ext032Result.get("EXZAGS")
+      String carbohydrate = ext032Result.get("EXZGLU")
+      String sugar = ext032Result.get("EXZSUC")
+      String fiber = ext032Result.get("EXZFIB")
+      String protein = ext032Result.get("EXZPRO")
+      String salt = ext032Result.get("EXZSEL")
+      String alcoholyn = ext032Result.get("EXZALL")
+      String agreementyn = ext032Result.get("EXZAGT")
+      String quality = ext032Result.get("EXZQUA")
+      String alimental = ext032Result.get("EXZALI")
+      String entryDate = ext032Result.get("EXRGDT")
+      String entryTime = ext032Result.get("EXRGTM")
+      String changeDate = ext032Result.get("EXLMDT")
+      String changeNumber = ext032Result.get("EXCHNO")
+      String changedBy = ext032Result.get("EXCHID")
       mi.outData.put("SUNO", supplier)
       mi.outData.put("POPN", sigma6)
       mi.outData.put("ORCO", countryOrig)
       mi.outData.put("ZORI", countryOrigin)
       mi.outData.put("ZALC", alohol)
-      mi.outData.put("ZCA1",carac1)
+      mi.outData.put("ZCA1", carac1)
       mi.outData.put("ZCA2", carac2)
       mi.outData.put("ZCA3", carac3)
       mi.outData.put("ZCA4", carac4)
@@ -296,7 +287,7 @@ public class SelQualityRef extends ExtendM3Transaction {
     if (countLine > maxSel) {
       return
     }
-    
-    
+
+
   }
 }

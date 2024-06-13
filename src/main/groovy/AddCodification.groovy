@@ -1,12 +1,13 @@
 /**
  * README
  * This extension is used by Mashup
- * 
+ * QUAX01 Gestion du référentiel qualité
  * Name : EXT034MI.AddCodification
  * Description : Add records to the EXT034 table.
  * Date         Changed By   Description
- * 20230201     SEAR         QUAX01 - Constraints matrix 
- * 20230620     FLEBARS      QUAX01 - evol contrainte 
+ * 20230201     SEAR         QUAX01 - Constraints matrix
+ * 20230620     FLEBARS      QUAX01 - evol contrainte
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -16,53 +17,52 @@ public class AddCodification extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
 
-  public AddCodification(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+  private int currentCompany
+
+  public AddCodification(MIAPI mi, DatabaseAPI database, ProgramAPI program, LoggerAPI logger) {
     this.mi = mi
     this.database = database
     this.program = program
+    this.logger = logger
   }
 
   public void main() {
-    Integer currentCompany
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
 
     //Check if record exists in Constraint Type Table (EXT031)
     if (mi.in.get("ZCTY") != null) {
-      DBAction query = database.table("EXT031").index("00").build()
-      DBContainer EXT031 = query.getContainer()
-      EXT031.set("EXCONO", currentCompany)
-      EXT031.set("EXZCTY", mi.in.get("ZCTY"))
-      if (!query.read(EXT031)) {
+      DBAction ext031Query = database.table("EXT031").index("00").build()
+      DBContainer ext031Request = ext031Query.getContainer()
+      ext031Request.set("EXCONO", currentCompany)
+      ext031Request.set("EXZCTY", mi.in.get("ZCTY"))
+      if (!ext031Query.read(ext031Request)) {
         mi.error("Type de contrainte " + mi.in.get("ZCTY") + " n'existe pas")
         return
       }
     }
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("EXT034").index("00").build()
-    DBContainer EXT034 = query.getContainer()
-    EXT034.set("EXCONO", currentCompany)
-    EXT034.set("EXZCOD",  mi.in.get("ZCOD"))
-    if (!query.read(EXT034)) {
-      EXT034.set("EXZDES", mi.in.get("ZDES"))
-      EXT034.set("EXZCTY", mi.in.get("ZCTY"))
-      EXT034.set("EXZSTY", mi.in.get("ZSTY"))
-      EXT034.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT034.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-      EXT034.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT034.setInt("EXCHNO", 1)
-      EXT034.set("EXCHID", program.getUser())
-      query.insert(EXT034)
+    DBAction ext034Query = database.table("EXT034").index("00").build()
+    DBContainer ext034Request = ext034Query.getContainer()
+    ext034Request.set("EXCONO", currentCompany)
+    ext034Request.set("EXZCOD", mi.in.get("ZCOD"))
+    if (!ext034Query.read(ext034Request)) {
+      ext034Request.set("EXZDES", mi.in.get("ZDES"))
+      ext034Request.set("EXZCTY", mi.in.get("ZCTY"))
+      ext034Request.set("EXZSTY", mi.in.get("ZSTY"))
+      ext034Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext034Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+      ext034Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext034Request.setInt("EXCHNO", 1)
+      ext034Request.set("EXCHID", program.getUser())
+      ext034Query.insert(ext034Request)
     } else {
       mi.error("L'enregistrement existe déjà")
-      return
     }
   }
 }

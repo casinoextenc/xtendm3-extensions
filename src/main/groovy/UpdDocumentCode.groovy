@@ -1,47 +1,45 @@
 /**
  * README
  * This extension is used by Mashup
- * 
+ * QUAX01 Gestion du référentiel qualité
  * Name : EXT035MI.UpdDocumentCode
  * Description : Add records to the EXT035 table.
  * Date         Changed By   Description
- * 20230201     SEAR         QUAX01 - Constraints matrix 
+ * 20230201     SEAR         QUAX01 - Constraints matrix
+ * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 public class UpdDocumentCode extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final UtilityAPI utility
+
+  private int currentCompany
   private String ads1 = ""
 
-  public UpdDocumentCode(MIAPI mi, DatabaseAPI database, ProgramAPI program, UtilityAPI utility) {
+  public UpdDocumentCode(MIAPI mi, DatabaseAPI database, ProgramAPI program, UtilityAPI utility, LoggerAPI logger) {
     this.mi = mi
     this.database = database
     this.program = program
-    this.utility=utility
+    this.utility = utility
+    this.logger = logger
   }
 
   public void main() {
-    Integer currentCompany
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
 
     //Check if record exists in Constraint Code Table (EXT034)
     if (mi.in.get("ZCOD") != null) {
-      DBAction queryEXT034 = database.table("EXT034").index("00").build()
-      DBContainer EXT034 = queryEXT034.getContainer()
-      EXT034.set("EXCONO", currentCompany)
-      EXT034.set("EXZCOD", mi.in.get("ZCOD"))
-      if (!queryEXT034.read(EXT034)) {
+      DBAction ext034Query = database.table("EXT034").index("00").build()
+      DBContainer ext034Request = ext034Query.getContainer()
+      ext034Request.set("EXCONO", currentCompany)
+      ext034Request.set("EXZCOD", mi.in.get("ZCOD"))
+      if (!ext034Query.read(ext034Request)) {
         mi.error("Code contrainte " + mi.in.get("ZCOD") + " n'existe pas")
         return
       }
@@ -49,12 +47,12 @@ public class UpdDocumentCode extends ExtendM3Transaction {
 
     //Check if record exists in country Code Table (CSYTAB)
     if (mi.in.get("CSCD") != null) {
-      DBAction queryCSYTAB = database.table("CSYTAB").index("00").build()
-      DBContainer ContainerCSYTAB = queryCSYTAB.getContainer()
-      ContainerCSYTAB.set("CTCONO", currentCompany)
-      ContainerCSYTAB.set("CTSTCO", "CSCD")
-      ContainerCSYTAB.set("CTSTKY", mi.in.get("CSCD"))
-      if (!queryCSYTAB.read(ContainerCSYTAB)) {
+      DBAction csytabQuery = database.table("CSYTAB").index("00").build()
+      DBContainer csytabRequest = csytabQuery.getContainer()
+      csytabRequest.set("CTCONO", currentCompany)
+      csytabRequest.set("CTSTCO", "CSCD")
+      csytabRequest.set("CTSTKY", mi.in.get("CSCD"))
+      if (!csytabQuery.read(csytabRequest)) {
         mi.error("Code pays " + mi.in.get("CSCD") + " n'existe pas")
         return
       }
@@ -62,11 +60,11 @@ public class UpdDocumentCode extends ExtendM3Transaction {
 
     //Check if record Cutomer in Customer Table (OCUSMA)
     if (mi.in.get("CUNO") != null) {
-      DBAction queryOCUSMA = database.table("OCUSMA").index("00").build()
-      DBContainer ContainerOCUSMA = queryOCUSMA.getContainer()
-      ContainerOCUSMA.set("OKCONO", currentCompany)
-      ContainerOCUSMA.set("OKCUNO", mi.in.get("CUNO"))
-      if (!queryOCUSMA.read(ContainerOCUSMA)) {
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").build()
+      DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+      ocusmaRequest.set("OKCONO", currentCompany)
+      ocusmaRequest.set("OKCUNO", mi.in.get("CUNO"))
+      if (!ocusmaQuery.read(ocusmaRequest)) {
         mi.error("Code client " + mi.in.get("CUNO") + " n'existe pas")
         return
       }
@@ -74,15 +72,15 @@ public class UpdDocumentCode extends ExtendM3Transaction {
 
     //Check if record exists in Document Code Table (MPDDOC)
     if (mi.in.get("DOID") != null) {
-      DBAction queryMPDDOC = database.table("MPDDOC").index("00").selection("DOADS1").build()
-      DBContainer ContainerMPDDOC = queryMPDDOC.getContainer()
-      ContainerMPDDOC.set("DOCONO", currentCompany)
-      ContainerMPDDOC.set("DODOID", mi.in.get("DOID"))
-      if (!queryMPDDOC.read(ContainerMPDDOC)) {
+      DBAction mpddocQuery = database.table("MPDDOC").index("00").selection("DOADS1").build()
+      DBContainer mpddocRequest = mpddocQuery.getContainer()
+      mpddocRequest.set("DOCONO", currentCompany)
+      mpddocRequest.set("DODOID", mi.in.get("DOID"))
+      if (!mpddocQuery.read(mpddocRequest)) {
         mi.error("Code Document " + mi.in.get("DOID") + " n'existe pas")
         return
       }
-      ads1 = (String)ContainerMPDDOC.get("DOADS1")
+      ads1 = (String) mpddocRequest.get("DOADS1")
     }
 
     //document type from input
@@ -91,9 +89,9 @@ public class UpdDocumentCode extends ExtendM3Transaction {
     }
 
     //Check if record exists
-    DBAction queryEXT035 = database.table("EXT035")
-        .index("00")
-        .selection(
+    DBAction ext035Query = database.table("EXT035")
+      .index("00")
+      .selection(
         "EXCONO",
         "EXZCOD",
         "EXCSCD",
@@ -105,33 +103,34 @@ public class UpdDocumentCode extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
-    DBContainer containerEXT035 = queryEXT035.getContainer()
-    containerEXT035.set("EXCONO", currentCompany)
-    containerEXT035.set("EXZCOD", mi.in.get("ZCOD"))
-    containerEXT035.set("EXCSCD", mi.in.get("CSCD"))
-    containerEXT035.set("EXCUNO", mi.in.get("CUNO"))
-    containerEXT035.set("EXDOID", mi.in.get("DOID"))
+    DBContainer ext035Request = ext035Query.getContainer()
+    ext035Request.set("EXCONO", currentCompany)
+    ext035Request.set("EXZCOD", mi.in.get("ZCOD"))
+    ext035Request.set("EXCSCD", mi.in.get("CSCD"))
+    ext035Request.set("EXCUNO", mi.in.get("CUNO"))
+    ext035Request.set("EXDOID", mi.in.get("DOID"))
 
-    //Record exists
-    if (!queryEXT035.read(containerEXT035)) {
+    Closure<?> ext035Updater = { LockedResult ext035LockedResultEXT035 ->
+      if (mi.in.get("CSCD") != null)
+        ext035LockedResultEXT035.set("EXCSCD", mi.in.get("CSCD"))
+      if (mi.in.get("CUNO") != null)
+        ext035LockedResultEXT035.set("EXCUNO", mi.in.get("CUNO"))
+      if (mi.in.get("DOID") != null)
+        ext035LockedResultEXT035.set("EXDOID", mi.in.get("DOID"))
+      if (mi.in.get("ADS1") != null)
+        ext035LockedResultEXT035.set("EXADS1", ads1)
+      ext035LockedResultEXT035.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+      ext035LockedResultEXT035.set("EXCHNO", ((Integer) ext035LockedResultEXT035.get("EXCHNO") + 1))
+      ext035LockedResultEXT035.set("EXCHID", program.getUser())
+      ext035LockedResultEXT035.update()
+    }
+
+    if (!ext035Query.readLock(ext035Request, ext035Updater)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
-
-    Closure<?> updateEXT035 = { LockedResult lockedResultEXT035 ->
-      lockedResultEXT035.set("EXCSCD", mi.in.get("CSCD"))
-      lockedResultEXT035.set("EXCUNO", mi.in.get("CUNO"))
-      lockedResultEXT035.set("EXDOID", mi.in.get("DOID"))
-      lockedResultEXT035.set("EXADS1", ads1)
-      lockedResultEXT035.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-      lockedResultEXT035.set("EXCHNO", ((Integer)lockedResultEXT035.get("EXCHNO") + 1))
-      lockedResultEXT035.set("EXCHID", program.getUser())
-      lockedResultEXT035.update()
-    }
-
-    queryEXT035.readLock(containerEXT035, updateEXT035)
   }
 }

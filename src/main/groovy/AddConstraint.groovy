@@ -24,7 +24,7 @@ public class AddConstraint extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private String nbnr
-  private String currentCompany
+  private int currentCompany
 
   public AddConstraint(MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility, LoggerAPI logger) {
     this.mi = mi

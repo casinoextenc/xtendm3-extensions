@@ -3,11 +3,11 @@
  * name: AddRefAsso
  * program: EXT010MI
  * description: Add assortment record in EXT010
- *
- *
+ * COMX01 Gestion des assortiments clients
  * Date         Changed By    Description
  * 20221122     FLEBARS       COMX01 - Creation
  * 20240228     FLEBARS       Gestion statuts 20-50
+ * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
  */
 public class AddRefAsso extends ExtendM3Transaction {
   private final MIAPI mi
@@ -66,12 +66,14 @@ public class AddRefAsso extends ExtendM3Transaction {
       mi.error("il faut renseigner soit le fournisseur entrepot soit le fournisseur direct")
       return
     }
+    // sule is a supplier with CIDMAS.SUCL = 200
     if (sule.length() > 0) {
       if (!checkSupplier(sule, "200")){
         mi.error(errorMessage)
         return
       }
     }
+    // suld is a supplier with CIDMAS.SUCL = 100
     if (suld.length() > 0) {
       if (!checkSupplier(suld, "100")){
         mi.error(errorMessage)
@@ -118,7 +120,7 @@ public class AddRefAsso extends ExtendM3Transaction {
     }
 
     //Check if record exists
-    DBAction queryEXT010 = database.table("EXT010")
+    DBAction ext010Query = database.table("EXT010")
       .index("00")
       .selection(
         "EXCONO",
@@ -144,41 +146,41 @@ public class AddRefAsso extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer containerEXT010 = queryEXT010.getContainer()
-    containerEXT010.set("EXCONO", currentCompany)
-    containerEXT010.set("EXASGD", asgd)
-    containerEXT010.set("EXCUNO", cuno)
-    containerEXT010.set("EXITNO", itno)
-    containerEXT010.set("EXCDAT", cdat)
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXASGD", asgd)
+    ext010Request.set("EXCUNO", cuno)
+    ext010Request.set("EXITNO", itno)
+    ext010Request.set("EXCDAT", cdat)
 
     //Record exists
-    if (queryEXT010.read(containerEXT010)) {
-      String chid = (String)containerEXT010.get("EXCHID")
+    if (ext010Query.read(ext010Request)) {
+      String chid = (String)ext010Request.get("EXCHID")
       mi.error("L'enregistrement a été crée par l'utilisateur ${chid}")
       return
     }
 
-    containerEXT010.set("EXCONO", currentCompany)
-    containerEXT010.set("EXASGD", asgd)
-    containerEXT010.set("EXCUNO", cuno)
-    containerEXT010.set("EXITNO", itno)
-    containerEXT010.set("EXCDAT", cdat)
-    containerEXT010.set("EXSIG6", itno.substring(0, 6))
-    containerEXT010.set("EXSAPR", sapr)
-    containerEXT010.set("EXSULE", sule)
-    containerEXT010.set("EXSULD", suld)
-    containerEXT010.set("EXFUDS", fuds)
-    containerEXT010.set("EXRSCL", rscl)
-    containerEXT010.set("EXCMDE", cmde)
-    containerEXT010.set("EXTVDT", tvdt)
-    containerEXT010.set("EXFVDT", fvdt)
-    containerEXT010.set("EXLVDT", lvdt)
-    containerEXT010.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
-    containerEXT010.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
-    containerEXT010.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-    containerEXT010.set("EXCHNO", 1)
-    containerEXT010.set("EXCHID", program.getUser())
-    queryEXT010.insert(containerEXT010)
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXASGD", asgd)
+    ext010Request.set("EXCUNO", cuno)
+    ext010Request.set("EXITNO", itno)
+    ext010Request.set("EXCDAT", cdat)
+    ext010Request.set("EXSIG6", itno.substring(0, 6))
+    ext010Request.set("EXSAPR", sapr)
+    ext010Request.set("EXSULE", sule)
+    ext010Request.set("EXSULD", suld)
+    ext010Request.set("EXFUDS", fuds)
+    ext010Request.set("EXRSCL", rscl)
+    ext010Request.set("EXCMDE", cmde)
+    ext010Request.set("EXTVDT", tvdt)
+    ext010Request.set("EXFVDT", fvdt)
+    ext010Request.set("EXLVDT", lvdt)
+    ext010Request.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
+    ext010Request.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
+    ext010Request.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+    ext010Request.set("EXCHNO", 1)
+    ext010Request.set("EXCHID", program.getUser())
+    ext010Query.insert(ext010Request)
   }
 
   /**
@@ -191,15 +193,15 @@ public class AddRefAsso extends ExtendM3Transaction {
    * @return true if ok false otherwise
    * */
   private boolean checkCustomer(String cuno){
-    DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection(
+    DBAction ocusmaQuery = database.table("OCUSMA").index("00").selection(
       "OKCONO", "OKCUNO", "OKSTAT", "OKCUTP").build()
 
-    DBContainer containerOCUSMA = queryOCUSMA.getContainer()
-    containerOCUSMA.set("OKCONO", currentCompany)
-    containerOCUSMA.set("OKCUNO", cuno)
-    if (queryOCUSMA.read(containerOCUSMA)) {
-      String stat = (String)containerOCUSMA.get("OKSTAT")
-      int cutp = (Integer)containerOCUSMA.get("OKCUTP")
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUNO", cuno)
+    if (ocusmaQuery.read(ocusmaRequest)) {
+      String stat = (String)ocusmaRequest.get("OKSTAT")
+      int cutp = (Integer)ocusmaRequest.get("OKCUTP")
       if (!stat.equals("20")){
         errorMessage = "Statut Client ${cuno} est invalide"
         return false
@@ -224,18 +226,16 @@ public class AddRefAsso extends ExtendM3Transaction {
    * @return true if ok false otherwise
    * */
   private boolean checkItem(String itno){
-    DBAction queryMITMAS = database.table("MITMAS").index("00").selection(
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection(
       "MMCONO", "MMITNO", "MMSTAT", "MMFUDS").build()
 
-    DBContainer containerMITMAS = queryMITMAS.getContainer()
-    containerMITMAS.set("MMCONO", currentCompany)
-    containerMITMAS.set("MMITNO", itno)
-    if (queryMITMAS.read(containerMITMAS)) {
-      String stat = (String)containerMITMAS.get("MMSTAT")
-      fuds = (String)containerMITMAS.get("MMFUDS")
-      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)){//A°20240228
-        //if (!stat.equals("20") && !stat.equals("50") ){//A°2024022
-        // if (!stat.equals("20")){//D°20240228
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", itno)
+    if (mitmasQuery.read(mitmasRequest)) {
+      String stat = (String)mitmasRequest.get("MMSTAT")
+      fuds = (String)mitmasRequest.get("MMFUDS")
+      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)){
         errorMessage = "Statut Article ${itno} est invalide"
         return false
       }
@@ -257,18 +257,18 @@ public class AddRefAsso extends ExtendM3Transaction {
    * @return true if ok false otherwise
    * */
   private boolean checkSupplier(String suno, String sucl){
-    DBAction queryCIDMAS = database.table("CIDMAS").index("00").selection(
+    DBAction cidmasQuery = database.table("CIDMAS").index("00").selection(
       "IDCONO", "IDSUNO", "IDSTAT").build()
-    DBContainer containerCIDMAS = queryCIDMAS.getContainer()
+    DBContainer cidmasRequest = cidmasQuery.getContainer()
 
-    DBAction queryCIDVEN = database.table("CIDVEN").index("00").selection(
+    DBAction cidvenQuery = database.table("CIDVEN").index("00").selection(
       "IICONO", "IISUNO", "IISUCL").build()
-    DBContainer containerCIDVEN = queryCIDVEN.getContainer()
+    DBContainer cidvenRequest = cidvenQuery.getContainer()
 
-    containerCIDMAS.set("IDCONO", currentCompany)
-    containerCIDMAS.set("IDSUNO", suno)
-    if (queryCIDMAS.read(containerCIDMAS)) {
-      String stat = (String)containerCIDMAS.get("IDSTAT")
+    cidmasRequest.set("IDCONO", currentCompany)
+    cidmasRequest.set("IDSUNO", suno)
+    if (cidmasQuery.read(cidmasRequest)) {
+      String stat = (String)cidmasRequest.get("IDSTAT")
       if (!stat.equals("20")){
         errorMessage = "Statut fournisseur ${suno} est invalide"
         return false
@@ -280,10 +280,10 @@ public class AddRefAsso extends ExtendM3Transaction {
 
     String dbsucl = ""
 
-    containerCIDVEN.set("IICONO", currentCompany)
-    containerCIDVEN.set("IISUNO", suno)
-    if (queryCIDVEN.read(containerCIDVEN)) {
-      dbsucl = (String)containerCIDVEN.get("IISUCL")
+    cidvenRequest.set("IICONO", currentCompany)
+    cidvenRequest.set("IISUNO", suno)
+    if (cidvenQuery.read(cidvenRequest)) {
+      dbsucl = (String)cidvenRequest.get("IISUCL")
     }
     if (!dbsucl.equals(sucl)){
       errorMessage = "Groupe fournisseur ${suno} est invalide"

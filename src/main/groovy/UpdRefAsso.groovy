@@ -1,13 +1,13 @@
 /**
  * Name : EXT010MI.UpdRefAsso
- *
+ * COMX01 Gestion des assortiments clients
  * Description :
  * This API method to update records in specific table EXT010 Customer Assortment
- *
- *
+ * This API works in mode Add or Upd if does'nt exists
  * Date         Changed By    Description
  * 20221122     FLEBARS       COMX01 - Creation
  * 20240228     FLEBARS       Gestion statuts 20-50
+ * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
  */
 public class UpdRefAsso extends ExtendM3Transaction {
   private final MIAPI mi
@@ -26,7 +26,7 @@ public class UpdRefAsso extends ExtendM3Transaction {
     this.database = database
     this.logger = logger
     this.program = program
-    this.utility=utility
+    this.utility = utility
   }
 
   /**
@@ -36,89 +36,89 @@ public class UpdRefAsso extends ExtendM3Transaction {
    * Serialize in EXT010
    */
   public void main() {
-    currentCompany = (int)program.getLDAZD().CONO
+    currentCompany = (int) program.getLDAZD().CONO
 
     //Get mi inputs
-    String asgd = (String)(mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
-    String cuno = (String)(mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
-    String itno = (String)(mi.in.get("ITNO") != null ? mi.in.get("ITNO") : "")
-    double sapr = (Double)(mi.in.get("SAPR") != null ? mi.in.get("SAPR") : 0)
-    int tvdt = (Integer)(mi.in.get("TVDT") != null ? mi.in.get("TVDT") : 0)
-    String sule = (String)(mi.in.get("SULE") != null ? mi.in.get("SULE") : "")
-    String suld = (String)(mi.in.get("SULD") != null ? mi.in.get("SULD") : "")
-    int cdat = (Integer)(mi.in.get("CDAT") != null ? mi.in.get("CDAT") : 0)
-    int rscl = (Integer)(mi.in.get("RSCL") != null ? mi.in.get("RSCL") : 0)
-    int cmde = (Integer)(mi.in.get("CMDE") != null ? mi.in.get("CMDE") : 0)
-    int fvdt = (Integer)(mi.in.get("FVDT") != null ? mi.in.get("FVDT") : 0)
-    int lvdt = (Integer)(mi.in.get("LVDT") != null ? mi.in.get("LVDT") : 0)
+    String asgd = (String) (mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
+    String cuno = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
+    String itno = (String) (mi.in.get("ITNO") != null ? mi.in.get("ITNO") : "")
+    double sapr = (Double) (mi.in.get("SAPR") != null ? mi.in.get("SAPR") : 0)
+    int tvdt = (Integer) (mi.in.get("TVDT") != null ? mi.in.get("TVDT") : 0)
+    String sule = (String) (mi.in.get("SULE") != null ? mi.in.get("SULE") : "")
+    String suld = (String) (mi.in.get("SULD") != null ? mi.in.get("SULD") : "")
+    int cdat = (Integer) (mi.in.get("CDAT") != null ? mi.in.get("CDAT") : 0)
+    int rscl = (Integer) (mi.in.get("RSCL") != null ? mi.in.get("RSCL") : 0)
+    int cmde = (Integer) (mi.in.get("CMDE") != null ? mi.in.get("CMDE") : 0)
+    int fvdt = (Integer) (mi.in.get("FVDT") != null ? mi.in.get("FVDT") : 0)
+    int lvdt = (Integer) (mi.in.get("LVDT") != null ? mi.in.get("LVDT") : 0)
 
 
     //Check inputs
-    if (!checkCustomer(cuno)){
+    if (!checkCustomer(cuno)) {
       mi.error(errorMessage)
       return
     }
-    if (!checkItem(itno)){
+    if (!checkItem(itno)) {
       mi.error(errorMessage)
       return
     }
-    if (sule.length() > 0 && suld.length() >0){
+    if (sule.length() > 0 && suld.length() > 0) {
       mi.error("il faut renseigner soit le fournisseur entrepot soit le fournisseur direct")
       return
     }
     if (sule.length() > 0) {
-      if (!checkSupplier(sule, "200")){
+      if (!checkSupplier(sule, "200")) {
         mi.error(errorMessage)
         return
       }
     }
     if (suld.length() > 0) {
-      if (!checkSupplier(suld, "100")){
+      if (!checkSupplier(suld, "100")) {
         mi.error(errorMessage)
         return
       }
     }
-    if (cmde != 1 && cmde != 2){
+    if (cmde != 1 && cmde != 2) {
       mi.error("L'indicateur de commandabilité doit être égal à 1 ou 2")
       return
 
     }
-    if (cdat != 0){
-      boolean checkDate = (Boolean)utility.call("DateUtil", "isDateValid", "" + cdat, "yyyyMMdd");
-      if (!checkDate){
+    if (cdat != 0) {
+      boolean checkDate = (Boolean) utility.call("DateUtil", "isDateValid", "" + cdat, "yyyyMMdd")
+      if (!checkDate) {
         mi.error("Date début tarif ${cdat} est invalide")
         return
       }
     }
-    if (fvdt != 0){
-      boolean checkDate = (Boolean)utility.call("DateUtil", "isDateValid", "" + fvdt, "yyyyMMdd");
-      if (!checkDate){
+    if (fvdt != 0) {
+      boolean checkDate = (Boolean) utility.call("DateUtil", "isDateValid", "" + fvdt, "yyyyMMdd")
+      if (!checkDate) {
         mi.error("Date début tarif ${fvdt} est invalide")
         return
       }
     }
-    if (lvdt != 0){
-      boolean checkDate = (Boolean)utility.call("DateUtil", "isDateValid", "" + lvdt, "yyyyMMdd");
-      if (!checkDate){
+    if (lvdt != 0) {
+      boolean checkDate = (Boolean) utility.call("DateUtil", "isDateValid", "" + lvdt, "yyyyMMdd")
+      if (!checkDate) {
         mi.error("Date début tarif ${lvdt} est invalide")
         return
       }
     }
-    if (fvdt != 0 && lvdt != 0 && lvdt < fvdt){
+    if (fvdt != 0 && lvdt != 0 && lvdt < fvdt) {
       mi.error("Date de fin ${lvdt} doit être inférieure à date de début ${fvdt}")
       return
 
     }
-    if (tvdt != 0){
-      boolean checkDate = (Boolean)utility.call("DateUtil", "isDateValid", "" + tvdt, "yyyyMMdd");
-      if (!checkDate){
+    if (tvdt != 0) {
+      boolean checkDate = (Boolean) utility.call("DateUtil", "isDateValid", "" + tvdt, "yyyyMMdd")
+      if (!checkDate) {
         mi.error("Date début tarif ${tvdt} est invalide")
         return
       }
     }
 
     //Check if record exists
-    DBAction queryEXT010 = database.table("EXT010")
+    DBAction ext010Query = database.table("EXT010")
       .index("00")
       .selection(
         "EXCONO",
@@ -142,53 +142,61 @@ public class UpdRefAsso extends ExtendM3Transaction {
         "EXCHNO",
         "EXCHID"
       )
-      .build();
+      .build()
 
-    DBContainer containerEXT010 = queryEXT010.getContainer()
-    containerEXT010.set("EXCONO", currentCompany)
-    containerEXT010.set("EXASGD", asgd)
-    containerEXT010.set("EXCUNO", cuno)
-    containerEXT010.set("EXITNO", itno)
-    containerEXT010.set("EXCDAT", cdat)
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXASGD", asgd)
+    ext010Request.set("EXCUNO", cuno)
+    ext010Request.set("EXITNO", itno)
+    ext010Request.set("EXCDAT", cdat)
 
-    // not Record exists
-    if (!queryEXT010.read(containerEXT010)) {
-      containerEXT010.set("EXSIG6", itno.substring(0, 6))
-      containerEXT010.set("EXSAPR", sapr)
-      containerEXT010.set("EXSULE", sule)
-      containerEXT010.set("EXSULD", suld)
-      containerEXT010.set("EXFUDS", fuds)
-      containerEXT010.set("EXRSCL", rscl)
-      containerEXT010.set("EXCMDE", cmde)
-      containerEXT010.set("EXTVDT", tvdt)
-      containerEXT010.set("EXFVDT", fvdt)
-      containerEXT010.set("EXLVDT", lvdt)
-      containerEXT010.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
-      containerEXT010.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
-      containerEXT010.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-      containerEXT010.set("EXCHNO", 1)
-      containerEXT010.set("EXCHID", program.getUser())
-      queryEXT010.insert(containerEXT010)
+    // if Record not exists then create
+    if (!ext010Query.read(ext010Request)) {
+      ext010Request.set("EXSIG6", itno.substring(0, 6))
+      ext010Request.set("EXSAPR", sapr)
+      ext010Request.set("EXSULE", sule)
+      ext010Request.set("EXSULD", suld)
+      ext010Request.set("EXFUDS", fuds)
+      ext010Request.set("EXRSCL", rscl)
+      ext010Request.set("EXCMDE", cmde)
+      ext010Request.set("EXTVDT", tvdt)
+      ext010Request.set("EXFVDT", fvdt)
+      ext010Request.set("EXLVDT", lvdt)
+      ext010Request.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
+      ext010Request.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
+      ext010Request.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+      ext010Request.set("EXCHNO", 1)
+      ext010Request.set("EXCHID", program.getUser())
+      ext010Query.insert(ext010Request)
       return
     }
 
-    Closure<?> updateEXT010 = { LockedResult lockedResultEXT010 ->
-      lockedResultEXT010.set("EXSAPR", sapr)
-      lockedResultEXT010.set("EXSULE", sule)
-      lockedResultEXT010.set("EXSULD", suld)
-      lockedResultEXT010.set("EXRSCL", rscl)
-      lockedResultEXT010.set("EXCMDE", cmde)
-      lockedResultEXT010.set("EXTVDT", tvdt)
-      lockedResultEXT010.set("EXFVDT", fvdt)
-      lockedResultEXT010.set("EXLVDT", lvdt)
-      lockedResultEXT010.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-      lockedResultEXT010.set("EXCHNO", ((Integer)lockedResultEXT010.get("EXCHNO") + 1))
-      lockedResultEXT010.set("EXCHID", program.getUser())
-      lockedResultEXT010.update()
+    // else if Record  exists then Update
+    Closure<?> ext010Updater = { LockedResult ext010LockedResult ->
+      if (mi.in.get("SAPR") != null)
+        ext010LockedResult.set("EXSAPR", sapr)
+      if (mi.in.get("SULE") != null)
+        ext010LockedResult.set("EXSULE", sule)
+      if (mi.in.get("SULD") != null)
+        ext010LockedResult.set("EXSULD", suld)
+      if (mi.in.get("RSCL") != null)
+        ext010LockedResult.set("EXRSCL", rscl)
+      if (mi.in.get("CMDE") != null)
+        ext010LockedResult.set("EXCMDE", cmde)
+      if (mi.in.get("TVDT") != null)
+        ext010LockedResult.set("EXTVDT", tvdt)
+      if (mi.in.get("FVDT") != null)
+        ext010LockedResult.set("EXFVDT", fvdt)
+      if (mi.in.get("LVDT") != null)
+        ext010LockedResult.set("EXLVDT", lvdt)
+
+      ext010LockedResult.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+      ext010LockedResult.set("EXCHNO", ((Integer) ext010LockedResult.get("EXCHNO") + 1))
+      ext010LockedResult.set("EXCHID", program.getUser())
+      ext010LockedResult.update()
     }
-
-    queryEXT010.readLock(containerEXT010, updateEXT010)
-
+    ext010Query.readLock(ext010Request, ext010Updater)
   }
 
   /**
@@ -200,23 +208,18 @@ public class UpdRefAsso extends ExtendM3Transaction {
    * @parameter Customer
    * @return true if ok false otherwise
    * */
-  private boolean checkCustomer(String cuno){
-    DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection(
+  private boolean checkCustomer(String cuno) {
+    DBAction ocusmaQuery = database.table("OCUSMA").index("00").selection(
       "OKCONO", "OKCUNO", "OKSTAT", "OKCUTP").build()
 
-    DBContainer containerOCUSMA = queryOCUSMA.getContainer()
-    containerOCUSMA.set("OKCONO", currentCompany)
-    containerOCUSMA.set("OKCUNO", cuno)
-    if (queryOCUSMA.read(containerOCUSMA)) {
-      String stat = (String)containerOCUSMA.get("OKSTAT")
-      int cutp = (Integer)containerOCUSMA.get("OKCUTP")
-      /*
-      if (!stat.equals("20")){
-        errorMessage = "Statut Client ${cuno} est invalide"
-        return false
-      }
-      */
-      if (cutp != 0){
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUNO", cuno)
+    if (ocusmaQuery.read(ocusmaRequest)) {
+      String stat = (String) ocusmaRequest.get("OKSTAT")
+      int cutp = (Integer) ocusmaRequest.get("OKCUTP")
+
+      if (cutp != 0) {
         errorMessage = "Type Client ${cuno} est invalide"
         return false
       }
@@ -235,19 +238,17 @@ public class UpdRefAsso extends ExtendM3Transaction {
    * @parameter Item
    * @return true if ok false otherwise
    * */
-  private boolean checkItem(String itno){
-    DBAction queryMITMAS = database.table("MITMAS").index("00").selection(
+  private boolean checkItem(String itno) {
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection(
       "MMCONO", "MMITNO", "MMSTAT", "MMFUDS").build()
 
-    DBContainer containerMITMAS = queryMITMAS.getContainer()
-    containerMITMAS.set("MMCONO", currentCompany)
-    containerMITMAS.set("MMITNO", itno)
-    if (queryMITMAS.read(containerMITMAS)) {
-      String stat = (String)containerMITMAS.get("MMSTAT")
-      fuds = (String)containerMITMAS.get("MMFUDS")
-      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)){//A°20240228
-        //if (!stat.equals("20") && !stat.equals("50") ){//A°20240228
-        //if (!stat.equals("20")){//D°20240228
+    DBContainer mitmasContianer = mitmasQuery.getContainer()
+    mitmasContianer.set("MMCONO", currentCompany)
+    mitmasContianer.set("MMITNO", itno)
+    if (mitmasQuery.read(mitmasContianer)) {
+      String stat = (String) mitmasContianer.get("MMSTAT")
+      fuds = (String) mitmasContianer.get("MMFUDS")
+      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)) {//A°20240228
         errorMessage = "Statut Article ${itno} est invalide"
         return false
       }
@@ -268,20 +269,20 @@ public class UpdRefAsso extends ExtendM3Transaction {
    * @parameter Supplier Group
    * @return true if ok false otherwise
    * */
-  private boolean checkSupplier(String suno, String sucl){
-    DBAction queryCIDMAS = database.table("CIDMAS").index("00").selection(
+  private boolean checkSupplier(String suno, String sucl) {
+    DBAction cidmasQuery = database.table("CIDMAS").index("00").selection(
       "IDCONO", "IDSUNO", "IDSTAT").build()
-    DBContainer containerCIDMAS = queryCIDMAS.getContainer()
+    DBContainer cidmasRequest = cidmasQuery.getContainer()
 
-    DBAction queryCIDVEN = database.table("CIDVEN").index("00").selection(
+    DBAction cidvenQuery = database.table("CIDVEN").index("00").selection(
       "IICONO", "IISUNO", "IISUCL").build()
-    DBContainer containerCIDVEN = queryCIDVEN.getContainer()
+    DBContainer cidvenRequest = cidvenQuery.getContainer()
 
-    containerCIDMAS.set("IDCONO", currentCompany)
-    containerCIDMAS.set("IDSUNO", suno)
-    if (queryCIDMAS.read(containerCIDMAS)) {
-      String stat = (String)containerCIDMAS.get("IDSTAT")
-      if (!stat.equals("20")){
+    cidmasRequest.set("IDCONO", currentCompany)
+    cidmasRequest.set("IDSUNO", suno)
+    if (cidmasQuery.read(cidmasRequest)) {
+      String stat = (String) cidmasRequest.get("IDSTAT")
+      if (!stat.equals("20")) {
         errorMessage = "Statut fournisseur ${suno} est invalide"
         return false
       }
@@ -292,16 +293,15 @@ public class UpdRefAsso extends ExtendM3Transaction {
 
     String dbsucl = ""
 
-    containerCIDVEN.set("IICONO", currentCompany)
-    containerCIDVEN.set("IISUNO", suno)
-    if (queryCIDVEN.read(containerCIDVEN)) {
-      dbsucl = (String)containerCIDVEN.get("IISUCL")
+    cidvenRequest.set("IICONO", currentCompany)
+    cidvenRequest.set("IISUNO", suno)
+    if (cidvenQuery.read(cidvenRequest)) {
+      dbsucl = (String) cidvenRequest.get("IISUCL")
     }
-    if (!dbsucl.equals(sucl)){
+    if (!dbsucl.equals(sucl)) {
       errorMessage = "Groupe fournisseur ${suno} est invalide"
       return false
     }
-
     return true
   }
 }

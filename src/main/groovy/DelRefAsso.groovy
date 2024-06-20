@@ -1,12 +1,11 @@
 /**
  * Name : EXT010MI.DelRefAsso
- * 
- * Description : 
+ * Description :
  * This API method to delete records in specific table EXT010 Customer Assortment
- * 
- * 
+ * COMX01 Gestion des assortiments clients
  * Date         Changed By    Description
  * 20221122     FLEBARS       COMX01 - Creation
+ * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
  */
 public class DelRefAsso extends ExtendM3Transaction {
   private final MIAPI mi
@@ -16,34 +15,33 @@ public class DelRefAsso extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
-  private String errorMessage
 
-  
+
   public DelRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger
     this.program = program
-    this.utility=utility
+    this.utility = utility
   }
-  
-    /**
+
+  /**
    * Get mi inputs
    * Check input values
    * Check if record not exists in EXT010
    * Serialize in EXT010
    */
   public void main() {
-    currentCompany = (int)program.getLDAZD().CONO
-    
+    currentCompany = (int) program.getLDAZD().CONO
+
     //Get mi inputs
-    String asgd = (String)(mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
-    String cuno = (String)(mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
-    String itno = (String)(mi.in.get("ITNO") != null ? mi.in.get("ITNO") : "")
-    int cdat = (Integer)(mi.in.get("CDAT") != null ? mi.in.get("CDAT") : 0)
-    
-        //Check if record exists
-    DBAction queryEXT010 = database.table("EXT010")
+    String asgd = (String) (mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
+    String cuno = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
+    String itno = (String) (mi.in.get("ITNO") != null ? mi.in.get("ITNO") : "")
+    int cdat = (Integer) (mi.in.get("CDAT") != null ? mi.in.get("CDAT") : 0)
+
+    //Check if record exists
+    DBAction ext010Query = database.table("EXT010")
       .index("00")
       .selection(
         "EXCONO",
@@ -53,25 +51,25 @@ public class DelRefAsso extends ExtendM3Transaction {
         "EXCDAT"
       )
       .build();
-    
-    DBContainer containerEXT010 = queryEXT010.getContainer()
-    containerEXT010.set("EXCONO", currentCompany)
-    containerEXT010.set("EXASGD", asgd)
-    containerEXT010.set("EXCUNO", cuno)
-    containerEXT010.set("EXITNO", itno)
-    containerEXT010.set("EXCDAT", cdat)
-    
+
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXASGD", asgd)
+    ext010Request.set("EXCUNO", cuno)
+    ext010Request.set("EXITNO", itno)
+    ext010Request.set("EXCDAT", cdat)
+
     //Record exists
-    if (!queryEXT010.read(containerEXT010)) {
+    if (!ext010Query.read(ext010Request)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
-    
-    Closure<?> deleteEXT010 = { LockedResult lockedResultEXT010 ->
-      lockedResultEXT010.delete()
+
+    Closure<?> ext010Updater = { LockedResult ext010LockedResult ->
+      ext010LockedResult.delete()
     }
-    
-    queryEXT010.readLock(containerEXT010, deleteEXT010)
+
+    ext010Query.readLock(ext010Request, ext010Updater)
 
   }
 }

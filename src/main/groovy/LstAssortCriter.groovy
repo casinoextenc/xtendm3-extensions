@@ -8,7 +8,7 @@
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
  */
 public class LstAssortCriter extends ExtendM3Transaction {
-  private final MIAPI mi;
+  private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
   private final ProgramAPI program

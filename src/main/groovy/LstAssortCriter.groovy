@@ -11,12 +11,12 @@ public class LstAssortCriter extends ExtendM3Transaction {
   private final MIAPI mi;
   private final DatabaseAPI database
   private final LoggerAPI logger
-  private final ProgramAPI program;
-  private final UtilityAPI utility;
+  private final ProgramAPI program
+  private final UtilityAPI utility
 
   private int currentCompany
 
-  public LstAssortCriter(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program,UtilityAPI utility) {
+  public LstAssortCriter(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger
@@ -27,14 +27,14 @@ public class LstAssortCriter extends ExtendM3Transaction {
   public void main() {
     String cuno = ""
     String ascd = ""
-    String fdat =""
+    String fdat = ""
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO") as Integer
     }
 
-    if(mi.in.get("FDAT") != null){
+    if (mi.in.get("FDAT") != null) {
       fdat = mi.in.get("FDAT")
       if (!utility.call("DateUtil", "isDateValid", fdat, "yyyyMMdd")) {
         mi.error("Format Date de Validité incorrect")
@@ -45,20 +45,20 @@ public class LstAssortCriter extends ExtendM3Transaction {
     //Create Expression
     ExpressionFactory ext020Expression = database.getExpressionFactory("EXT020")
     ext020Expression = ext020Expression.eq("EXCONO", currentCompany.toString())
-    if(cuno!=""){
-      ext020Expression =  ext020Expression.and(ext020Expression.ge("EXCUNO", cuno))
+    if (cuno != "") {
+      ext020Expression = ext020Expression.and(ext020Expression.ge("EXCUNO", cuno))
     }
-    if(ascd!="") {
+    if (ascd != "") {
       ext020Expression = ext020Expression.and(ext020Expression.ge("EXASCD", ascd))
     }
-    if(fdat!="") {
+    if (fdat != "") {
       ext020Expression = ext020Expression.and(ext020Expression.ge("EXFDAT", fdat))
     }
     //Run Select
     DBAction ext020Query = database.table("EXT020").index("00").matching(ext020Expression).selection("EXCONO", "EXASCD", "EXCUNO", "EXFDAT", "EXSTAT", "EXSTTS", "EXNDTS", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
     DBContainer ext020Request = ext020Query.getContainer()
-    ext020Request.setInt("EXCONO",currentCompany)
-    if(!ext020Query.readAll(ext020Request, 1, ext020Reader)){
+    ext020Request.setInt("EXCONO", currentCompany)
+    if (!ext020Query.readAll(ext020Request, 1, ext020Reader)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }

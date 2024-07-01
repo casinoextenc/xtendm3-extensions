@@ -25,11 +25,11 @@ public class EXT036 extends ExtendM3Batch {
 
   //Objects to store informations
   //Used to store order infos
-  private  Map<String, String>  datasORDER
+  private Map<String, String> datasORDER
   //Used to store order line infos
-  private  Map<String, String> datasLINE
+  private Map<String, String> datasLINE
   //Used to store item infos
-  private  Map<String, String> datasITEM
+  private Map<String, String> datasITEM
   //Used to store list of documents for order line infos
   private Map<String, String> documents
   private Map<String, String> documentsEXT036
@@ -206,15 +206,15 @@ public class EXT036 extends ExtendM3Batch {
       dlix = mhdislResult.get("URDLIX") as Long
     }
 
-    if(!mhdislQuery.readAll(mhdislRequest, 4, 1, mhdislReader)){
+    if (!mhdislQuery.readAll(mhdislRequest, 4, 1, mhdislReader)) {
     }
-    if(dlix != 0) {
+    if (dlix != 0) {
       DBAction mhdishQuery = database.table("MHDISH").index("00").selection("OQCONN").build()
       DBContainer mhdishRequest = mhdishQuery.getContainer()
       mhdishRequest.set("OQCONO", currentCompany)
-      mhdishRequest.set("OQINOU",  1)
-      mhdishRequest.set("OQDLIX",  dlix)
-      if(mhdishQuery.read(mhdishRequest)) {
+      mhdishRequest.set("OQINOU", 1)
+      mhdishRequest.set("OQDLIX", dlix)
+      if (mhdishQuery.read(mhdishRequest)) {
         conn = mhdishRequest.get("OQCONN") as Long
       }
     }
@@ -234,7 +234,7 @@ public class EXT036 extends ExtendM3Batch {
   /**
    *
    */
-  public void mngEXT036(){
+  public void mngEXT036() {
     String orno = datasLINE["ORNO"]
     int ponr = datasLINE["PONR"] as Integer
     int posx = datasLINE["POSX"] as Integer
@@ -252,35 +252,35 @@ public class EXT036 extends ExtendM3Batch {
     String cscd = datasORDER["CSCD"]
     String uca4 = datasORDER["UCA4"]
 
-    String hazi =  datasITEM["HAZI"]
-    String hie5 =  datasITEM["HIE5"]
-    String cfi4 =  datasITEM["CFI4"]
-    String suno =  datasITEM["SUNO"]
-    String prod =  datasITEM["PROD"]
-    String sig6 =  datasITEM["SIG6"]
-    double grwe =  datasITEM["GRWE"] as Double
-    double newe =  datasITEM["NEWE"] as Double
-    double ztgr =  datasITEM["ZTGR"] as Double
-    double ztnw =  datasITEM["ZTNW"] as Double
-    String csno =  datasITEM["CSNO"]
-    String orco =  datasITEM["ORCO"]
-    String zali =  datasITEM["ZALI"]
-    String zalc =  datasITEM["ZALC"]
-    String zsan =  datasITEM["ZSAN"]
-    String zcap =  datasITEM["ZCAP"]
-    String zca1 =  datasITEM["ZCA1"]
-    String zca2 =  datasITEM["ZCA2"]
-    String zca3 =  datasITEM["ZCA3"]
-    String zca4 =  datasITEM["ZCA4"]
-    String zca5 =  datasITEM["ZCA5"]
-    String zca6 =  datasITEM["ZCA6"]
-    String zca7 =  datasITEM["ZCA7"]
-    String zca8 =  datasITEM["ZCA8"]
-    String zori =  datasITEM["ZORI"]
-    String zphy =  datasITEM["ZPHY"]
-    int zagr =  datasITEM["ZAGR"] as Integer
-    String znag =  datasITEM["ZNAG"]
-    double zqco  =  datasITEM["ZQCO"] as Double
+    String hazi = datasITEM["HAZI"]
+    String hie5 = datasITEM["HIE5"]
+    String cfi4 = datasITEM["CFI4"]
+    String suno = datasITEM["SUNO"]
+    String prod = datasITEM["PROD"]
+    String sig6 = datasITEM["SIG6"]
+    double grwe = datasITEM["GRWE"] as Double
+    double newe = datasITEM["NEWE"] as Double
+    double ztgr = datasITEM["ZTGR"] as Double
+    double ztnw = datasITEM["ZTNW"] as Double
+    String csno = datasITEM["CSNO"]
+    String orco = datasITEM["ORCO"]
+    String zali = datasITEM["ZALI"]
+    String zalc = datasITEM["ZALC"]
+    String zsan = datasITEM["ZSAN"]
+    String zcap = datasITEM["ZCAP"]
+    String zca1 = datasITEM["ZCA1"]
+    String zca2 = datasITEM["ZCA2"]
+    String zca3 = datasITEM["ZCA3"]
+    String zca4 = datasITEM["ZCA4"]
+    String zca5 = datasITEM["ZCA5"]
+    String zca6 = datasITEM["ZCA6"]
+    String zca7 = datasITEM["ZCA7"]
+    String zca8 = datasITEM["ZCA8"]
+    String zori = datasITEM["ZORI"]
+    String zphy = datasITEM["ZPHY"]
+    int zagr = datasITEM["ZAGR"] as Integer
+    String znag = datasITEM["ZNAG"]
+    double zqco = datasITEM["ZQCO"] as Double
 
 
     for (key in documentsEXT036.keySet()) {
@@ -288,15 +288,15 @@ public class EXT036 extends ExtendM3Batch {
       String[] vt = value.split("#")
       int tcli = vt[0] as Integer
       String stat = vt[1]
-      if (!documents.containsKey(key) && stat != "90"){
+      if (!documents.containsKey(key) && stat != "90") {
         updateEXT036(orno, ponr, posx, tcli, "90", null)
-      } else if (documents.containsKey(key)){
+      } else if (documents.containsKey(key)) {
         String zsty = documents.get(key)
         updateEXT036(orno, ponr, posx, tcli, "20", zsty)
       }
     }
     for (key in documents.keySet()) {
-      if (!documentsEXT036.containsKey(key)){
+      if (!documentsEXT036.containsKey(key)) {
         zcli++
         String[] ks = key.split("#")
         double zcid = ks[0] as Double
@@ -348,6 +348,7 @@ public class EXT036 extends ExtendM3Batch {
       }
     }
   }
+
   public void updateEXT036(String orno, int ponr, int posx, int zcli, String stat, String zsty) {
     String cuno = datasLINE["CUNO"] as String
     String itno = datasLINE["ITNO"]
@@ -363,35 +364,35 @@ public class EXT036 extends ExtendM3Batch {
     String cscd = datasORDER["CSCD"]
     String uca4 = datasORDER["UCA4"]
 
-    String hazi =  datasITEM["HAZI"]
-    String hie5 =  datasITEM["HIE5"]
-    String cfi4 =  datasITEM["CFI4"]
-    String suno =  datasITEM["SUNO"]
-    String prod =  datasITEM["PROD"]
-    String sig6 =  datasITEM["SIG6"]
-    double grwe =  datasITEM["GRWE"] as Double
-    double newe =  datasITEM["NEWE"] as Double
-    double ztgr =  datasITEM["ZTGR"] as Double
-    double ztnw =  datasITEM["ZTNW"] as Double
-    String csno =  datasITEM["CSNO"]
-    String orco =  datasITEM["ORCO"]
-    String zali =  datasITEM["ZALI"]
-    String zalc =  datasITEM["ZALC"]
-    String zsan =  datasITEM["ZSAN"]
-    String zcap =  datasITEM["ZCAP"]
-    String zca1 =  datasITEM["ZCA1"]
-    String zca2 =  datasITEM["ZCA2"]
-    String zca3 =  datasITEM["ZCA3"]
-    String zca4 =  datasITEM["ZCA4"]
-    String zca5 =  datasITEM["ZCA5"]
-    String zca6 =  datasITEM["ZCA6"]
-    String zca7 =  datasITEM["ZCA7"]
-    String zca8 =  datasITEM["ZCA8"]
-    String zori =  datasITEM["ZORI"]
-    String zphy =  datasITEM["ZPHY"]
-    int zagr =  datasITEM["ZAGR"] as Integer
-    String znag =  datasITEM["ZNAG"]
-    double zqco  =  datasITEM["ZQCO"] as Double
+    String hazi = datasITEM["HAZI"]
+    String hie5 = datasITEM["HIE5"]
+    String cfi4 = datasITEM["CFI4"]
+    String suno = datasITEM["SUNO"]
+    String prod = datasITEM["PROD"]
+    String sig6 = datasITEM["SIG6"]
+    double grwe = datasITEM["GRWE"] as Double
+    double newe = datasITEM["NEWE"] as Double
+    double ztgr = datasITEM["ZTGR"] as Double
+    double ztnw = datasITEM["ZTNW"] as Double
+    String csno = datasITEM["CSNO"]
+    String orco = datasITEM["ORCO"]
+    String zali = datasITEM["ZALI"]
+    String zalc = datasITEM["ZALC"]
+    String zsan = datasITEM["ZSAN"]
+    String zcap = datasITEM["ZCAP"]
+    String zca1 = datasITEM["ZCA1"]
+    String zca2 = datasITEM["ZCA2"]
+    String zca3 = datasITEM["ZCA3"]
+    String zca4 = datasITEM["ZCA4"]
+    String zca5 = datasITEM["ZCA5"]
+    String zca6 = datasITEM["ZCA6"]
+    String zca7 = datasITEM["ZCA7"]
+    String zca8 = datasITEM["ZCA8"]
+    String zori = datasITEM["ZORI"]
+    String zphy = datasITEM["ZPHY"]
+    int zagr = datasITEM["ZAGR"] as Integer
+    String znag = datasITEM["ZNAG"]
+    double zqco = datasITEM["ZQCO"] as Double
 
     DBAction query = database.table("EXT036").index("00").build()
     DBContainer ext036Request = query.getContainer()
@@ -422,7 +423,7 @@ public class EXT036 extends ExtendM3Batch {
         lockedResult.set("EXZSTY", zsty)
       if (orst == "99") {
         lockedResult.set("EXSTAT", "90")
-      }else{
+      } else {
         lockedResult.set("EXSTAT", stat)
       }
       lockedResult.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
@@ -432,13 +433,14 @@ public class EXT036 extends ExtendM3Batch {
     }
 
 
-    if(!query.readLock(ext036Request, updateCallBack)){}
+    if (!query.readLock(ext036Request, updateCallBack)) {
+    }
   }
 
   /**
    *
    */
-  public void getLineEXT036(){
+  public void getLineEXT036() {
     String orno = datasLINE["ORNO"]
     int ponr = datasLINE["PONR"] as Integer
     int posx = datasLINE["POSX"] as Integer
@@ -475,7 +477,7 @@ public class EXT036 extends ExtendM3Batch {
       String ads1 = ext036Result.get("EXADS1") as String
       String key = zcid.trim() + "#" + zcty.trim() + "#" + zcod.trim() + "#" + doid.trim() + "#" + ads1.trim()
       String value = ext036Result.get("EXZCLI") as String
-      value += "#" +  ext036Result.get("EXSTAT") as String
+      value += "#" + ext036Result.get("EXSTAT") as String
       documentsEXT036.put(key, value)
     }
     if (!ext036Query.readAll(ext036Request, 4, ext036Reader)) {
@@ -496,34 +498,34 @@ public class EXT036 extends ExtendM3Batch {
     String cuno = datasORDER["CUNO"]
     String cscd = datasORDER["CSCD"]
 
-    String hazi =  datasITEM["HAZI"]
-    String hie5 =  datasITEM["HIE5"]
-    String cfi4 =  datasITEM["CFI4"]
-    String suno =  datasITEM["SUNO"]
-    String prod =  datasITEM["PROD"]
-    String sig6 =  datasITEM["SIG6"]
-    String grwe =  datasITEM["GRWE"]
-    String newe =  datasITEM["NEWE"]
-    String ztgr =  datasITEM["ZTGR"]
-    String ztnw =  datasITEM["ZTNW"]
-    String csno =  datasITEM["CSNO"]
-    String orco =  datasITEM["ORCO"]
-    String zali =  datasITEM["ZALI"]
-    String zalc =  datasITEM["ZALC"]
-    String zsan =  datasITEM["ZSAN"]
-    String zcap =  datasITEM["ZCAP"]
-    String zca1 =  datasITEM["ZCA1"]
-    String zca2 =  datasITEM["ZCA2"]
-    String zca3 =  datasITEM["ZCA3"]
-    String zca4 =  datasITEM["ZCA4"]
-    String zca5 =  datasITEM["ZCA5"]
-    String zca6 =  datasITEM["ZCA6"]
-    String zca7 =  datasITEM["ZCA7"]
-    String zca8 =  datasITEM["ZCA8"]
-    String zori =  datasITEM["ZORI"]
-    String zphy =  datasITEM["ZPHY"]
-    String zagr =  datasITEM["ZAGR"]
-    String znag =  datasITEM["ZNAG"]
+    String hazi = datasITEM["HAZI"]
+    String hie5 = datasITEM["HIE5"]
+    String cfi4 = datasITEM["CFI4"]
+    String suno = datasITEM["SUNO"]
+    String prod = datasITEM["PROD"]
+    String sig6 = datasITEM["SIG6"]
+    String grwe = datasITEM["GRWE"]
+    String newe = datasITEM["NEWE"]
+    String ztgr = datasITEM["ZTGR"]
+    String ztnw = datasITEM["ZTNW"]
+    String csno = datasITEM["CSNO"]
+    String orco = datasITEM["ORCO"]
+    String zali = datasITEM["ZALI"]
+    String zalc = datasITEM["ZALC"]
+    String zsan = datasITEM["ZSAN"]
+    String zcap = datasITEM["ZCAP"]
+    String zca1 = datasITEM["ZCA1"]
+    String zca2 = datasITEM["ZCA2"]
+    String zca3 = datasITEM["ZCA3"]
+    String zca4 = datasITEM["ZCA4"]
+    String zca5 = datasITEM["ZCA5"]
+    String zca6 = datasITEM["ZCA6"]
+    String zca7 = datasITEM["ZCA7"]
+    String zca8 = datasITEM["ZCA8"]
+    String zori = datasITEM["ZORI"]
+    String zphy = datasITEM["ZPHY"]
+    String zagr = datasITEM["ZAGR"]
+    String znag = datasITEM["ZNAG"]
 
     ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
     ext030Expression = (ext030Expression.eq("EXCUNO", cuno)).or(ext030Expression.eq("EXCUNO", ""))
@@ -571,7 +573,7 @@ public class EXT036 extends ExtendM3Batch {
 
     ext030Expression = ext030Expression.and((ext030Expression.eq("EXZPHY", zphy as String)).or(ext030Expression.eq("EXZPHY", "2")))
 
-    if (orco == "FR"){
+    if (orco == "FR") {
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXZOHF", "0")).or(ext030Expression.eq("EXZOHF", "2")))
     } else {
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXZOHF", "1")).or(ext030Expression.eq("EXZOHF", "2")))
@@ -582,7 +584,7 @@ public class EXT036 extends ExtendM3Batch {
     EXT030.set("EXCONO", currentCompany)
     EXT030.set("EXSTAT", "20")
 
-    if(!ext030Query.readAll(EXT030, 2, ext030Reader)){
+    if (!ext030Query.readAll(EXT030, 2, ext030Reader)) {
     }
   }
 
@@ -934,11 +936,11 @@ public class EXT036 extends ExtendM3Batch {
     DBContainer ext034Request = ext034Query.getContainer()
     ext034Request.set("EXCONO", currentCompany)
     ext034Request.set("EXZCOD", zcod)
-    if(ext034Query.read(ext034Request)){
+    if (ext034Query.read(ext034Request)) {
       zcty = ext034Request.get("EXZCTY")
       zsty = ext034Request.get("EXZSTY") as String
     }
-    queryEXT035(zcid, zcty,zcod, zsty)
+    queryEXT035(zcid, zcty, zcod, zsty)
 
   }
   /**
@@ -964,7 +966,7 @@ public class EXT036 extends ExtendM3Batch {
       DBContainer MPDDOC = mpddocQuery.getContainer()
       MPDDOC.set("DOCONO", currentCompany)
       MPDDOC.set("DODOID", doid)
-      if(mpddocQuery.read(MPDDOC)){
+      if (mpddocQuery.read(MPDDOC)) {
         ads1 = MPDDOC.get("DOADS1")
       }
       String key = zcid.trim() + "#" + zcty.trim() + "#" + zcod.trim() + "#" + doid.trim() + "#" + ads1.trim()
@@ -972,19 +974,20 @@ public class EXT036 extends ExtendM3Batch {
       documents.put(key, value)
     }
 
-    if(!ext035Query.readAll(ext035Request, 4, ext035Reader)){
+    if (!ext035Query.readAll(ext035Request, 4, ext035Reader)) {
       ext035Request.set("EXCSCD", datasORDER["CSCD"])
       ext035Request.set("EXCUNO", "")
-      if(!ext035Query.readAll(ext035Request, 4, ext035Reader)){
+      if (!ext035Query.readAll(ext035Request, 4, ext035Reader)) {
         ext035Request.set("EXCSCD", "")
         ext035Request.set("EXCUNO", "")
-        if(!ext035Query.readAll(ext035Request, 4, ext035Reader)){
+        if (!ext035Query.readAll(ext035Request, 4, ext035Reader)) {
           String key = zcid.trim() + "#" + zcty.trim() + "#" + zcod.trim() + "#" + doid.trim() + "#" + ads1.trim()
           String value = zsty
           documents.put(key, value)
         }
       }
     }
+
   }
 
 }

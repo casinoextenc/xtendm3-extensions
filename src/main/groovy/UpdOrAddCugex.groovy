@@ -105,7 +105,6 @@ public class UpdOrAddCugex extends ExtendM3Transaction {
       }
       iN196 = mi.in.get("N196") as Integer //A° 20220222     CDUV
       if (mi.in.get("N196") != null) {
-        // params.put("N196", mi.in.get("N196").toString())
         params.put("N196", iN196)//A° 20220222     CDUV
       }
       if (mi.in.get("N296") != null) {
@@ -161,7 +160,6 @@ public class UpdOrAddCugex extends ExtendM3Transaction {
       iN196 = mi.in.get("N196") as Integer //A° 20220222     CDUV
 
       if (mi.in.get("N196") != null) {
-        // params.put("N196", mi.in.get("N196").toString())
         params.put("N196", iN196)
       }
       if (mi.in.get("N296") != null) {

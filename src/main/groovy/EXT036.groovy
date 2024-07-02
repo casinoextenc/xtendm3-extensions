@@ -7,7 +7,7 @@
  * Date         Changed By   Description
  * 20230210     ARENARD      QUAX02 - Constraint engine
  * 20230411     ARENARD      For following criterias, 2 is considered as an empty value : EXHAZI, EXZALC, EXZSAN, EXZALI, EXZORI, EXZPHY
- * 20240701     PBEAUDOUIN   For validation Xtend
+ * 20240701     PBEAUDOUIN   validation Xtend
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

@@ -67,8 +67,9 @@ public class EXT036 extends ExtendM3Batch {
    * @return
    */
   private Optional<String> getJobData(String referenceId) {
-    Map<String, String> query = database.table("EXTJOB").index("00").selection("EXDATA").build()
-    Map<String, String> container = query.createContainer()
+     DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBContainer container = query.createContainer()
+
     container.set("EXRFID", referenceId)
     if (query.read(container)) {
       return Optional.of(container.getString("EXDATA"))

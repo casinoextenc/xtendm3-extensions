@@ -12,7 +12,6 @@ public class SearchTablEntry extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
-  private final MICallerAPI miCaller
   private final ProgramAPI program
   private final UtilityAPI utility
 

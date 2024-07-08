@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20230201     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240708     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 public class UpdDocumentCode extends ExtendM3Transaction {
   private final MIAPI mi
@@ -30,7 +31,12 @@ public class UpdDocumentCode extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer) program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO")
+      currentCompany = mi.in.get("CONO") as int
+      String currentUser = program.getUser()
+      if (!checkCompany(currentCompany, currentUser)) {
+        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
+        return
+      }
     }
 
     //Check if record exists in Constraint Code Table (EXT034)
@@ -114,12 +120,6 @@ public class UpdDocumentCode extends ExtendM3Transaction {
     ext035Request.set("EXDOID", mi.in.get("DOID"))
 
     Closure<?> ext035Updater = { LockedResult ext035LockedResultEXT035 ->
-      if (mi.in.get("CSCD") != null)
-        ext035LockedResultEXT035.set("EXCSCD", mi.in.get("CSCD"))
-      if (mi.in.get("CUNO") != null)
-        ext035LockedResultEXT035.set("EXCUNO", mi.in.get("CUNO"))
-      if (mi.in.get("DOID") != null)
-        ext035LockedResultEXT035.set("EXDOID", mi.in.get("DOID"))
       if (mi.in.get("ADS1") != null)
         ext035LockedResultEXT035.set("EXADS1", ads1)
       ext035LockedResultEXT035.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -132,5 +132,23 @@ public class UpdDocumentCode extends ExtendM3Transaction {
       mi.error("L'enregistrement n'existe pas")
       return
     }
+  }
+
+  /**
+   *  Check if CONO is alowed for user
+   * @param cono
+   * @param user
+   * @return true if alowed false otherwise
+   */
+  private boolean checkCompany(int cono, String user) {
+    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
+    DBContainer csyusrRequest = csyusrQuery.getContainer()
+    csyusrRequest.set("CRCONO", cono)
+    csyusrRequest.set("CRDIVI", '')
+    csyusrRequest.set("CRRESP", user)
+    if (!csyusrQuery.read(csyusrRequest)) {
+      return false
+    }
+    return true
   }
 }

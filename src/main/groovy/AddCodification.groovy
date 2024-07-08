@@ -31,7 +31,12 @@ public class AddCodification extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer) program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO")
+      currentCompany = mi.in.get("CONO") as int
+      String currentUser = program.getUser()
+      if (!checkCompany(currentCompany, currentUser)) {
+        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
+        return
+      }
     }
 
     //Check if record exists in Constraint Type Table (EXT031)
@@ -64,5 +69,23 @@ public class AddCodification extends ExtendM3Transaction {
     } else {
       mi.error("L'enregistrement existe déjà")
     }
+  }
+
+  /**
+   *  Check if CONO is alowed for user
+   * @param cono
+   * @param user
+   * @return true if alowed false otherwise
+   */
+  private boolean checkCompany(int cono, String user) {
+    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
+    DBContainer csyusrRequest = csyusrQuery.getContainer()
+    csyusrRequest.set("CRCONO", cono)
+    csyusrRequest.set("CRDIVI", '')
+    csyusrRequest.set("CRRESP", user)
+    if (!csyusrQuery.read(csyusrRequest)) {
+      return false
+    }
+    return true
   }
 }

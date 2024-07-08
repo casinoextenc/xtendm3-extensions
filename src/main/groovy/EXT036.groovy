@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20230210     ARENARD      QUAX02 - Constraint engine
  * 20230411     ARENARD      For following criterias, 2 is considered as an empty value : EXHAZI, EXZALC, EXZSAN, EXZALI, EXZORI, EXZPHY
+ * 20240701     PBEAUDOUIN   validation Xtend
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -24,14 +25,14 @@ public class EXT036 extends ExtendM3Batch {
 
   //Objects to store informations
   //Used to store order infos
-  private def datasORDER
+  private Map<String, String> datasORDER
   //Used to store order line infos
-  private def datasLINE
+  private Map<String, String> datasLINE
   //Used to store item infos
-  private def datasITEM
+  private Map<String, String> datasITEM
   //Used to store list of documents for order line infos
   private Map<String, String> documents
-  private Map<String, String> documents_EXT036
+  private Map<String, String> documentsEXT036
 
   public EXT036(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -66,13 +67,13 @@ public class EXT036 extends ExtendM3Batch {
    * @return
    */
   private Optional<String> getJobData(String referenceId) {
-    def query = database.table("EXTJOB").index("00").selection("EXDATA").build()
-    def container = query.createContainer()
+     DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBContainer container = query.createContainer()
+
     container.set("EXRFID", referenceId)
     if (query.read(container)) {
       return Optional.of(container.getString("EXDATA"))
     } else {
-      //logger.debug("EXTJOB not found")
     }
     return Optional.empty()
   }
@@ -105,16 +106,15 @@ public class EXT036 extends ExtendM3Batch {
     } catch (NumberFormatException e) {
       inPOSX = 0
     }
-    logger.debug("Perform job orno=${inORNO} ponr=${inAPONR} posx=${inAPOSX}")
 
     //Read OOLINE
-    ExpressionFactory OOLINE_expression = database.getExpressionFactory("OOLINE")
-    OOLINE_expression = OOLINE_expression.le("OBORST", "77")
-	OOLINE_expression = OOLINE_expression.or(OOLINE_expression.eq("OBORST", "99"))
+    ExpressionFactory oolineExpression = database.getExpressionFactory("OOLINE")
+    oolineExpression = oolineExpression.le("OBORST", "77")
+    oolineExpression = oolineExpression.or(oolineExpression.eq("OBORST", "99"))
 
-    DBAction OOLINE_query = database.table("OOLINE")
+    DBAction oolineQuery = database.table("OOLINE")
       .index("00")
-      .matching(OOLINE_expression)
+      .matching(oolineExpression)
       .selection("OBORNO"
         , "OBPONR"
         , "OBPOSX"
@@ -130,16 +130,16 @@ public class EXT036 extends ExtendM3Batch {
         , "OBCHID"
         , "OBALQT")
       .build()
-    DBContainer OOLINE_request = OOLINE_query.getContainer()
-    OOLINE_request.set("OBCONO", currentCompany)
-    OOLINE_request.set("OBORNO", inORNO)
-    OOLINE_request.set("OBPONR", inPONR)
-    OOLINE_request.set("OBPOSX", inPOSX)
+    DBContainer oolineRequest = oolineQuery.getContainer()
+    oolineRequest.set("OBCONO", currentCompany)
+    oolineRequest.set("OBORNO", inORNO)
+    oolineRequest.set("OBPONR", inPONR)
+    oolineRequest.set("OBPOSX", inPOSX)
 
     //nb keys for OOLINE read all
     int nbk = inPONR == 0 ? 2 : 4
 
-    if (!OOLINE_query.readAll(OOLINE_request, nbk, performOOLINEJob)) {
+    if (!oolineQuery.readAll(oolineRequest, nbk, performOOLINEJob)) {
       // TODO WTF
     }
   }
@@ -147,22 +147,21 @@ public class EXT036 extends ExtendM3Batch {
   /**
    * Perform treatment per OOLINE
    */
-  Closure<?> performOOLINEJob = { DBContainer OOLINE_result ->
-    String orno = OOLINE_result.get("OBORNO")
-    int ponr = OOLINE_result.get("OBPONR") as Integer
-    int posx = OOLINE_result.get("OBPOSX") as Integer
-    String cuno = OOLINE_result.get("OBCUNO")
-    String itno = OOLINE_result.get("OBITNO")
-    String faci = OOLINE_result.get("OBFACI")
-    double orqt = OOLINE_result.get("OBORQT") as Double
-    double alqt = OOLINE_result.get("OBALQT") as Double
-    String orst = OOLINE_result.get("OBORST")
-    String chid = OOLINE_result.get("OBCHID")
+  Closure<?> performOOLINEJob = { DBContainer oolineResult ->
+    String orno = oolineResult.get("OBORNO")
+    int ponr = oolineResult.get("OBPONR") as Integer
+    int posx = oolineResult.get("OBPOSX") as Integer
+    String cuno = oolineResult.get("OBCUNO")
+    String itno = oolineResult.get("OBITNO")
+    String faci = oolineResult.get("OBFACI")
+    double orqt = oolineResult.get("OBORQT") as Double
+    double alqt = oolineResult.get("OBALQT") as Double
+    String orst = oolineResult.get("OBORST")
+    String chid = oolineResult.get("OBCHID")
 
-    logger.debug("performOOLINEJob orno=${orno} ponr=${ponr} posx=${posx}")
 
     documents = new LinkedHashMap<String, String>()
-    documents_EXT036 = new LinkedHashMap<String, String>()
+    documentsEXT036 = new LinkedHashMap<String, String>()
 
     datasLINE = [
       "ORNO"  : ""
@@ -196,28 +195,28 @@ public class EXT036 extends ExtendM3Batch {
     // Read delivery lines
     long dlix = 0
     long conn = 0
-    DBAction query_MHDISL = database.table("MHDISL").index("10").selection("URDLIX").build()
-    DBContainer MHDISL_request = query_MHDISL.getContainer()
-    MHDISL_request.set("URCONO", currentCompany)
-    MHDISL_request.set("URRORC", 3)
-    MHDISL_request.set("URRIDN", orno)
-    MHDISL_request.set("URRIDL", ponr)
-    MHDISL_request.set("URRIDX", posx)
+    DBAction mhdislQuery = database.table("MHDISL").index("10").selection("URDLIX").build()
+    DBContainer mhdislRequest = mhdislQuery.getContainer()
+    mhdislRequest.set("URCONO", currentCompany)
+    mhdislRequest.set("URRORC", 3)
+    mhdislRequest.set("URRIDN", orno)
+    mhdislRequest.set("URRIDL", ponr)
+    mhdislRequest.set("URRIDX", posx)
 
-    Closure<?> MHDISL_reader = { DBContainer MHDISL_result ->
-      dlix = MHDISL_result.get("URDLIX") as Long
+    Closure<?> mhdislReader = { DBContainer mhdislResult ->
+      dlix = mhdislResult.get("URDLIX") as Long
     }
 
-    if(!query_MHDISL.readAll(MHDISL_request, 4, 1, MHDISL_reader)){
+    if (!mhdislQuery.readAll(mhdislRequest, 4, 1, mhdislReader)) {
     }
-    if(dlix != 0) {
-      DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQCONN").build()
-      DBContainer MHDISH_request = query_MHDISH.getContainer()
-      MHDISH_request.set("OQCONO", currentCompany)
-      MHDISH_request.set("OQINOU",  1)
-      MHDISH_request.set("OQDLIX",  dlix)
-      if(query_MHDISH.read(MHDISH_request)) {
-        conn = MHDISH_request.get("OQCONN") as Long
+    if (dlix != 0) {
+      DBAction mhdishQuery = database.table("MHDISH").index("00").selection("OQCONN").build()
+      DBContainer mhdishRequest = mhdishQuery.getContainer()
+      mhdishRequest.set("OQCONO", currentCompany)
+      mhdishRequest.set("OQINOU", 1)
+      mhdishRequest.set("OQDLIX", dlix)
+      if (mhdishQuery.read(mhdishRequest)) {
+        conn = mhdishRequest.get("OQCONN") as Long
       }
     }
     datasLINE["DLIX"] = dlix as String
@@ -236,7 +235,7 @@ public class EXT036 extends ExtendM3Batch {
   /**
    *
    */
-  public void mngEXT036(){
+  public void mngEXT036() {
     String orno = datasLINE["ORNO"]
     int ponr = datasLINE["PONR"] as Integer
     int posx = datasLINE["POSX"] as Integer
@@ -250,61 +249,56 @@ public class EXT036 extends ExtendM3Batch {
     int zcli = datasLINE["ZCLI"] as Integer
     long dlix = datasLINE["DLIX"] as Long
     long conn = datasLINE["CONN"] as Long
-    logger.debug("mngEXT036 orno=${orno} ponr=${ponr} posx=${posx}")
 
     String cscd = datasORDER["CSCD"]
     String uca4 = datasORDER["UCA4"]
 
-    String hazi =  datasITEM["HAZI"]
-    String hie5 =  datasITEM["HIE5"]
-    String cfi4 =  datasITEM["CFI4"]
-    String suno =  datasITEM["SUNO"]
-    String prod =  datasITEM["PROD"]
-    String sig6 =  datasITEM["SIG6"]
-    double grwe =  datasITEM["GRWE"] as Double
-    double newe =  datasITEM["NEWE"] as Double
-    double ztgr =  datasITEM["ZTGR"] as Double
-    double ztnw =  datasITEM["ZTNW"] as Double
-    String csno =  datasITEM["CSNO"]
-    String orco =  datasITEM["ORCO"]
-    String zali =  datasITEM["ZALI"]
-    String zalc =  datasITEM["ZALC"]
-    String zsan =  datasITEM["ZSAN"]
-    String zcap =  datasITEM["ZCAP"]
-    String zca1 =  datasITEM["ZCA1"]
-    String zca2 =  datasITEM["ZCA2"]
-    String zca3 =  datasITEM["ZCA3"]
-    String zca4 =  datasITEM["ZCA4"]
-    String zca5 =  datasITEM["ZCA5"]
-    String zca6 =  datasITEM["ZCA6"]
-    String zca7 =  datasITEM["ZCA7"]
-    String zca8 =  datasITEM["ZCA8"]
-    String zori =  datasITEM["ZORI"]
-    String zphy =  datasITEM["ZPHY"]
-    int zagr =  datasITEM["ZAGR"] as Integer
-    String znag =  datasITEM["ZNAG"]
-    double zqco  =  datasITEM["ZQCO"] as Double
+    String hazi = datasITEM["HAZI"]
+    String hie5 = datasITEM["HIE5"]
+    String cfi4 = datasITEM["CFI4"]
+    String suno = datasITEM["SUNO"]
+    String prod = datasITEM["PROD"]
+    String sig6 = datasITEM["SIG6"]
+    double grwe = datasITEM["GRWE"] as Double
+    double newe = datasITEM["NEWE"] as Double
+    double ztgr = datasITEM["ZTGR"] as Double
+    double ztnw = datasITEM["ZTNW"] as Double
+    String csno = datasITEM["CSNO"]
+    String orco = datasITEM["ORCO"]
+    String zali = datasITEM["ZALI"]
+    String zalc = datasITEM["ZALC"]
+    String zsan = datasITEM["ZSAN"]
+    String zcap = datasITEM["ZCAP"]
+    String zca1 = datasITEM["ZCA1"]
+    String zca2 = datasITEM["ZCA2"]
+    String zca3 = datasITEM["ZCA3"]
+    String zca4 = datasITEM["ZCA4"]
+    String zca5 = datasITEM["ZCA5"]
+    String zca6 = datasITEM["ZCA6"]
+    String zca7 = datasITEM["ZCA7"]
+    String zca8 = datasITEM["ZCA8"]
+    String zori = datasITEM["ZORI"]
+    String zphy = datasITEM["ZPHY"]
+    int zagr = datasITEM["ZAGR"] as Integer
+    String znag = datasITEM["ZNAG"]
+    double zqco = datasITEM["ZQCO"] as Double
 
 
-    for (key in documents_EXT036.keySet()) {
-      String value = documents_EXT036.get(key)
+    for (key in documentsEXT036.keySet()) {
+      String value = documentsEXT036.get(key)
       String[] vt = value.split("#")
       int tcli = vt[0] as Integer
       String stat = vt[1]
-      logger.debug("Log mngEXT036 - ${key} " + tcli + " " + stat)
-      if (!documents.containsKey(key) && stat != "90"){
-        logger.debug("deactivate " + key)
+      if (!documents.containsKey(key) && stat != "90") {
         updateEXT036(orno, ponr, posx, tcli, "90", null)
-      } else if (documents.containsKey(key)){
-        logger.debug("reactivate " + key)
+      } else if (documents.containsKey(key)) {
         String zsty = documents.get(key)
         updateEXT036(orno, ponr, posx, tcli, "20", zsty)
       }
     }
     for (key in documents.keySet()) {
-      if (!documents_EXT036.containsKey(key)){
+      if (!documentsEXT036.containsKey(key)) {
         zcli++
-        logger.debug("create " + key)
         String[] ks = key.split("#")
         double zcid = ks[0] as Double
         String zcty = ks[1]
@@ -314,47 +308,48 @@ public class EXT036 extends ExtendM3Batch {
         String zsty = documents.get(key)
 
 
-        DBAction EXT036_query = database.table("EXT036").index("00").build()
+        DBAction ext036Query = database.table("EXT036").index("00").build()
 
-        DBContainer EXT036_request = EXT036_query.getContainer()
-        EXT036_request.set("EXCONO", currentCompany)
-        EXT036_request.set("EXORNO", orno)
-        EXT036_request.set("EXPONR", ponr)
-        EXT036_request.set("EXPOSX", posx)
-        EXT036_request.set("EXZCLI", zcli)
-        if (!EXT036_query.read(EXT036_request)) {
-          EXT036_request.set("EXORST", orst)
-          EXT036_request.set("EXSTAT", "20")
-          EXT036_request.set("EXCONN", conn)
-          EXT036_request.set("EXDLIX", dlix)
-          EXT036_request.set("EXUCA4", uca4)
-          EXT036_request.set("EXCUNO", cuno)
-          EXT036_request.set("EXITNO", itno)
-          EXT036_request.set("EXZAGR", zagr)
-          EXT036_request.set("EXZNAG", znag)
-          EXT036_request.set("EXORQT", orqt)
-          EXT036_request.set("EXALQT", alqt)
-          EXT036_request.set("EXZQCO", zqco)
-          EXT036_request.set("EXZTGR", ztgr)
-          EXT036_request.set("EXZTNW", ztnw)
-          EXT036_request.set("EXZCID", zcid)
-          EXT036_request.set("EXZCOD", zcod)
-          EXT036_request.set("EXZCTY", zcty)
-          EXT036_request.set("EXDOID", doid)
-          EXT036_request.set("EXADS1", ads1)
-          EXT036_request.set("EXZSTY", zsty)
+        DBContainer ext036Request = ext036Query.getContainer()
+        ext036Request.set("EXCONO", currentCompany)
+        ext036Request.set("EXORNO", orno)
+        ext036Request.set("EXPONR", ponr)
+        ext036Request.set("EXPOSX", posx)
+        ext036Request.set("EXZCLI", zcli)
+        if (!ext036Query.read(ext036Request)) {
+          ext036Request.set("EXORST", orst)
+          ext036Request.set("EXSTAT", "20")
+          ext036Request.set("EXCONN", conn)
+          ext036Request.set("EXDLIX", dlix)
+          ext036Request.set("EXUCA4", uca4)
+          ext036Request.set("EXCUNO", cuno)
+          ext036Request.set("EXITNO", itno)
+          ext036Request.set("EXZAGR", zagr)
+          ext036Request.set("EXZNAG", znag)
+          ext036Request.set("EXORQT", orqt)
+          ext036Request.set("EXALQT", alqt)
+          ext036Request.set("EXZQCO", zqco)
+          ext036Request.set("EXZTGR", ztgr)
+          ext036Request.set("EXZTNW", ztnw)
+          ext036Request.set("EXZCID", zcid)
+          ext036Request.set("EXZCOD", zcod)
+          ext036Request.set("EXZCTY", zcty)
+          ext036Request.set("EXDOID", doid)
+          ext036Request.set("EXADS1", ads1)
+          ext036Request.set("EXZSTY", zsty)
           LocalDateTime timeOfCreation = LocalDateTime.now()
-          EXT036_request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-          EXT036_request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-          EXT036_request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-          EXT036_request.setInt("EXCHNO", 1)
-          EXT036_request.set("EXCHID", chid)
-          EXT036_query.insert(EXT036_request)
+          ext036Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+          ext036Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+          ext036Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+          ext036Request.setInt("EXCHNO", 1)
+          ext036Request.set("EXCHID", chid)
+          ext036Query.insert(ext036Request)
         }
 
       }
     }
   }
+
   public void updateEXT036(String orno, int ponr, int posx, int zcli, String stat, String zsty) {
     String cuno = datasLINE["CUNO"] as String
     String itno = datasLINE["ITNO"]
@@ -366,48 +361,47 @@ public class EXT036 extends ExtendM3Batch {
 
     long dlix = datasLINE["DLIX"] as Long
     long conn = datasLINE["CONN"] as Long
-    logger.debug("mngEXT036 orno=${orno} ponr=${ponr} posx=${posx}")
 
     String cscd = datasORDER["CSCD"]
     String uca4 = datasORDER["UCA4"]
 
-    String hazi =  datasITEM["HAZI"]
-    String hie5 =  datasITEM["HIE5"]
-    String cfi4 =  datasITEM["CFI4"]
-    String suno =  datasITEM["SUNO"]
-    String prod =  datasITEM["PROD"]
-    String sig6 =  datasITEM["SIG6"]
-    double grwe =  datasITEM["GRWE"] as Double
-    double newe =  datasITEM["NEWE"] as Double
-    double ztgr =  datasITEM["ZTGR"] as Double
-    double ztnw =  datasITEM["ZTNW"] as Double
-    String csno =  datasITEM["CSNO"]
-    String orco =  datasITEM["ORCO"]
-    String zali =  datasITEM["ZALI"]
-    String zalc =  datasITEM["ZALC"]
-    String zsan =  datasITEM["ZSAN"]
-    String zcap =  datasITEM["ZCAP"]
-    String zca1 =  datasITEM["ZCA1"]
-    String zca2 =  datasITEM["ZCA2"]
-    String zca3 =  datasITEM["ZCA3"]
-    String zca4 =  datasITEM["ZCA4"]
-    String zca5 =  datasITEM["ZCA5"]
-    String zca6 =  datasITEM["ZCA6"]
-    String zca7 =  datasITEM["ZCA7"]
-    String zca8 =  datasITEM["ZCA8"]
-    String zori =  datasITEM["ZORI"]
-    String zphy =  datasITEM["ZPHY"]
-    int zagr =  datasITEM["ZAGR"] as Integer
-    String znag =  datasITEM["ZNAG"]
-    double zqco  =  datasITEM["ZQCO"] as Double
+    String hazi = datasITEM["HAZI"]
+    String hie5 = datasITEM["HIE5"]
+    String cfi4 = datasITEM["CFI4"]
+    String suno = datasITEM["SUNO"]
+    String prod = datasITEM["PROD"]
+    String sig6 = datasITEM["SIG6"]
+    double grwe = datasITEM["GRWE"] as Double
+    double newe = datasITEM["NEWE"] as Double
+    double ztgr = datasITEM["ZTGR"] as Double
+    double ztnw = datasITEM["ZTNW"] as Double
+    String csno = datasITEM["CSNO"]
+    String orco = datasITEM["ORCO"]
+    String zali = datasITEM["ZALI"]
+    String zalc = datasITEM["ZALC"]
+    String zsan = datasITEM["ZSAN"]
+    String zcap = datasITEM["ZCAP"]
+    String zca1 = datasITEM["ZCA1"]
+    String zca2 = datasITEM["ZCA2"]
+    String zca3 = datasITEM["ZCA3"]
+    String zca4 = datasITEM["ZCA4"]
+    String zca5 = datasITEM["ZCA5"]
+    String zca6 = datasITEM["ZCA6"]
+    String zca7 = datasITEM["ZCA7"]
+    String zca8 = datasITEM["ZCA8"]
+    String zori = datasITEM["ZORI"]
+    String zphy = datasITEM["ZPHY"]
+    int zagr = datasITEM["ZAGR"] as Integer
+    String znag = datasITEM["ZNAG"]
+    double zqco = datasITEM["ZQCO"] as Double
 
     DBAction query = database.table("EXT036").index("00").build()
-    DBContainer EXT036_request = query.getContainer()
-    EXT036_request.set("EXCONO", currentCompany)
-    EXT036_request.set("EXORNO", orno)
-    EXT036_request.set("EXPONR", ponr)
-    EXT036_request.set("EXPOSX", posx)
-    EXT036_request.set("EXZCLI", zcli)
+    DBContainer ext036Request = query.getContainer()
+    ext036Request.set("EXCONO", currentCompany)
+    ext036Request.set("EXORNO", orno)
+    ext036Request.set("EXPONR", ponr)
+    ext036Request.set("EXPOSX", posx)
+    ext036Request.set("EXZCLI", zcli)
 
     Closure<?> updateCallBack = { LockedResult lockedResult ->
       LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -428,11 +422,11 @@ public class EXT036 extends ExtendM3Batch {
       lockedResult.set("EXZTNW", ztnw)
       if (zsty != null)
         lockedResult.set("EXZSTY", zsty)
-	  if (orst == "99") {
-		lockedResult.set("EXSTAT", "90")
-	  }else{
-		lockedResult.set("EXSTAT", stat)
-	  }
+      if (orst == "99") {
+        lockedResult.set("EXSTAT", "90")
+      } else {
+        lockedResult.set("EXSTAT", stat)
+      }
       lockedResult.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
       lockedResult.setInt("EXCHNO", changeNumber + 1)
       lockedResult.set("EXCHID", program.getUser())
@@ -440,20 +434,21 @@ public class EXT036 extends ExtendM3Batch {
     }
 
 
-    if(!query.readLock(EXT036_request, updateCallBack)){}
+    if (!query.readLock(ext036Request, updateCallBack)) {
+    }
   }
 
   /**
    *
    */
-  public void getLineEXT036(){
+  public void getLineEXT036() {
     String orno = datasLINE["ORNO"]
     int ponr = datasLINE["PONR"] as Integer
     int posx = datasLINE["POSX"] as Integer
     int constraintLine = 0
 
     // Retrieve next constraint line available
-    DBAction EXT036_query = database.table("EXT036")
+    DBAction ext036Query = database.table("EXT036")
       .index("00")
       .selection(
         "EXORNO"
@@ -468,28 +463,26 @@ public class EXT036 extends ExtendM3Batch {
         , "EXSTAT"
       )
       .build()
-    DBContainer EXT036_request = EXT036_query.getContainer()
-    EXT036_request.set("EXCONO", currentCompany)
-    EXT036_request.set("EXORNO", orno)
-    EXT036_request.set("EXPONR", ponr)
-    EXT036_request.set("EXPOSX", posx)
+    DBContainer ext036Request = ext036Query.getContainer()
+    ext036Request.set("EXCONO", currentCompany)
+    ext036Request.set("EXORNO", orno)
+    ext036Request.set("EXPONR", ponr)
+    ext036Request.set("EXPOSX", posx)
 
-    Closure<?> EXT036_reader = { DBContainer EXT036_result ->
-      constraintLine = EXT036_result.get("EXZCLI") as Integer
-      String zcid = EXT036_result.get("EXZCID") as String
-      String zcty = EXT036_result.get("EXZCTY") as String
-      String zcod = EXT036_result.get("EXZCOD") as String
-      String doid = EXT036_result.get("EXDOID") as String
-      String ads1 = EXT036_result.get("EXADS1") as String
+    Closure<?> ext036Reader = { DBContainer ext036Result ->
+      constraintLine = ext036Result.get("EXZCLI") as Integer
+      String zcid = ext036Result.get("EXZCID") as String
+      String zcty = ext036Result.get("EXZCTY") as String
+      String zcod = ext036Result.get("EXZCOD") as String
+      String doid = ext036Result.get("EXDOID") as String
+      String ads1 = ext036Result.get("EXADS1") as String
       String key = zcid.trim() + "#" + zcty.trim() + "#" + zcod.trim() + "#" + doid.trim() + "#" + ads1.trim()
-      String value = EXT036_result.get("EXZCLI") as String
-      value += "#" +  EXT036_result.get("EXSTAT") as String
-      logger.debug("Add document_EXT036 key=${key}")
-      documents_EXT036.put(key, value)
+      String value = ext036Result.get("EXZCLI") as String
+      value += "#" + ext036Result.get("EXSTAT") as String
+      documentsEXT036.put(key, value)
     }
-    if (!EXT036_query.readAll(EXT036_request, 4, EXT036_reader)) {
+    if (!ext036Query.readAll(ext036Request, 4, ext036Reader)) {
     }
-    logger.debug("last ZCLI ${constraintLine}")
     datasLINE["ZCLI"] = constraintLine as String
   }
 
@@ -502,99 +495,97 @@ public class EXT036 extends ExtendM3Batch {
     int ponr = datasLINE["PONR"] as Integer
     int posx = datasLINE["POSX"] as Integer
 
-    logger.debug("getLineEXT030 orno=${orno} ponr=${ponr} posx=${posx}")
 
     String cuno = datasORDER["CUNO"]
     String cscd = datasORDER["CSCD"]
 
-    String hazi =  datasITEM["HAZI"]
-    String hie5 =  datasITEM["HIE5"]
-    String cfi4 =  datasITEM["CFI4"]
-    String suno =  datasITEM["SUNO"]
-    String prod =  datasITEM["PROD"]
-    String sig6 =  datasITEM["SIG6"]
-    String grwe =  datasITEM["GRWE"]
-    String newe =  datasITEM["NEWE"]
-    String ztgr =  datasITEM["ZTGR"]
-    String ztnw =  datasITEM["ZTNW"]
-    String csno =  datasITEM["CSNO"]
-    String orco =  datasITEM["ORCO"]
-    String zali =  datasITEM["ZALI"]
-    String zalc =  datasITEM["ZALC"]
-    String zsan =  datasITEM["ZSAN"]
-    String zcap =  datasITEM["ZCAP"]
-    String zca1 =  datasITEM["ZCA1"]
-    String zca2 =  datasITEM["ZCA2"]
-    String zca3 =  datasITEM["ZCA3"]
-    String zca4 =  datasITEM["ZCA4"]
-    String zca5 =  datasITEM["ZCA5"]
-    String zca6 =  datasITEM["ZCA6"]
-    String zca7 =  datasITEM["ZCA7"]
-    String zca8 =  datasITEM["ZCA8"]
-    String zori =  datasITEM["ZORI"]
-    String zphy =  datasITEM["ZPHY"]
-    String zagr =  datasITEM["ZAGR"]
-    String znag =  datasITEM["ZNAG"]
+    String hazi = datasITEM["HAZI"]
+    String hie5 = datasITEM["HIE5"]
+    String cfi4 = datasITEM["CFI4"]
+    String suno = datasITEM["SUNO"]
+    String prod = datasITEM["PROD"]
+    String sig6 = datasITEM["SIG6"]
+    String grwe = datasITEM["GRWE"]
+    String newe = datasITEM["NEWE"]
+    String ztgr = datasITEM["ZTGR"]
+    String ztnw = datasITEM["ZTNW"]
+    String csno = datasITEM["CSNO"]
+    String orco = datasITEM["ORCO"]
+    String zali = datasITEM["ZALI"]
+    String zalc = datasITEM["ZALC"]
+    String zsan = datasITEM["ZSAN"]
+    String zcap = datasITEM["ZCAP"]
+    String zca1 = datasITEM["ZCA1"]
+    String zca2 = datasITEM["ZCA2"]
+    String zca3 = datasITEM["ZCA3"]
+    String zca4 = datasITEM["ZCA4"]
+    String zca5 = datasITEM["ZCA5"]
+    String zca6 = datasITEM["ZCA6"]
+    String zca7 = datasITEM["ZCA7"]
+    String zca8 = datasITEM["ZCA8"]
+    String zori = datasITEM["ZORI"]
+    String zphy = datasITEM["ZPHY"]
+    String zagr = datasITEM["ZAGR"]
+    String znag = datasITEM["ZNAG"]
 
-    ExpressionFactory expression_EXT030 = database.getExpressionFactory("EXT030")
-    expression_EXT030 = (expression_EXT030.eq("EXCUNO", cuno)).or(expression_EXT030.eq("EXCUNO", ""))
+    ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
+    ext030Expression = (ext030Expression.eq("EXCUNO", cuno)).or(ext030Expression.eq("EXCUNO", ""))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCSCD", cscd)).or(expression_EXT030.eq("EXCSCD", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSCD", cscd)).or(ext030Expression.eq("EXCSCD", "")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXHAZI", hazi as String)).or(expression_EXT030.eq("EXHAZI", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXHAZI", hazi as String)).or(ext030Expression.eq("EXHAZI", "2")))
 
     if (hie5 != "") {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXHIE0", hie5)).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 2) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 4) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 7) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 9) + "*")).or(expression_EXT030.eq("EXHIE0", hie5.substring(0, 11) + "*")).or(expression_EXT030.eq("EXHIE0", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXHIE0", hie5)).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 2) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 4) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 7) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 9) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 11) + "*")).or(ext030Expression.eq("EXHIE0", "")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXHIE0", hie5)).or(expression_EXT030.eq("EXHIE0", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXHIE0", hie5)).or(ext030Expression.eq("EXHIE0", "")))
     }
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCFI4", cfi4)).or(expression_EXT030.eq("EXCFI4", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXCFI4", cfi4)).or(ext030Expression.eq("EXCFI4", "")))
 
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXPOPN", sig6)).or(expression_EXT030.eq("EXPOPN", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXPOPN", sig6)).or(ext030Expression.eq("EXPOPN", "")))
 
     if (csno != "") {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCSNO", csno)).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 1) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 2) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 3) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 4) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 5) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 6) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 7) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 8) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 9) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 10) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 11) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 12) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 13) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 14) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 15) + "*")).or(expression_EXT030.eq("EXCSNO", csno.substring(0, 16) + "*")).or(expression_EXT030.eq("EXCSNO", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSNO", csno)).or(ext030Expression.eq("EXCSNO", csno.substring(0, 1) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 2) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 3) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 4) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 5) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 6) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 7) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 8) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 9) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 10) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 11) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 12) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 13) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 14) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 15) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 16) + "*")).or(ext030Expression.eq("EXCSNO", "")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXCSNO", csno)).or(expression_EXT030.eq("EXCSNO", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSNO", csno)).or(ext030Expression.eq("EXCSNO", "")))
     }
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXORCO", orco)).or(expression_EXT030.eq("EXORCO", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXORCO", orco)).or(ext030Expression.eq("EXORCO", "")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZALC", zalc as String)).or(expression_EXT030.eq("EXZALC", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZALC", zalc as String)).or(ext030Expression.eq("EXZALC", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZSAN", zsan as String)).or(expression_EXT030.eq("EXZSAN", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZSAN", zsan as String)).or(ext030Expression.eq("EXZSAN", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZCAP", zca1)).or(expression_EXT030.eq("EXZCAP", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZCAP", zca1)).or(ext030Expression.eq("EXZCAP", "")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZCAS", zca1)).or(expression_EXT030.eq("EXZCAS", zca2)).or(expression_EXT030.eq("EXZCAS", zca3)).or(expression_EXT030.eq("EXZCAS", zca4)).or(expression_EXT030.eq("EXZCAS", zca5)).or(expression_EXT030.eq("EXZCAS", zca6)).or(expression_EXT030.eq("EXZCAS", zca7)).or(expression_EXT030.eq("EXZCAS", zca8)).or(expression_EXT030.eq("EXZCAS", "")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZCAS", zca1)).or(ext030Expression.eq("EXZCAS", zca2)).or(ext030Expression.eq("EXZCAS", zca3)).or(ext030Expression.eq("EXZCAS", zca4)).or(ext030Expression.eq("EXZCAS", zca5)).or(ext030Expression.eq("EXZCAS", zca6)).or(ext030Expression.eq("EXZCAS", zca7)).or(ext030Expression.eq("EXZCAS", zca8)).or(ext030Expression.eq("EXZCAS", "")))
 
     if (znag != "") {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZNAG", znag)).or(expression_EXT030.eq("EXZNAG", znag.substring(0, 4) + "*")).or(expression_EXT030.eq("EXZNAG", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZNAG", znag)).or(ext030Expression.eq("EXZNAG", znag.substring(0, 4) + "*")).or(ext030Expression.eq("EXZNAG", "")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZNAG", znag)).or(expression_EXT030.eq("EXZNAG", "")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZNAG", znag)).or(ext030Expression.eq("EXZNAG", "")))
     }
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZALI", zali as String)).or(expression_EXT030.eq("EXZALI", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZALI", zali as String)).or(ext030Expression.eq("EXZALI", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZORI", zori as String)).or(expression_EXT030.eq("EXZORI", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZORI", zori as String)).or(ext030Expression.eq("EXZORI", "2")))
 
-    expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZPHY", zphy as String)).or(expression_EXT030.eq("EXZPHY", "2")))
+    ext030Expression = ext030Expression.and((ext030Expression.eq("EXZPHY", zphy as String)).or(ext030Expression.eq("EXZPHY", "2")))
 
-    logger.debug("ORCO 2 ${orco} " + (orco == "FR"))
-    if (orco == "FR"){
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZOHF", "0")).or(expression_EXT030.eq("EXZOHF", "2")))
+    if (orco == "FR") {
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZOHF", "0")).or(ext030Expression.eq("EXZOHF", "2")))
     } else {
-      expression_EXT030 = expression_EXT030.and((expression_EXT030.eq("EXZOHF", "1")).or(expression_EXT030.eq("EXZOHF", "2")))
+      ext030Expression = ext030Expression.and((ext030Expression.eq("EXZOHF", "1")).or(ext030Expression.eq("EXZOHF", "2")))
     }
 
-    DBAction EXT030_query = database.table("EXT030").index("20").matching(expression_EXT030).selection("EXZCID", "EXZCOD").build()
-    DBContainer EXT030 = EXT030_query.getContainer()
+    DBAction ext030Query = database.table("EXT030").index("20").matching(ext030Expression).selection("EXZCID", "EXZCOD").build()
+    DBContainer EXT030 = ext030Query.getContainer()
     EXT030.set("EXCONO", currentCompany)
     EXT030.set("EXSTAT", "20")
 
-    if(!EXT030_query.readAll(EXT030, 2, EXT030_reader)){
+    if (!ext030Query.readAll(EXT030, 2, ext030Reader)) {
     }
   }
 
@@ -609,11 +600,11 @@ public class EXT036 extends ExtendM3Batch {
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
 
-    Closure<?> updateCallBack_EXTJOB = { LockedResult lockedResult ->
+    Closure<?> extjobUpdateCallBack = { LockedResult lockedResult ->
       lockedResult.delete()
     }
 
-    if (!query.readAllLock(EXTJOB, 1, updateCallBack_EXTJOB)) {
+    if (!query.readAllLock(EXTJOB, 1, extjobUpdateCallBack)) {
     }
   }
 
@@ -638,7 +629,6 @@ public class EXT036 extends ExtendM3Batch {
     if (titno == itno) {
       return
     }
-    logger.debug("getItemDatas itno=${itno}")
     datasITEM = [
       "HAZI"  : ""
       , "HIE5": ""
@@ -705,11 +695,11 @@ public class EXT036 extends ExtendM3Batch {
     String znag = ""
 
     //Get infos from MITMAS
-    DBAction MITMAS_query = database.table("MITMAS").index("00").selection("MMHAZI", "MMHIE5", "MMCFI4", "MMSUNO", "MMPROD", "MMITGR", "MMGRWE", "MMNEWE").build()
-    DBContainer MITMAS = MITMAS_query.getContainer()
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMHAZI", "MMHIE5", "MMCFI4", "MMSUNO", "MMPROD", "MMITGR", "MMGRWE", "MMNEWE").build()
+    DBContainer MITMAS = mitmasQuery.getContainer()
     MITMAS.set("MMCONO", currentCompany)
     MITMAS.set("MMITNO", itno)
-    if (MITMAS_query.read(MITMAS)) {
+    if (mitmasQuery.read(MITMAS)) {
       hazi = MITMAS.get("MMHAZI")
       hie5 = MITMAS.get("MMHIE5")
       cfi4 = MITMAS.get("MMCFI4")
@@ -725,46 +715,43 @@ public class EXT036 extends ExtendM3Batch {
       }
     }
     //Get infos from MITPOP
-    ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
-    expression_MITPOP = expression_MITPOP.eq("MPREMK", "SIGMA6")
-    DBAction MITPOP_query = database.table("MITPOP")
+    ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
+    mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")
+    DBAction mitpopQuery = database.table("MITPOP")
       .index("00")
-      .matching(expression_MITPOP)
+      .matching(mitpopExpression)
       .selection("MPPOPN").build()
 
-    DBContainer MITPOP_request = MITPOP_query.getContainer()
-    MITPOP_request.set("MPCONO", currentCompany)
-    MITPOP_request.set("MPALWT", 1)
-    MITPOP_request.set("MPALWQ", "")
-    MITPOP_request.set("MPITNO", itno)
+    DBContainer mitpopRequest = mitpopQuery.getContainer()
+    mitpopRequest.set("MPCONO", currentCompany)
+    mitpopRequest.set("MPALWT", 1)
+    mitpopRequest.set("MPALWQ", "")
+    mitpopRequest.set("MPITNO", itno)
 
-    Closure<?> MITPOP_reader = { DBContainer MITPOP_result ->
-      //logger.debug("found MITPOP")
-      sig6 = MITPOP_result.getString("MPPOPN").trim()
+    Closure<?> mitpopReader = { DBContainer mitpopResult ->
+      sig6 = mitpopResult.getString("MPPOPN").trim()
     }
 
-    if (!MITPOP_query.readAll(MITPOP_request, 4, MITPOP_reader)) {
+    if (!mitpopQuery.readAll(mitpopRequest, 4, mitpopReader)) {
     }
 
     //Get infos from MITFAC
-    DBAction MITFAC_query = database.table("MITFAC")
+    DBAction mitfacQuery = database.table("MITFAC")
       .index("00")
       .selection("M9CSNO"
         , "M9ORCO")
       .build()
-    DBContainer MITFAC = MITFAC_query.getContainer()
+    DBContainer MITFAC = mitfacQuery.getContainer()
     MITFAC.set("M9CONO", currentCompany)
     MITFAC.set("M9FACI", faci)
     MITFAC.set("M9ITNO", itno)
-    logger.debug("FACI ${faci}")
-    if (MITFAC_query.read(MITFAC)) {
+    if (mitfacQuery.read(MITFAC)) {
       csno = MITFAC.get("M9CSNO")
       orco = MITFAC.getString("M9ORCO").trim()
-      logger.debug("ORCO ${orco}")
     }
 
     //Get infos from EXT032
-    DBAction EXT032_query = database
+    DBAction ext032Query = database
       .table("EXT032")
       .index("00")
       .selection("EXZALC"
@@ -784,57 +771,57 @@ public class EXT036 extends ExtendM3Batch {
         , "EXZALI"
       ).build()
 
-    DBContainer EXT032_request = EXT032_query.getContainer()
-    EXT032_request.set("EXCONO", currentCompany)
-    EXT032_request.set("EXPOPN", sig6)
-    EXT032_request.set("EXSUNO", suno)
-    EXT032_request.set("EXORCO", orco)
-    if (EXT032_query.read(EXT032_request)) {
-      zalc = EXT032_request.get("EXZALC") as Integer
-      zsan = EXT032_request.get("EXZSAN") as Integer
-      zcap = EXT032_request.get("EXZCA1")
-      zca1 = EXT032_request.get("EXZCA1")
-      zca2 = EXT032_request.get("EXZCA2")
-      zca3 = EXT032_request.get("EXZCA3")
-      zca4 = EXT032_request.get("EXZCA4")
-      zca5 = EXT032_request.get("EXZCA5")
-      zca6 = EXT032_request.get("EXZCA6")
-      zca7 = EXT032_request.get("EXZCA7")
-      zca8 = EXT032_request.get("EXZCA8")
-      zori = EXT032_request.get("EXZORI") as Integer
-      zphy = EXT032_request.get("EXZPHY") as Integer
-      zagr = EXT032_request.get("EXZAGR") as Integer
-      zali = EXT032_request.get("EXZALI") as Integer
+    DBContainer ext032Request = ext032Query.getContainer()
+    ext032Request.set("EXCONO", currentCompany)
+    ext032Request.set("EXPOPN", sig6)
+    ext032Request.set("EXSUNO", suno)
+    ext032Request.set("EXORCO", orco)
+    if (ext032Query.read(ext032Request)) {
+      zalc = ext032Request.get("EXZALC") as Integer
+      zsan = ext032Request.get("EXZSAN") as Integer
+      zcap = ext032Request.get("EXZCA1")
+      zca1 = ext032Request.get("EXZCA1")
+      zca2 = ext032Request.get("EXZCA2")
+      zca3 = ext032Request.get("EXZCA3")
+      zca4 = ext032Request.get("EXZCA4")
+      zca5 = ext032Request.get("EXZCA5")
+      zca6 = ext032Request.get("EXZCA6")
+      zca7 = ext032Request.get("EXZCA7")
+      zca8 = ext032Request.get("EXZCA8")
+      zori = ext032Request.get("EXZORI") as Integer
+      zphy = ext032Request.get("EXZPHY") as Integer
+      zagr = ext032Request.get("EXZAGR") as Integer
+      zali = ext032Request.get("EXZALI") as Integer
     }
 
-    DBAction CUGEX1_CIDMAS_query = database.table("CUGEX1").index("00").selection("F1A030").build()
-    DBContainer CUGEX1_CIDMAS = CUGEX1_CIDMAS_query.getContainer()
-    CUGEX1_CIDMAS.set("F1CONO", currentCompany)
-    CUGEX1_CIDMAS.set("F1FILE", "CIDMAS")
+    DBAction cugex1CidmasQuery = database.table("CUGEX1").index("00").selection("F1A030").build()
+    DBContainer cugex1Cidmas = cugex1CidmasQuery.getContainer()
+    cugex1Cidmas.set("F1CONO", currentCompany)
+    cugex1Cidmas.set("F1FILE", "CIDMAS")
     if (prod.trim() != "") {
-      CUGEX1_CIDMAS.set("F1PK01", prod)
+      cugex1Cidmas.set("F1PK01", prod)
     } else {
-      CUGEX1_CIDMAS.set("F1PK01", suno)
+      cugex1Cidmas.set("F1PK01", suno)
     }
-    CUGEX1_CIDMAS.set("F1PK02", "")
-    CUGEX1_CIDMAS.set("F1PK03", "")
-    CUGEX1_CIDMAS.set("F1PK04", "")
-    CUGEX1_CIDMAS.set("F1PK05", "")
-    CUGEX1_CIDMAS.set("F1PK06", "")
-    CUGEX1_CIDMAS.set("F1PK07", "")
-    CUGEX1_CIDMAS.set("F1PK08", "")
-    if (CUGEX1_CIDMAS_query.read(CUGEX1_CIDMAS)) {
-      znag = CUGEX1_CIDMAS.get("F1A030")
+    cugex1Cidmas.set("F1PK02", "")
+    cugex1Cidmas.set("F1PK03", "")
+    cugex1Cidmas.set("F1PK04", "")
+    cugex1Cidmas.set("F1PK05", "")
+    cugex1Cidmas.set("F1PK06", "")
+    cugex1Cidmas.set("F1PK07", "")
+    cugex1Cidmas.set("F1PK08", "")
+    if (cugex1CidmasQuery.read(cugex1Cidmas)) {
+      znag = cugex1Cidmas.get("F1A030")
     }
     double cofa = 0
     double zqco = 0
-    DBAction query_MITAUN = database.table("MITAUN").index("00").selection("MUCOFA").build()
-    DBContainer MITAUN = query_MITAUN.getContainer()
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
+    DBContainer MITAUN = mitaunQuery.getContainer()
     MITAUN.set("MUCONO", currentCompany)
     MITAUN.set("MUITNO", itno)
     MITAUN.set("MUAUTP", 1)
     MITAUN.set("MUALUN", "COL")
-    if (query_MITAUN.read(MITAUN)) {
+    if (mitaunQuery.read(MITAUN)) {
       cofa = MITAUN.get("MUCOFA") as Double
       if (orqt != 0 && cofa != 0)
         zqco = orqt / cofa
@@ -891,43 +878,42 @@ public class EXT036 extends ExtendM3Batch {
     if (orno == torno) {
       return
     }
-    logger.debug("getOrderDatas orno=${orno}")
 
-    DBAction OOHEAD_query = database.table("OOHEAD")
+    DBAction ooheadQuery = database.table("OOHEAD")
       .index("00")
       .selection("OAADID"
         , "OACUNO"
         , "OAUCA4"
       )
       .build()
-    DBContainer OOHEAD_request = OOHEAD_query.getContainer()
-    OOHEAD_request.set("OACONO", currentCompany)
-    OOHEAD_request.set("OAORNO", orno)
-    if (OOHEAD_query.read(OOHEAD_request)) {
-      datasORDER["UCA4"] = OOHEAD_request["OAUCA4"] as String
-      datasORDER["CUNO"] = OOHEAD_request["OACUNO"] as String
-      if (OOHEAD_request.getString("OAADID") != "") {
-        DBAction OCUSAD_query = database.table("OCUSAD")
+    DBContainer ooheadRequest = ooheadQuery.getContainer()
+    ooheadRequest.set("OACONO", currentCompany)
+    ooheadRequest.set("OAORNO", orno)
+    if (ooheadQuery.read(ooheadRequest)) {
+      datasORDER["UCA4"] = ooheadRequest["OAUCA4"] as String
+      datasORDER["CUNO"] = ooheadRequest["OACUNO"] as String
+      if (ooheadRequest.getString("OAADID") != "") {
+        DBAction ocusadQuery = database.table("OCUSAD")
           .index("00")
           .selection("OPCSCD")
           .build()
-        DBContainer OCUSAD_request = OCUSAD_query.getContainer()
-        OCUSAD_request.set("OPCONO", currentCompany)
-        OCUSAD_request.set("OPCUNO", datasORDER["CUNO"])
-        OCUSAD_request.set("OPADRT", 1)
-        OCUSAD_request.set("OPADID", OOHEAD_request.get("OAADID"))
-        if (OCUSAD_query.read(OCUSAD_request)) {
-          datasORDER["CSCD"] = OCUSAD_request.getString("OPCSCD")
+        DBContainer ocusadRequest = ocusadQuery.getContainer()
+        ocusadRequest.set("OPCONO", currentCompany)
+        ocusadRequest.set("OPCUNO", datasORDER["CUNO"])
+        ocusadRequest.set("OPADRT", 1)
+        ocusadRequest.set("OPADID", ooheadRequest.get("OAADID"))
+        if (ocusadQuery.read(ocusadRequest)) {
+          datasORDER["CSCD"] = ocusadRequest.getString("OPCSCD")
         }
       } else {
-        DBAction OCUSMA_query = database.table("OCUSMA")
+        DBAction ocusmaQuery = database.table("OCUSMA")
           .index("00")
           .selection("OKCSCD").build()
-        DBContainer OCUSMA_request = OCUSMA_query.getContainer()
-        OCUSMA_request.set("OKCONO", currentCompany)
-        OCUSMA_request.set("OKCUNO", datasORDER["CUNO"])
-        if (OCUSMA_query.read(OCUSMA_request)) {
-          datasORDER["CSCD"] = OCUSMA_request.getString("OKCSCD")
+        DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+        ocusmaRequest.set("OKCONO", currentCompany)
+        ocusmaRequest.set("OKCUNO", datasORDER["CUNO"])
+        if (ocusmaQuery.read(ocusmaRequest)) {
+          datasORDER["CSCD"] = ocusmaRequest.getString("OKCSCD")
         }
       }
     }
@@ -935,28 +921,27 @@ public class EXT036 extends ExtendM3Batch {
   /**
    * Read EXT030 constraint
    */
-  Closure<?> EXT030_reader = { DBContainer EXT030_result ->
+  Closure<?> ext030Reader = { DBContainer ext030Result ->
     boolean constraintFound = true
-    String zcid = EXT030_result.get("EXZCID")
-    String zcod = EXT030_result.get("EXZCOD")
+    String zcid = ext030Result.get("EXZCID")
+    String zcod = ext030Result.get("EXZCOD")
     String zcty = ""
     String zsty = ""
 
-    DBAction EXT034_query = database
+    DBAction ext034Query = database
       .table("EXT034")
       .index("00")
       .selection("EXZCTY"
         , "EXZSTY")
       .build()
-    DBContainer EXT034_request = EXT034_query.getContainer()
-    EXT034_request.set("EXCONO", currentCompany)
-    EXT034_request.set("EXZCOD", zcod)
-    if(EXT034_query.read(EXT034_request)){
-      zcty = EXT034_request.get("EXZCTY")
-      zsty = EXT034_request.get("EXZSTY") as String
+    DBContainer ext034Request = ext034Query.getContainer()
+    ext034Request.set("EXCONO", currentCompany)
+    ext034Request.set("EXZCOD", zcod)
+    if (ext034Query.read(ext034Request)) {
+      zcty = ext034Request.get("EXZCTY")
+      zsty = ext034Request.get("EXZSTY") as String
     }
-    logger.debug("EXT030_reader zcid=${zcid} zcty=${zcty} zcod=${zcod}")
-    queryEXT035(zcid, zcty,zcod, zsty)
+    queryEXT035(zcid, zcty, zcod, zsty)
 
   }
   /**
@@ -965,48 +950,45 @@ public class EXT036 extends ExtendM3Batch {
    */
   public void queryEXT035(String zcid, String zcty, String zcod, zsty) {
     //Document search: write in EXT036 for each document found
-    DBAction EXT035_query = database.table("EXT035").index("00").selection("EXZCOD").build()
-    DBContainer EXT035_request = EXT035_query.getContainer()
-    EXT035_request.set("EXCONO", currentCompany)
-    EXT035_request.set("EXZCOD", zcod)
-    EXT035_request.set("EXCSCD", datasORDER["CSCD"])
-    EXT035_request.set("EXCUNO", datasORDER["CUNO"])
+    DBAction ext035Query = database.table("EXT035").index("00").selection("EXZCOD").build()
+    DBContainer ext035Request = ext035Query.getContainer()
+    ext035Request.set("EXCONO", currentCompany)
+    ext035Request.set("EXZCOD", zcod)
+    ext035Request.set("EXCSCD", datasORDER["CSCD"])
+    ext035Request.set("EXCUNO", datasORDER["CUNO"])
 
 
     String doid = ""
     String ads1 = ""
 
-    Closure<?> EXT035_reader = { DBContainer EXT035_result ->
-      doid = EXT035_result.get("EXDOID") as String
-      DBAction MPDDOC_query = database.table("MPDDOC").index("00").selection("DOADS1").build()
-      DBContainer MPDDOC = MPDDOC_query.getContainer()
+    Closure<?> ext035Reader = { DBContainer ext035Result ->
+      doid = ext035Result.get("EXDOID") as String
+      DBAction mpddocQuery = database.table("MPDDOC").index("00").selection("DOADS1").build()
+      DBContainer MPDDOC = mpddocQuery.getContainer()
       MPDDOC.set("DOCONO", currentCompany)
       MPDDOC.set("DODOID", doid)
-      if(MPDDOC_query.read(MPDDOC)){
+      if (mpddocQuery.read(MPDDOC)) {
         ads1 = MPDDOC.get("DOADS1")
       }
       String key = zcid.trim() + "#" + zcty.trim() + "#" + zcod.trim() + "#" + doid.trim() + "#" + ads1.trim()
       String value = zsty
-      logger.debug("Add document key=${key}")
       documents.put(key, value)
     }
 
-    if(!EXT035_query.readAll(EXT035_request, 4, EXT035_reader)){
-      //logger.debug("-----------------------------------EXT035 not found with ZCOD/CSCD/CUNO-----------------------------------")
-      EXT035_request.set("EXCSCD", datasORDER["CSCD"])
-      EXT035_request.set("EXCUNO", "")
-      if(!EXT035_query.readAll(EXT035_request, 4, EXT035_reader)){
-        //logger.debug("-----------------------------------EXT035 not found with ZCOD/CSCD-----------------------------------")
-        EXT035_request.set("EXCSCD", "")
-        EXT035_request.set("EXCUNO", "")
-        if(!EXT035_query.readAll(EXT035_request, 4, EXT035_reader)){
+    if (!ext035Query.readAll(ext035Request, 4, ext035Reader)) {
+      ext035Request.set("EXCSCD", datasORDER["CSCD"])
+      ext035Request.set("EXCUNO", "")
+      if (!ext035Query.readAll(ext035Request, 4, ext035Reader)) {
+        ext035Request.set("EXCSCD", "")
+        ext035Request.set("EXCUNO", "")
+        if (!ext035Query.readAll(ext035Request, 4, ext035Reader)) {
           String key = zcid.trim() + "#" + zcty.trim() + "#" + zcod.trim() + "#" + doid.trim() + "#" + ads1.trim()
           String value = zsty
-          logger.debug("Add document key=${key}")
           documents.put(key, value)
         }
       }
     }
+
   }
 
 }

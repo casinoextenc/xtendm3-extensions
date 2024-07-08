@@ -40,8 +40,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
 
   //Rounding parameters
-  private Map<String, String> dtaGlobalRoundingParameters
-  private Map<String, String> dtaCustomer
+  private def dtaGlobalRoundingParameters
+  private def dtaCustomer
 
   public GetSupplyPath(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility, MICallerAPI miCaller) {
     this.mi = mi
@@ -98,7 +98,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
     double orqa = (Double) mi.in.get("ORQA")
     int flag = (Integer) mi.in.get("FLAG")
     int flg1 = (Integer) mi.in.get("FLG1")
-    String alun = mi.in.get("ALUN") == null ? "" : (String) mi.in.get("ALUN")
+
 
     //Load global rounding parameters
     dtaGlobalRoundingParameters = getGlobalRoundingParameters()
@@ -128,7 +128,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       return
     }
 
-    //logger.debug("method:main order_fltp:${order_fltp} fwhl:${fwhl}")
+    logger.debug("method:main order_fltp:${order_fltp} fwhl:${fwhl}")
 
 
     boolean found = false
@@ -136,7 +136,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
     //IF ORDER FLTP = 20
     if ("20".equals(order_fltp)) {
-      Map<String, String> dtaFindItem = findItem(cuno, popn, order_fltp, alun)
+      def dtaFindItem = findItem(cuno, popn, order_fltp)
       if (this.errorMessage != "") {
         mi.error(this.errorMessage)
         return
@@ -169,7 +169,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
               break
           }
 
-          Map<String, String> dtaFindItem = findItem(cuno, popn, active_fltp, alun)
+          def dtaFindItem = findItem(cuno, popn, active_fltp)
           if (this.errorMessage != "") {
             mi.error(this.errorMessage)
             return
@@ -187,10 +187,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
             String fvdt = dtaFindItem["FVDT"]
             String lvdt = dtaFindItem["LVDT"]
             String asgd = dtaFindItem["ASGD"]
-            String cofa = dtaFindItem["COFA"]
-            String dmcf = dtaFindItem["DMCF"]
-            String dccd = dtaFindItem["DCCD"]
-            //logger.debug("COFA:${cofa} DMCF:${dmcf} DCCD:${dccd}")
+
             //Depending flow type
             //10 warehouse flow type
             if ("10".equals(active_fltp)) {
@@ -214,12 +211,11 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 String rem1 = ""
                 double rounded_orqa = orqa
                 double loqt = Double.parseDouble(dtaMITVEN["LOQT"].toString())
-                def dtaRoundQty = roundQty(itno, hie2, orqa, flg1, cofa, dmcf, dccd)
+                def dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
                 if (dtaRoundQty != null) {
                   rounded_orqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
                   rem1 = (String) dtaRoundQty["REMK"]
                 }
-                logger.debug("orqa:${orqa} loqt:${loqt}")
                 if ("20".equals(stat) && orqa >= loqt) {
                   found = true
                   addResponse(1, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "", rem1, hie2, asgd)
@@ -240,7 +236,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
         }
       }
     }
-    //logger.debug("method:main found=" + found)
+    logger.debug("method:main found=" + found)
 
     //CHECK REPLACEMENT ITEM
     if (found) {
@@ -292,7 +288,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
 
         //Round
-        def dtaRoundQty = roundQty(r_itno, r_hie2, orqa, flg1, "1", "1", "0")
+        def dtaRoundQty = roundQty(r_itno, r_hie2, orqa, flg1)
         double rounded_orqa = orqa
         String rnd_remk = ""
 
@@ -309,7 +305,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
           double t_orqa = Double.parseDouble((String) lastResponse["ORQA"])
           String t_itno = (String) lastResponse["ITNO"]
           String t_hie2 = (String) lastResponse["HIE2"]
-          def dtaRoundQty = roundQty(t_itno, t_hie2, t_orqa, flg1, "1", "1", "1")
+          def dtaRoundQty = roundQty(t_itno, t_hie2, t_orqa, flg1)
           lastResponse["ORQA"] = (String) dtaRoundQty["ORQA"]
           lastResponse["REMK"] = (String) lastResponse["REMK"] + " " + (String) dtaRoundQty["REMK"]
           responses.set(last_index, lastResponse)
@@ -388,7 +384,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param fltp flow type
    * @return null if not found else structured object with ITNO, SULE, SULD, RSCL, CMDE, FVDT, LVDT
    */
-  private Map<String, String> findItem(String cuno, String popn, String fltp, String alun) {
+  private def findItem(String cuno, String popn, String fltp) {
     //Method variable
     boolean found = false
 
@@ -403,10 +399,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "CMDE": "",
       "FVDT": "",
       "LVDT": "",
-      "ASGD": "",
-      "COFA": "",
-      "DMCF": "",
-      "DCCD": ""
+      "ASGD": ""
     ]
 
     //Database access
@@ -436,11 +429,11 @@ public class GetSupplyPath extends ExtendM3Transaction {
         if (dataCUGEX1 != null) {
           String item_fltp = dataCUGEX1["FLTP"].toString()
           if (item_fltp.equals(fltp)) {
+            //logger.debug("findItem:itno=${itno},fltp:${fltp},item_fltp:${item_fltp}")
             def objEXT010 = getItemDataFromEXT010(cuno, itno)
-            //logger.debug("findItem:cuno=${cuno},itno=${itno},objEXT010=" + objEXT010)
+            logger.debug("findItem:cuno=${cuno},itno=${itno},objEXT010=" + objEXT010)
             if (objEXT010 != null) {
-              Map<String, String> dtaMITMAS = getItemDataFromMITMAS(itno)
-              Map<String, String> dtaMITAUN = getItemDataFromMITAUN(itno, alun)
+              def dtaMITMAS = getItemDataFromMITMAS(itno)
               responseObject["ITNO"] = itno
               responseObject["HIE2"] = dtaMITMAS["HIE2"].toString()
               responseObject["SUNO"] = dtaMITMAS["SUNO"].toString()
@@ -451,9 +444,6 @@ public class GetSupplyPath extends ExtendM3Transaction {
               responseObject["FVDT"] = objEXT010["FVDT"].toString()
               responseObject["LVDT"] = objEXT010["LVDT"].toString()
               responseObject["ASGD"] = objEXT010["ASGD"].toString()
-              responseObject["COFA"] = dtaMITAUN["COFA"].toString()
-              responseObject["DMCF"] = dtaMITAUN["DMCF"].toString()
-              responseObject["DCCD"] = dtaMITAUN["DCCD"].toString()
               found = true
             }
           }
@@ -483,7 +473,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param popn SIGMA6
    * @return null if not exists else structure with SULE, SULD, FVDT, LVDT
    */
-  private boolean checkSIGMA6(String cuno, String popn) {
+  private def checkSIGMA6(String cuno, String popn) {
     //Define database access
     boolean found = false
     DBAction queryEXT01010 = database.table("EXT010")
@@ -518,7 +508,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
     queryEXT01010.readAll(containerEXT010, 3, readEXT010)
 
-    return found
+    if (found)
+      return true
+    else
+      return false
   }
 
 
@@ -526,9 +519,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get Item Data from MITMAS
    * @param itno
    */
-  private Map<String, String> getItemDataFromMITMAS(String itno) {
+  private def getItemDataFromMITMAS(String itno) {
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "SUNO": "",
       "HIE2": "",
     ]
@@ -552,53 +545,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
   }
 
   /**
-   * Get Item Data from MITAUN
-   * @param itno
-   * @param alun
-   */
-  private Map<String, String> getItemDataFromMITAUN(String itno, String alun) {
-    Map<String, String> responseObject = [
-      "COFA": "1"
-      , "DMCF": "1"
-      , "DCCD": ""
-    ]
-
-    if (alun.length() == 0)
-      return responseObject
-
-    DBAction mitaunQuery = database.table("MITAUN").index("00").selection(
-      "MUCONO",
-      "MUITNO",
-      "MUAUTP",
-      "MUALUN",
-      "MUCOFA",
-      "MUDMCF",
-      "MUDCCD"
-    ).build()
-
-    DBContainer mitaunRequest = mitaunQuery.getContainer()
-    mitaunRequest.set("MUCONO", currentCompany)
-    mitaunRequest.set("MUITNO", itno)
-    mitaunRequest.set("MUAUTP", 1)
-    mitaunRequest.set("MUALUN", alun)
-    if (mitaunQuery.read(mitaunRequest)) {
-      //logger.debug("found MITAUN")
-      responseObject["COFA"] = mitaunRequest.get("MUCOFA") as String
-      responseObject["DMCF"] = mitaunRequest.get("MUDMCF") as String
-      responseObject["DCCD"] = mitaunRequest.get("MUDCCD") as String
-      return responseObject
-    }
-    return null
-  }
-
-  /**
    * Get Item Data from MITBAL
    * @param whlo
    * @param itno
    */
-  private Map<String, String> getItemDataFromMITBAL(String whlo, String itno) {
+  private def getItemDataFromMITBAL(String whlo, String itno) {
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "IDDT": "",
       "CPCD": "",
       "STAT": ""
@@ -631,9 +584,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param suno
    * @param itno
    */
-  private Map<String, String> getItemDataFromMITVEN(String suno, String itno) {
+  private def getItemDataFromMITVEN(String suno, String itno) {
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "ISRS": "",
       "LOQT": ""
     ]
@@ -655,7 +608,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
     if (queryMITVEN00.read(containerMITVEN)) {
       responseObject["ISRS"] = containerMITVEN.get("IFISRS").toString()
       responseObject["LOQT"] = containerMITVEN.get("IFLOQT").toString()
-      //logger.debug("getItemDataFromMITVEN itno:${itno} suno:${suno} response:${responseObject}")
+      logger.debug("getItemDataFromMITVEN itno:${itno} suno:${suno} response:${responseObject}")
       return responseObject
     }
     return null
@@ -667,10 +620,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param itno Item
    * @return null if not exists else structure with SULE, SULD, FVDT, LVDT
    */
-  private Map<String, String> getItemDataFromEXT010(String cuno, String itno) {
+  private def getItemDataFromEXT010(String cuno, String itno) {
     boolean found = false
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "SULE": "",
       "SULD": "",
       "RSCL": "",
@@ -729,9 +682,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get Item Data from CUGEX1.MITMAS
    * @param itno
    */
-  private Map<String, String> getItemDataFromCUGEX1MITMAS(String itno) {
+  private def getItemDataFromCUGEX1MITMAS(String itno) {
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "FLTP": ""
     ]
 
@@ -798,12 +751,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param suno
    * @param itno
    */
-  private Map<String, String> getReplacementItem(String cuno, String itno, double orqa, String ortp, String whlo, String modl) {
+  private def getReplacementItem(String cuno, String itno, double orqa, String ortp, String whlo, String modl) {
     String ritn = null
     boolean found = false
 
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "RITN": "",
       "HIE2": "",
       "SUNO": ""
@@ -819,7 +772,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "SPLM": "CSN00"
     ]
     def callback = { Map<String, String> response ->
-      //logger.debug("OIS340MI response " + response)
+      logger.debug("OIS340MI response " + response)
       if (response.ITNO != null && !itno.equals(response.ITNO) && !found) {
         ritn = response.ITNO.toString()
         found = true
@@ -828,10 +781,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
     miCaller.call("OIS340MI", "LstSupplSummary", params, callback)
 
     if (found) {
-      //logger.debug("OIS340MI ritn " + ritn)
+      logger.debug("OIS340MI ritn " + ritn)
       def dtaMITMAS = getItemDataFromMITMAS(ritn)
       if (dtaMITMAS != null) {
-        //logger.debug("OIS340MI ritn2 " + ritn)
+        logger.debug("OIS340MI ritn2 " + ritn)
         responseObject["RITN"] = ritn
         responseObject["SUNO"] = (String) dtaMITMAS["SUNO"]
         responseObject["HIE2"] = (String) dtaMITMAS["HIE2"]
@@ -860,14 +813,14 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "HIE2": "" + hie2,
       "ASGD": "" + asgd
     ]
-    //logger.debug("response:" + responseData.toString())
+    logger.debug("response:" + responseData.toString())
     responses.add(responseData)
   }
 
   /**
    * Get warehouse thru API MMS059MI
    */
-  private String getWareHouse(String cuno, String ortp, String modl) {
+  private def getWareHouse(String cuno, String ortp, String modl) {
     def params = [
       "SPLM": "CSN01",
       "PREX": "5",
@@ -878,7 +831,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
     ]
     String fwhl = null
     def callback = { Map<String, String> response ->
-      //logger.debug(response.toString())
+      logger.debug(response.toString())
       if (response.FWHL != null) {
         fwhl = response.FWHL.toString()
       }
@@ -906,8 +859,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param cuno Customer
    * @return null if not found else structure with STAT, CHB7
    */
-  private Map<String, String> getCustomerData(String cuno) {
-    Map<String, String> responseObject = [
+  private def getCustomerData(String cuno) {
+    def responseObject = [
       "STAT": "",
       "CHB7": "",
       "CHB8": ""
@@ -965,9 +918,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
    *     UCO_SUP,
    *     UCO_INF
    */
-  private Map<String, String> getGlobalRoundingParameters() {
+  private def getGlobalRoundingParameters() {
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "UPA_SUP": "",
       "UPA_INF": "",
       "UDP_SUP": "",
@@ -1018,9 +971,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param itno Item
    * @return null if not found else structured object fields STAT, HIE2, UPA_SUP, UPA_INF, UDP_SUP, UDP_INF, UCO_SUP, UCO_INF, COF_UPA, COF_UDP, COF_UCO
    */
-  private Map<String, String> getItemRoundingParameter(String itno, String hie2) {
+  private def getItemRoundingParameter(String itno, String hie2) {
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "UPA_SUP": "",
       "UPA_INF": "",
       "UDP_SUP": "",
@@ -1085,7 +1038,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       String dmcf = resultMITAUN.getInt("MUDMCF")
 
       cofa = "2".equals(dmcf) ? 1 / cofa : cofa
-      cofa = new BigDecimal(Double.toString(cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+      cofa = new BigDecimal(cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
       if ("UPA".equals(alun)) {
         responseObject["COF_UPA"] = "" + cofa
       } else if ("UDP".equals(alun)) {
@@ -1095,39 +1048,22 @@ public class GetSupplyPath extends ExtendM3Transaction {
       }
     }
     queryMITAUN00.readAll(containerMITAUN, 3, readMITAUN)
-    //logger.debug(responseObject.toString())
+    logger.debug(responseObject.toString())
 
     return responseObject
   }
-
   /**
    *
-   * @param itno
-   * @param hie2
-   * @param orqa
-   * @param flg1
-   * @param cofa
-   * @param dmcf
-   * @param dccd
-   * @return
+   *
+   *
    */
-  private Map<String, String> roundQty(String itno, String hie2, double orqa, int flg1, String icofa, String idmcf, String idccd) {
-    //logger.debug("method:roundQty ")
+  private def roundQty(String itno, String hie2, double orqa, int flg1) {
+    logger.debug("method:roundQty ")
     //Define return object structure
-    Map<String, String> responseObject = [
+    def responseObject = [
       "ORQA": "",
       "REMK": ""
     ]
-
-    //unit conversion for qty
-    if (!"1".equals(icofa)){
-      double dCofa = icofa as double
-      int dDccd = idccd as int
-      orqa = "1".equals(idmcf) ? orqa * dCofa : orqa / dCofa
-      orqa = new BigDecimal(Double.toString(orqa)).setScale(dDccd, RoundingMode.HALF_UP).doubleValue()
-    }
-
-
     if (flg1 == 0) {
       responseObject["ORQA"] = "" + orqa
       responseObject["REMK"] = "Pas d'arrondi"
@@ -1276,38 +1212,38 @@ public class GetSupplyPath extends ExtendM3Transaction {
           default:
             break
         }
-        //logger.debug("step ${step} lim_sup ${lim_sup} lim_inf ${lim_inf} cofa ${cofa}")
+        logger.debug("step ${step} lim_sup ${lim_sup} lim_inf ${lim_inf} cofa ${cofa}")
 
         //Calcul
         if ((lim_sup > 0 || lim_inf > 0) && cofa > 0) {
 
-          //logger.debug("step ${step} lim_sup1 ${lim_sup} lim_inf1 ${lim_inf} cofa1 ${cofa}")
+          logger.debug("step ${step} lim_sup1 ${lim_sup} lim_inf1 ${lim_inf} cofa1 ${cofa}")
           if (step == 2 || step == 5) { //Si on est sur step 2 ou 5 on sort même si la regle ne s'applique pas
             roundingRuleFound = true
           }
 
           int nb_un = (int) (orqa / cofa)//Nb unit
-          double reste = new BigDecimal(Double.toString(orqa - (nb_un * cofa))).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double preste = new BigDecimal(Double.toString(reste / cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double lim_qty_sup = new BigDecimal(Double.toString(cofa * lim_sup / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double lim_qty_inf = new BigDecimal(Double.toString(cofa * lim_inf / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double reste = new BigDecimal(orqa - (nb_un * cofa)).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+          double preste = new BigDecimal(reste / cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+          double lim_qty_sup = new BigDecimal(cofa * lim_sup / 100).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+          double lim_qty_inf = new BigDecimal(cofa * lim_inf / 100).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
           //logger.debug("step ${step} orqa ${orqa} cofa ${cofa} nb un ${nb_un}  reste ${reste} % ${preste} lim_qty_sup ${lim_qty_sup} lim_qty_inf ${lim_qty_inf}"  )
-          //logger.debug("step=${step},remk=${remk},reste=${reste},%reste=${preste},lim_sup=${lim_sup},lim_inf=${lim_inf}")
+          logger.debug("step=${step},remk=${remk},reste=${reste},%reste=${preste},lim_sup=${lim_sup},lim_inf=${lim_inf}")
 
           if (preste >= lim_sup && reste != 0) { //Cas sup
-            //logger.debug("round > " + (preste >= lim_sup && reste != 0))
+            logger.debug("round > " + (preste >= lim_sup && reste != 0))
             rounded = true
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
-            outqty = new BigDecimal(Double.toString((nb_un + 1) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+            outqty = new BigDecimal((nb_un + 1) * cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
             remk += " > " + (lim_sup * 100) + "%"
           } else if (preste < lim_inf && reste != 0) { //Cas inf
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
             rounded = true
-            outqty = new BigDecimal(Double.toString((nb_un) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+            outqty = new BigDecimal((nb_un) * cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
             remk += " < " + (lim_inf * 100) + "%"
           } else if (reste == 0) {
             rounded = true

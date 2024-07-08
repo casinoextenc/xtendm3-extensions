@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20210125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240708     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 public class SelDocumentCode extends ExtendM3Transaction {
   private final MIAPI mi
@@ -39,10 +40,21 @@ public class SelDocumentCode extends ExtendM3Transaction {
     // maxsel to return
     maxSel = nbli + nbsl
 
+    if (maxSel > 10000) {
+      mi.error("Nb de selection ne peut-être inférieur à 10000")
+      return
+    }
+
     String constraintCode = (String) (mi.in.get("ZCOD") != null ? mi.in.get("ZCOD") : "")
     String countryCode = (String) (mi.in.get("CSCD") != null ? mi.in.get("CSCD") : "")
     String customerCode = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
     String documentCode = (String) (mi.in.get("DOID") != null ? mi.in.get("DOID") : "")
+
+    if (constraintCode.trim() + countryCode.trim() + customerCode.trim() + documentCode.trim()) {
+      mi.error("Veuillez renseigner au moins un cirtère de sélection")
+      return
+    }
+
 
     ExpressionFactory ext035Expression = database.getExpressionFactory("EXT035")
 

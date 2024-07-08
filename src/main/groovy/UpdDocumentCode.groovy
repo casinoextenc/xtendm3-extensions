@@ -7,7 +7,7 @@
  * Date         Changed By   Description
  * 20230201     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
- * 20240708     FLEBARS      QUAX01 - Controle code pour validation Infor retour
+ * 20240708     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 public class UpdDocumentCode extends ExtendM3Transaction {
   private final MIAPI mi

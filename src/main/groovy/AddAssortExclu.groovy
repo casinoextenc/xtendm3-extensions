@@ -6,6 +6,7 @@
  * Date         Changed By   Description
  * 20240206     YVOYOU        COMX01 - Add assortment item exclusion
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
+ * 20240709     FLEBARS       COMX01 - Controle code pour validation Infor retours
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -35,7 +36,12 @@ public class AddAssortExclu extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer) program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO")
+      currentCompany = mi.in.get("CONO") as int
+      String currentUser = program.getUser()
+      if (!checkCompany(currentCompany, currentUser)) {
+        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
+        return
+      }
     }
 
     if (mi.in.get("CUNO") != null) {
@@ -101,4 +107,23 @@ public class AddAssortExclu extends ExtendM3Transaction {
       mi.error("L'enregistrement existe déjà")
     }
   }
+
+  /**
+   *  Check if CONO is alowed for user
+   * @param cono
+   * @param user
+   * @return true if alowed false otherwise
+   */
+  private boolean checkCompany(int cono, String user) {
+    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
+    DBContainer csyusrRequest = csyusrQuery.getContainer()
+    csyusrRequest.set("CRCONO", cono)
+    csyusrRequest.set("CRDIVI", '')
+    csyusrRequest.set("CRRESP", user)
+    if (!csyusrQuery.read(csyusrRequest)) {
+      return false
+    }
+    return true
+  }
+
 }

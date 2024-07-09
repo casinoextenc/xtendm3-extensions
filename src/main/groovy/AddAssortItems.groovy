@@ -6,6 +6,7 @@
  * Date         Changed By   Description
  * 20220112     YBLUTEAU     COMX01- Add assortment
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
+ * 20240709     FLEBARS       COMX01 - Controle code pour validation Infor retours
  */
 public class AddAssortItems extends ExtendM3Transaction {
   private final MIAPI mi
@@ -37,7 +38,12 @@ public class AddAssortItems extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer) program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO")
+      currentCompany = mi.in.get("CONO") as int
+      String currentUser = program.getUser()
+      if (!checkCompany(currentCompany, currentUser)) {
+        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
+        return
+      }
     }
     ascd = mi.in.get("ASCD")
     cuno = mi.in.get("CUNO")
@@ -87,8 +93,14 @@ public class AddAssortItems extends ExtendM3Transaction {
   }
 
 
+  /**
+   * Call CRS105MI.AddAssmItem
+   * @param ASCD
+   * @param ITNO
+   * @param FDAT
+   */
   private void executeCRS105MIAddAssmItem(String ASCD, String ITNO, String FDAT) {
-    def parameters = ["ASCD": ASCD, "ITNO": ITNO, "FDAT": FDAT]
+    Map<String, String> parameters = ["ASCD": ASCD, "ITNO": ITNO, "FDAT": FDAT]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         in60 = true
@@ -98,4 +110,23 @@ public class AddAssortItems extends ExtendM3Transaction {
     }
     miCaller.call("CRS105MI", "AddAssmItem", parameters, handler)
   }
+
+  /**
+   *  Check if CONO is alowed for user
+   * @param cono
+   * @param user
+   * @return true if alowed false otherwise
+   */
+  private boolean checkCompany(int cono, String user) {
+    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
+    DBContainer csyusrRequest = csyusrQuery.getContainer()
+    csyusrRequest.set("CRCONO", cono)
+    csyusrRequest.set("CRDIVI", '')
+    csyusrRequest.set("CRRESP", user)
+    if (!csyusrQuery.read(csyusrRequest)) {
+      return false
+    }
+    return true
+  }
+
 }

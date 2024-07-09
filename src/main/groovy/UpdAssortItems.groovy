@@ -7,6 +7,7 @@
  * 20220112     YBLUTEAU     COMX01 - Add assortment
  * 20240206     YVOYOU       COMX01 - Exclu item
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
+ * 20240709     FLEBARS       COMX01 - Controle code pour validation Infor retours
  */
 public class UpdAssortItems extends ExtendM3Transaction {
   private final MIAPI mi
@@ -36,7 +37,12 @@ public class UpdAssortItems extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer) program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO")
+      currentCompany = mi.in.get("CONO") as int
+      String currentUser = program.getUser()
+      if (!checkCompany(currentCompany, currentUser)) {
+        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
+        return
+      }
     }
     ascd = mi.in.get("ASCD")
     cuno = mi.in.get("CUNO")
@@ -86,6 +92,9 @@ public class UpdAssortItems extends ExtendM3Transaction {
     }
   }
 
+  /**
+   * Reading EXT022
+   */
   Closure<?> ext022Reader = { DBContainer ext022Result ->
     itno = ext022Result.get("EXITNO")
     DBAction oasitnQuery = database.table("OASITN").index("00").build()
@@ -114,10 +123,16 @@ public class UpdAssortItems extends ExtendM3Transaction {
       }
     }
   }
+  /**
+   * Reading EXT025
+   */
   Closure<?> ext025Reader = { DBContainer EXT025 ->
     exclu = true
   }
 
+  /**
+   * Reading OASITN
+   */
   Closure<?> oasitnReader = { DBContainer oasitnResult ->
     itno = oasitnResult.get("OIITNO")
     //Read corresponding record in EXT022
@@ -135,6 +150,12 @@ public class UpdAssortItems extends ExtendM3Transaction {
     }
   }
 
+  /**
+   * Call CRS105MI.AddAssmItem
+   * @param ASCD
+   * @param ITNO
+   * @param FDAT
+   */
   private void executeCRS105MIAddAssmItem(String ASCD, String ITNO, String FDAT) {
     Map<String, String> parameters = ["ASCD": ASCD, "ITNO": ITNO, "FDAT": FDAT]
     Closure<?> handler = { Map<String, String> response ->
@@ -142,10 +163,34 @@ public class UpdAssortItems extends ExtendM3Transaction {
     miCaller.call("CRS105MI", "AddAssmItem", parameters, handler)
   }
 
+  /**
+   * Call CRS105MI.DltAssmItem
+   * @param ASCD
+   * @param ITNO
+   * @param FDAT
+   */
   private void executeCRS105MIDltAssmItem(String ASCD, String ITNO, String FDAT) {
     Map<String, String> parameters = ["ASCD": ASCD, "ITNO": ITNO, "FDAT": FDAT]
     Closure<?> handler = { Map<String, String> response ->
     }
     miCaller.call("CRS105MI", "DltAssmItem", parameters, handler)
   }
+  /**
+   *  Check if CONO is alowed for user
+   * @param cono
+   * @param user
+   * @return true if alowed false otherwise
+   */
+  private boolean checkCompany(int cono, String user) {
+    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
+    DBContainer csyusrRequest = csyusrQuery.getContainer()
+    csyusrRequest.set("CRCONO", cono)
+    csyusrRequest.set("CRDIVI", '')
+    csyusrRequest.set("CRRESP", user)
+    if (!csyusrQuery.read(csyusrRequest)) {
+      return false
+    }
+    return true
+  }
+
 }

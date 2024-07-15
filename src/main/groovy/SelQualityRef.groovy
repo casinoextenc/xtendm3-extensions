@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240612     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 public class SelQualityRef extends ExtendM3Transaction {
   private final MIAPI mi
@@ -43,6 +44,17 @@ public class SelQualityRef extends ExtendM3Transaction {
     }
 
     maxSel = nbli + nbsl
+
+    if (maxSel > 10000){
+      mi.error("Nombre d'enregistrement demandés trop important")
+      return
+    }
+
+    if (mi.in.get("POPN") == null && mi.in.get("SUNO") && mi.in.get("ZALI") && mi.in.get("ZQUA")){
+      mi.error("Veuillez renseigner au moins un critère de sélection")
+      return
+    }
+
 
     String sigma6 = (String) (mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
     String supplier = (String) (mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")

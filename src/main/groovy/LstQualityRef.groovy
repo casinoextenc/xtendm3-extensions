@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240712     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 
 public class LstQualityRef extends ExtendM3Transaction {
@@ -35,6 +36,12 @@ public class LstQualityRef extends ExtendM3Transaction {
     } else {
       currentCompany = mi.in.get("CONO")
     }
+
+    if (mi.in.get("POPN") == null && mi.in.get("SUNO") == null && mi.in.get("ZALI") == null && mi.in.get("ZQUA") == null){
+      mi.error("Veuillez renseigner au moins un critère")
+      return
+    }
+
 
     String sigma6 =  (String)(mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
     String supplier = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")

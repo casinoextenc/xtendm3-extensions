@@ -98,6 +98,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
     double orqa = (Double) mi.in.get("ORQA")
     int flag = (Integer) mi.in.get("FLAG")
     int flg1 = (Integer) mi.in.get("FLG1")
+    String alun = mi.in.get("ALUN") == null ? "" : (String) mi.in.get("ALUN")
 
 
     //Load global rounding parameters
@@ -136,7 +137,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
     //IF ORDER FLTP = 20
     if ("20".equals(order_fltp)) {
-      def dtaFindItem = findItem(cuno, popn, order_fltp)
+      def dtaFindItem = findItem(cuno, popn, order_fltp, alun)
       if (this.errorMessage != "") {
         mi.error(this.errorMessage)
         return
@@ -169,7 +170,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
               break
           }
 
-          def dtaFindItem = findItem(cuno, popn, active_fltp)
+          def dtaFindItem = findItem(cuno, popn, active_fltp, alun)
           if (this.errorMessage != "") {
             mi.error(this.errorMessage)
             return
@@ -187,6 +188,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
             String fvdt = dtaFindItem["FVDT"]
             String lvdt = dtaFindItem["LVDT"]
             String asgd = dtaFindItem["ASGD"]
+            double cofa = dtaFindItem["COFA"] as double
+            int dmcf = dtaFindItem["DMCF"] as int
+            int dccd = dtaFindItem["DCCD"] as int
 
             //Depending flow type
             //10 warehouse flow type
@@ -207,6 +211,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
               //40 direct supplier flow type
               def dtaMITVEN = getItemDataFromMITVEN(suld, itno)
               if (dtaMITVEN != null) {
+                //A°FLEBARS 20240709 START
+                orqa = dmcf == 1 ? orqa * cofa : orqa / cofa
+                orqa = new BigDecimal(Double.toString(orqa)).setScale(dccd, RoundingMode.HALF_UP).doubleValue()
+
+                logger.debug("ORQA apres conversion orqa=${orqa} dmcf=${dmcf} dccd=${dccd} cofa=${cofa}")
+
+                //A°FLEBARS 20240709 END
                 String stat = dtaMITVEN["ISRS"].toString()
                 String rem1 = ""
                 double rounded_orqa = orqa
@@ -241,8 +252,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
     //CHECK REPLACEMENT ITEM
     if (found) {
       def dtaRITN = null
+      logger.debug("customer replacment flag " + dtaCustomer["CHB8"])
       if ("1".equals(dtaCustomer["CHB8"]))
         dtaRITN = getReplacementItem(cuno, itno, orqa, ortp, whlo, modl)
+
+      logger.debug("customer replacment flag " + dtaRITN)
+
       if (dtaRITN != null) {
         String r_itno = dtaRITN["RITN"]
         String r_hie2 = dtaRITN["HIE2"]
@@ -384,7 +399,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param fltp flow type
    * @return null if not found else structured object with ITNO, SULE, SULD, RSCL, CMDE, FVDT, LVDT
    */
-  private def findItem(String cuno, String popn, String fltp) {
+  private def findItem(String cuno, String popn, String fltp, String alun) {
     //Method variable
     boolean found = false
 
@@ -399,7 +414,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "CMDE": "",
       "FVDT": "",
       "LVDT": "",
-      "ASGD": ""
+      "ASGD": "",
+      "COFA": "",
+      "DMCF": "",
+      "DCCD": ""
     ]
 
     //Database access
@@ -433,7 +451,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
             def objEXT010 = getItemDataFromEXT010(cuno, itno)
             logger.debug("findItem:cuno=${cuno},itno=${itno},objEXT010=" + objEXT010)
             if (objEXT010 != null) {
-              def dtaMITMAS = getItemDataFromMITMAS(itno)
+              Map<String, String> dtaMITMAS = getItemDataFromMITMAS(itno)
+              Map<String, String> dtaMITAUN = getItemDataFromMITAUN(itno, alun)
               responseObject["ITNO"] = itno
               responseObject["HIE2"] = dtaMITMAS["HIE2"].toString()
               responseObject["SUNO"] = dtaMITMAS["SUNO"].toString()
@@ -444,6 +463,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
               responseObject["FVDT"] = objEXT010["FVDT"].toString()
               responseObject["LVDT"] = objEXT010["LVDT"].toString()
               responseObject["ASGD"] = objEXT010["ASGD"].toString()
+              responseObject["COFA"] = dtaMITAUN["COFA"].toString()
+              responseObject["DMCF"] = dtaMITAUN["DMCF"].toString()
+              responseObject["DCCD"] = dtaMITAUN["DCCD"].toString()
               found = true
             }
           }
@@ -519,7 +541,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get Item Data from MITMAS
    * @param itno
    */
-  private def getItemDataFromMITMAS(String itno) {
+  private Map<String, String> getItemDataFromMITMAS(String itno) {
     //Define return object structure
     def responseObject = [
       "SUNO": "",
@@ -632,9 +654,18 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "LVDT": "",
       "ASGD": ""
     ]
+    // filter last value date
+    String cudate = utility.call("DateUtil", "currentDateY8AsString")
+    ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
+    ext010Expression = ext010Expression.le("EXFVDT", cudate)
+    ext010Expression = ext010Expression.and(ext010Expression.ge("EXLVDT", currentDate))
+
 
     //Define database access
-    DBAction queryEXT01002 = database.table("EXT010").index("02").selection(
+    DBAction queryEXT01002 = database.table("EXT010")
+      .index("02")
+      .matching(ext010Expression)
+      .selection(
       "EXCONO",
       "EXCUNO",
       "EXITNO",
@@ -651,6 +682,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
 
     //Query DB
+
+
+
     DBContainer containerEXT010 = queryEXT01002.getContainer()
     containerEXT010.set("EXCONO", currentCompany)
     containerEXT010.set("EXCUNO", cuno)
@@ -769,7 +803,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "POPN": itno,
       "ORQA": "" + orqa,
       "ORTP": ortp,
-      "SPLM": "CSN00"
+      "SPLM": "CSN01"
     ]
     def callback = { Map<String, String> response ->
       logger.debug("OIS340MI response " + response)
@@ -1038,7 +1072,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       String dmcf = resultMITAUN.getInt("MUDMCF")
 
       cofa = "2".equals(dmcf) ? 1 / cofa : cofa
-      cofa = new BigDecimal(cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      cofa = new BigDecimal(Double.toString(cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
       if ("UPA".equals(alun)) {
         responseObject["COF_UPA"] = "" + cofa
       } else if ("UDP".equals(alun)) {
@@ -1223,10 +1257,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
           }
 
           int nb_un = (int) (orqa / cofa)//Nb unit
-          double reste = new BigDecimal(orqa - (nb_un * cofa)).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-          double preste = new BigDecimal(reste / cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-          double lim_qty_sup = new BigDecimal(cofa * lim_sup / 100).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-          double lim_qty_inf = new BigDecimal(cofa * lim_inf / 100).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+          double reste = new BigDecimal(Double.toString(orqa - (nb_un * cofa))).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double preste = new BigDecimal(Double.toString(reste / cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double lim_qty_sup = new BigDecimal(Double.toString(cofa * lim_sup / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double lim_qty_inf = new BigDecimal(Double.toString(cofa * lim_inf / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
           //logger.debug("step ${step} orqa ${orqa} cofa ${cofa} nb un ${nb_un}  reste ${reste} % ${preste} lim_qty_sup ${lim_qty_sup} lim_qty_inf ${lim_qty_inf}"  )
           logger.debug("step=${step},remk=${remk},reste=${reste},%reste=${preste},lim_sup=${lim_sup},lim_inf=${lim_inf}")
 
@@ -1236,14 +1270,14 @@ public class GetSupplyPath extends ExtendM3Transaction {
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
-            outqty = new BigDecimal((nb_un + 1) * cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+            outqty = new BigDecimal(Double.toString((nb_un + 1) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
             remk += " > " + (lim_sup * 100) + "%"
           } else if (preste < lim_inf && reste != 0) { //Cas inf
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
             rounded = true
-            outqty = new BigDecimal((nb_un) * cofa).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+            outqty = new BigDecimal(Double.toString((nb_un) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
             remk += " < " + (lim_inf * 100) + "%"
           } else if (reste == 0) {
             rounded = true
@@ -1269,4 +1303,45 @@ public class GetSupplyPath extends ExtendM3Transaction {
       return responseObject
     }
   }
+
+  /**
+   * Get Item Data from MITAUN
+   * @param itno
+   * @param alun
+   */
+  private Map<String, String> getItemDataFromMITAUN(String itno, String alun) {
+    Map<String, String> responseObject = [
+      "COFA": "1"
+      , "DMCF": "1"
+      , "DCCD": "6"
+    ]
+
+    if (alun.length() == 0)
+      return responseObject
+
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection(
+      "MUCONO",
+      "MUITNO",
+      "MUAUTP",
+      "MUALUN",
+      "MUCOFA",
+      "MUDMCF",
+      "MUDCCD"
+    ).build()
+
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itno)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", alun)
+    if (mitaunQuery.read(mitaunRequest)) {
+      responseObject["COFA"] = mitaunRequest.get("MUCOFA") as String
+      responseObject["DMCF"] = mitaunRequest.get("MUDMCF") as String
+      responseObject["DCCD"] = mitaunRequest.get("MUDCCD") as String
+      return responseObject
+    }
+    return null
+  }
+
+
 }

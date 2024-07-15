@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20210125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240712     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 public class LstConstrFeat extends ExtendM3Transaction {
   private final MIAPI mi
@@ -37,13 +38,23 @@ public class LstConstrFeat extends ExtendM3Transaction {
         mi.error("L'enregistrement n'existe pas")
       }
     } else {
-      String constraintType = mi.in.get("ZCAR")
-      ExpressionFactory ext033Expression = database.getExpressionFactory("EXT033")
-      ext033Expression = ext033Expression.ge("EXZCAR", constraintType)
-      DBAction ext033Query = database.table("EXT033").index("00").matching(ext033Expression).selection("EXZCAR", "EXZDES", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
+      String constraintType = mi.in.get("ZCAR") as String
+      DBAction ext033Query = database.table("EXT033").index("00")
+        .selection("EXZCAR", "EXZDES", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID")
+        .build()
       DBContainer ext033Request = ext033Query.getContainer()
       ext033Request.set("EXCONO", currentCompany)
-      if (!ext033Query.readAll(ext033Request, 1, 10000, ext033Reader)) {
+      ext033Request.set("EXZCAR", constraintType)
+      if (ext033Query.read(ext033Request)) {
+        mi.outData.put("ZCAR", ext033Request.get("EXZCAR") as String)
+        mi.outData.put("ZDES", ext033Request.get("EXZDES") as String)
+        mi.outData.put("RGDT", ext033Request.get("EXRGDT") as String)
+        mi.outData.put("RGTM", ext033Request.get("EXRGTM") as String)
+        mi.outData.put("LMDT", ext033Request.get("EXLMDT") as String)
+        mi.outData.put("CHNO", ext033Request.get("EXCHNO") as String)
+        mi.outData.put("CHID", ext033Request.get("EXCHID") as String)
+        mi.write()
+      } else {
         mi.error("L'enregistrement n'existe pas")
         return
       }

@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240712     FLEBARS      QUAX01 - Controle code pour validation Infor retours
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -85,7 +86,11 @@ public class UpdQualityRef extends ExtendM3Transaction {
       mitpopRequest.setInt("MPALWT", 1)
       mitpopRequest.set("MPALWQ", "")
       mitpopRequest.set("MPPOPN", popn)
-      if (!mitpopQuery.readAll(mitpopRequest, 4, 1, MITPOPData)) {
+
+      Closure<?> mitpopReader = { DBContainer mitpopResult ->
+        String itno = mitpopResult.get("MPITNO")
+      }
+      if (!mitpopQuery.readAll(mitpopRequest, 4, 1, mitpopReader)) {
         mi.error("SIGMA6 " + popn + " n'existe pas")
         return
       }
@@ -221,7 +226,10 @@ public class UpdQualityRef extends ExtendM3Transaction {
       msytxhRequest.set("THDIVI", "")
       msytxhRequest.set("THKFLD", "COMPO")
       msytxhRequest.set("THTXVR", "EXT032")
-      if (!msytxhQuery.readAll(msytxhRequest, 4, 10000, MSYTXHData)) {
+
+      Closure<?> msytxhReader = { DBContainer msytxhResult ->
+      }
+      if (!msytxhQuery.readAll(msytxhRequest, 4, 1, msytxhReader)) {
         mi.error("code text TXID " + txid + " n'existe pas")
         return
       }
@@ -348,11 +356,5 @@ public class UpdQualityRef extends ExtendM3Transaction {
     }
 
     ext032Query.readLock(ext032Request, ext032Updater)
-  }
-
-  Closure<?> MITPOPData = { DBContainer ContainerMITPOP ->
-    String itno = ContainerMITPOP.get("MPITNO")
-  }
-  Closure<?> MSYTXHData = { DBContainer ContainerMSYTXH ->
   }
 }

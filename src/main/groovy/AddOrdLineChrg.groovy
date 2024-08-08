@@ -261,6 +261,7 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
             PDNHEA.set("IHDNDT", dndt)
             if(query_PDNHEA.read(MPLINE)){
               suno = PDNHEA.get("PDNHEA").toString()
+              logger.debug("EXT061 new suno BLI "+ suno +" found")
             }
           }
           logger.debug("MPLINE suno = " + suno)
@@ -326,10 +327,15 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
             if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
               logger.debug("EXT061 PREX 5 not found")
               EXT061.set("EXPREX", " 6")
-              EXT061.set("EXOBV2", "")
-              EXT061.set("EXOBV3", "")
+              EXT061.set("EXOBV2", suno.trim())
               if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
                 logger.debug("EXT061 PREX 6 not found")
+                EXT061.set("EXPREX", " 7")
+                EXT061.set("EXOBV2", "")
+                EXT061.set("EXOBV3", "")
+                if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+                  logger.debug("EXT061 PREX 7 not found")
+                }
               }
             }
           }

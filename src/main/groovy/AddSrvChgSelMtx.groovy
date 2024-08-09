@@ -15,6 +15,7 @@
  * 20230808     FLEBARS       Creation EXT061
  * 20240130     MLECLERCQ     Support PREX 6 & LVDT
  * 20240522     PBEAUDOUIN    Remplacer la virgule par un point dans CRFA
+ * 20240809     YBLUTEAU     CMD03 - Prio 7
  */
 public class AddSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -113,7 +114,7 @@ public class AddSrvChgSelMtx extends ExtendM3Transaction {
 
       DBContainer containerCIDMAS = queryCIDMAS00.getContainer()
       containerCIDMAS.set("IDCONO",currentCompany)
-      if(prex =  "6"){
+      if(prex ==  "6"){
         containerCIDMAS.set("IDSUNO", obv2)
         if (!queryCIDMAS00.read(containerCIDMAS)) {
           mi.error("Fournisseur ${obv3} inexistant")

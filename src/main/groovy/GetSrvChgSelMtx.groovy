@@ -7,6 +7,7 @@
  *
  * Date         Changed By    Description
  * 20230808     FLEBARS       CMD03 - Calculation of service charges
+ * 20240809     YBLUTEAU      CMD03 - Prio 7
  */
 public class GetSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi

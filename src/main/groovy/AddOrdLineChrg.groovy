@@ -8,6 +8,7 @@
  * 20230821     RENARN       CMD03 - Calculation of service charges
  * 20240208     MLECLERCQ    CMD03 - Support PREX 6
  * 20240522     PBEAUDOUIN   Correction SUNO MPLINE quand RORC = 2
+ * 20240809     YBLUTEAU     CMD03 - Prio 7 et SUNO Gold
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

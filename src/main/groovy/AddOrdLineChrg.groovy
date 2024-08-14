@@ -252,7 +252,8 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
           String whlo = MPLINE.get("IBWHLO") as String
           String sudo = MPLINE.get("IBSUDO") as String
           int dndt = MPLINE.get("IBDNDT") as Integer
-          if(sudo == '') {
+          logger.debug("MPLINE sudo = " + sudo)
+          if(sudo != "") {
             DBAction query_PDNHEA = database.table("PDNHEA").index("00").selection("IHCFK5").build()
             DBContainer PDNHEA = query_PDNHEA.getContainer()
             PDNHEA.set("IHCONO", currentCompany)
@@ -260,8 +261,8 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
             PDNHEA.set("IHSUNO", suno)
             PDNHEA.set("IHSUDO", sudo)
             PDNHEA.set("IHDNDT", dndt)
-            if(query_PDNHEA.read(MPLINE)){
-              suno = PDNHEA.get("PDNHEA").toString()
+            if(query_PDNHEA.read(PDNHEA)){
+              suno = PDNHEA.get("IHCFK5").toString()
               logger.debug("EXT061 new suno BLI "+ suno +" found")
             }
           }

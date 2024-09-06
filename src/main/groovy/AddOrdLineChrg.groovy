@@ -7,6 +7,11 @@
  * Date         Changed By   Description
  * 20230821     RENARN       CMD03 - Calculation of service charges
  * 20240208     MLECLERCQ    CMD03 - Support PREX 6
+<<<<<<< HEAD
+=======
+ * 20240522     PBEAUDOUIN   Correction SUNO MPLINE quand RORC = 2
+ * 20240809     YBLUTEAU     CMD03 - Prio 7 et SUNO Gold
+>>>>>>> origin/development
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -237,9 +242,15 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
       int rorx = OOLINE.get("OBRORX") as Integer
       logger.debug("OOLINE suno = " + suno)
 
+<<<<<<< HEAD
       if(suno == "" && rorc == 2 && rorn != ""){
         logger.debug("OOLINE suno empty, rorc == 2, rorn not empty)")
         DBAction query_MPLINE = database.table("MPLINE").index("00").selection("IBSUNO").build()
+=======
+      if(rorc == 2 && rorn != ""){
+        logger.debug("OOLINE suno empty, rorc == 2, rorn not empty)")
+        DBAction query_MPLINE = database.table("MPLINE").index("00").selection("IBSUNO", "IBWHLO", "IBSUDO", "IBDNDT").build()
+>>>>>>> origin/development
         DBContainer MPLINE = query_MPLINE.getContainer()
         MPLINE.set("IBCONO", currentCompany)
         MPLINE.set("IBPUNO", rorn)
@@ -247,6 +258,26 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
         MPLINE.set("IBPNLS", rorx)
         if(query_MPLINE.read(MPLINE)){
           suno = MPLINE.get("IBSUNO").toString()
+<<<<<<< HEAD
+=======
+          String whlo = MPLINE.get("IBWHLO") as String
+          String sudo = MPLINE.get("IBSUDO") as String
+          int dndt = MPLINE.get("IBDNDT") as Integer
+          logger.debug("MPLINE sudo = " + sudo)
+          if(sudo != "") {
+            DBAction query_PDNHEA = database.table("PDNHEA").index("00").selection("IHCFK5").build()
+            DBContainer PDNHEA = query_PDNHEA.getContainer()
+            PDNHEA.set("IHCONO", currentCompany)
+            PDNHEA.set("IHWHLO", whlo)
+            PDNHEA.set("IHSUNO", suno)
+            PDNHEA.set("IHSUDO", sudo)
+            PDNHEA.set("IHDNDT", dndt)
+            if(query_PDNHEA.read(PDNHEA)){
+              suno = PDNHEA.get("IHCFK5").toString()
+              logger.debug("EXT061 new suno BLI "+ suno +" found")
+            }
+          }
+>>>>>>> origin/development
           logger.debug("MPLINE suno = " + suno)
         }
       }
@@ -310,10 +341,22 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
             if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
               logger.debug("EXT061 PREX 5 not found")
               EXT061.set("EXPREX", " 6")
+<<<<<<< HEAD
               EXT061.set("EXOBV2", "")
               EXT061.set("EXOBV3", "")
               if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
                 logger.debug("EXT061 PREX 6 not found")
+=======
+              EXT061.set("EXOBV2", suno.trim())
+              if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+                logger.debug("EXT061 PREX 6 not found")
+                EXT061.set("EXPREX", " 7")
+                EXT061.set("EXOBV2", "")
+                EXT061.set("EXOBV3", "")
+                if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+                  logger.debug("EXT061 PREX 7 not found")
+                }
+>>>>>>> origin/development
               }
             }
           }

@@ -8,6 +8,10 @@
  * Date         Changed By    Description
  * 20230808     FLEBARS       CMD03 - Calculation of service charges
  * 20240202     MLECLERCQ     CMD03 - Support PREX6
+<<<<<<< HEAD
+=======
+ * 20240809     YBLUTEAU      CMD03 - Prio 7
+>>>>>>> origin/development
  */
 public class LstSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -46,7 +50,11 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // CHK
     //**********************************
+<<<<<<< HEAD
     if (!["1", "2", "3", "4", "5", "6"].contains(prex)) {
+=======
+    if (!["1", "2", "3", "4", "5", "6", "7"].contains(prex)) {
+>>>>>>> origin/development
       mi.error("Priorité ${prex} est invalide")
       return
     }
@@ -121,15 +129,24 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
     if ((obv3 == null || obv3.isEmpty()) && !(vfdt == null || vfdt.isEmpty())) {
       if(hlvl > 0){
         mi.error("Critères incorrectes")
+<<<<<<< HEAD
         return  
+=======
+        return
+>>>>>>> origin/development
       }
 
     } else if (!(vfdt == null || vfdt.isEmpty())){
       containerEXT061.set("EXVFDT", Integer.parseInt(vfdt))
       nbfields++
     }
+<<<<<<< HEAD
     
     
+=======
+
+
+>>>>>>> origin/development
     Closure<?> outDataEXT061 = { DBContainer responseEXT061 ->
       mi.outData.put("PREX", responseEXT061.get("EXPREX") as String)
       mi.outData.put("OBV1", responseEXT061.get("EXOBV1") as String)
@@ -147,7 +164,11 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
       mi.outData.put("LMDT", responseEXT061.get("EXLMDT") as String)
       mi.outData.put("CHNO", responseEXT061.get("EXCHNO") as String)
       mi.outData.put("CHID", responseEXT061.get("EXCHID") as String)
+<<<<<<< HEAD
       
+=======
+
+>>>>>>> origin/development
       mi.write()
     }
 

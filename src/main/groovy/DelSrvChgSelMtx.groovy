@@ -8,6 +8,10 @@
  * Date         Changed By    Description
  * 20230808     FLEBARS       CMD03 - Calculation of service charges
  * 20240202     MLECLERCQ     CMD03 - Support PREX6
+<<<<<<< HEAD
+=======
+ * 20240809     YBLUTEAU      CMD03 - Prio 7
+>>>>>>> origin/development
  */
 public class DelSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -45,7 +49,11 @@ public class DelSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // CHECK API INPUT PARAMETERS
     //**********************************
+<<<<<<< HEAD
     if (!["1", "2", "3", "4", "5", "6"].contains(prex)) {
+=======
+    if (!["1", "2", "3", "4", "5", "6", "7"].contains(prex)) {
+>>>>>>> origin/development
       mi.error("Priorité ${prex} est invalide")
       return
     }

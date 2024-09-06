@@ -5,7 +5,11 @@
  */
 
 /**
+<<<<<<< HEAD
  * Name : EXT061MI.AddSrvChgSelMtx 
+=======
+ * Name : EXT061MI.AddSrvChgSelMtx
+>>>>>>> origin/development
  * Version 1.0
  * Add records in EXT061
  *
@@ -14,6 +18,11 @@
  * Date         Changed By    Description
  * 20230808     FLEBARS       Creation EXT061
  * 20240130     MLECLERCQ     Support PREX 6 & LVDT
+<<<<<<< HEAD
+=======
+ * 20240522     PBEAUDOUIN    Remplacer la virgule par un point dans CRFA
+ * 20240809     YBLUTEAU     CMD03 - Prio 7
+>>>>>>> origin/development
  */
 public class AddSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -48,6 +57,10 @@ public class AddSrvChgSelMtx extends ExtendM3Transaction {
     String vfdt = (String)mi.in.get("VFDT")
     String crid = (String)mi.in.get("CRID")
     String crfa = (String)mi.in.get("CRFA")
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/development
     String cucd = (String)mi.in.get("CUCD")
     String lvdt = (String)mi.in.get("LVDT")
 
@@ -57,7 +70,11 @@ public class AddSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // CHECK API INPUT PARAMETERS
     //**********************************
+<<<<<<< HEAD
     if (!["1", "2", "3", "4", "5", "6"].contains(prex)) {
+=======
+    if (!["1", "2", "3", "4", "5", "6", "7"].contains(prex)) {
+>>>>>>> origin/development
       mi.error("Priorité ${prex} est invalide")
       return
     }
@@ -111,6 +128,16 @@ public class AddSrvChgSelMtx extends ExtendM3Transaction {
 
       DBContainer containerCIDMAS = queryCIDMAS00.getContainer()
       containerCIDMAS.set("IDCONO",currentCompany)
+<<<<<<< HEAD
+=======
+      if(prex ==  "6"){
+        containerCIDMAS.set("IDSUNO", obv2)
+        if (!queryCIDMAS00.read(containerCIDMAS)) {
+          mi.error("Fournisseur ${obv3} inexistant")
+          return
+        }
+      }
+>>>>>>> origin/development
       containerCIDMAS.set("IDSUNO", obv3)
       if (!queryCIDMAS00.read(containerCIDMAS)) {
         mi.error("Fournisseur ${obv3} inexistant")
@@ -252,7 +279,11 @@ public class AddSrvChgSelMtx extends ExtendM3Transaction {
     containerEXT061.set("EXCRID", crid)
     containerEXT061.set("EXCRD0", crd0)
     containerEXT061.set("EXCMRE", crme)
+<<<<<<< HEAD
     containerEXT061.set("EXCRFA", Double.parseDouble(crfa))
+=======
+    containerEXT061.set("EXCRFA", Double.parseDouble(crfa.replace(",",".")))
+>>>>>>> origin/development
     containerEXT061.set("EXCUCD", cucd)
     containerEXT061.set("EXLVDT", Integer.parseInt(lvdt))
     containerEXT061.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))

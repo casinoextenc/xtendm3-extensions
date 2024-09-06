@@ -7,6 +7,10 @@
  *
  * Date         Changed By    Description
  * 20230808     FLEBARS       CMD03 - Calculation of service charges
+<<<<<<< HEAD
+=======
+ * 20240809     YBLUTEAU      CMD03 - Prio 7
+>>>>>>> origin/development
  */
 public class GetSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -45,7 +49,11 @@ public class GetSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // CHK
     //**********************************
+<<<<<<< HEAD
     if (!["1", "2", "3", "4", "5"].contains(prex)) {
+=======
+    if (!["1", "2", "3", "4", "5", "6", "7"].contains(prex)) {
+>>>>>>> origin/development
       mi.error("Priorité ${prex} est invalide")
       return
     }
@@ -61,8 +69,13 @@ public class GetSrvChgSelMtx extends ExtendM3Transaction {
     // UPD
     //**********************************
     DBAction queryEXT06100 = database.table("EXT061")
+<<<<<<< HEAD
         .index("00")
         .selection(
+=======
+      .index("00")
+      .selection(
+>>>>>>> origin/development
         "EXCONO"
         ,"EXPREX"
         ,"EXOBV1"
@@ -81,7 +94,11 @@ public class GetSrvChgSelMtx extends ExtendM3Transaction {
         ,"EXCHNO"
         ,"EXCHID"
         ,"EXLMTS"
+<<<<<<< HEAD
         ).build()
+=======
+      ).build()
+>>>>>>> origin/development
 
     DBContainer containerEXT061 = queryEXT06100.getContainer()
     containerEXT061.set("EXCONO", currentCompany)
@@ -110,4 +127,8 @@ public class GetSrvChgSelMtx extends ExtendM3Transaction {
       mi.write()
     }
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/development

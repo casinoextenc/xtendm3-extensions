@@ -1,3 +1,6 @@
+/**
+ *
+ */
 public class OIS101SupplyPath extends ExtendM3Trigger {
   private final InteractiveAPI interactive;
   private final ProgramAPI program;
@@ -10,6 +13,7 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
   private String cuno
   private String modl
   private String orqa
+  private String alun
   private String whlo
   private String itno
   private String ltyp
@@ -18,7 +22,7 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
   private String errorApi
   private Integer currentCompany
 
-  private final String[] runOnlyForUsers = ["FLEBARS", "PBEAUDOIN", "MLAFON", "CDECORNOY"]
+  private final String[] runOnlyForUsers = []
   // Leave the array empty if it should be run for everyone, otherwise add authorized usernames
 
   public OIS101SupplyPath(InteractiveAPI interactive, ProgramAPI program, DatabaseAPI database, LoggerAPI logger, UtilityAPI utility, MICallerAPI miCaller) {
@@ -32,13 +36,16 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
 
 
   void main() {
-    logger.debug("Debut OIS101.SupplyPath ##PB##")
+    currentCompany = (Integer) program.getLDAZD().CONO
     if (!shouldRun()) return
     sigma6 = interactive.display.fields.WBITNO
     String orno = interactive.display.fields.OAORNO
     orqa = interactive.display.fields.WBORQA
-    currentCompany = (Integer) program.getLDAZD().CONO
-    logger.debug("WBITNO = " + sigma6 + " WBORNO = " + orno + " CurrentCompany = " + currentCompany)
+
+    alun = interactive.display.fields.WBALUN
+    alun = alun == null ? "COL" : alun
+    alun = alun.length() == 0 ? "COL" : alun
+
     if (sigma6.length() == 6) {
       ExpressionFactory expression = database.getExpressionFactory("MITPOP")
       expression = expression.ge("MPREMK", "SIGMA6")
@@ -78,7 +85,7 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
           "F1PK06",
           "F1PK07",
           "F1PK08",
-          "F1A830"
+          "F1CHB4"
         ).build()
 
 
@@ -88,23 +95,21 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
         containerCUGEX1.set("F1PK01", ortp)
 
         if (queryCUGEX100.read(containerCUGEX1)) {
-          boolean isCHB4 = containerCUGEX1.get("F1CHB4").toString().trim()
-          logger.debug("cugex1 chb4 = " + isCHB4)
+          boolean isCHB4 = "1".equals(containerCUGEX1.get("F1CHB4").toString().trim())
           if (isCHB4) {
             itno = ""
             whlo = ""
             ltyp = ""
-            executeEXT011GetSupplyPath(cuno, ortp, modl, sigma6, whlo, orqa, "0", "1")
-            if (errorApi != "" ){
+            executeEXT011GetSupplyPath(cuno, ortp, modl, sigma6, whlo, orqa, "0", "1", alun)
+            if (errorApi != "") {
               interactive.showCustomError("EXT011.GetSupplyPath", "Erreur : " + errorApi)
             }
-           
-            if (itno != ""){
-            interactive.display.fields.WBITNO = itno
-            interactive.display.fields.OBWHLO = whlo
-            interactive.display.fields.OBLTYP = ltyp
-            logger.debug("AfterExecute WBITNO = " + itno + " WBWHLO = " + whlo + " WBltyp = " + ltyp)
-          }
+
+            if (itno != "") {
+              interactive.display.fields.WBITNO = itno
+              interactive.display.fields.OBWHLO = whlo
+              interactive.display.fields.OBLTYP = ltyp
+            }
           }
 
 
@@ -119,7 +124,6 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
     if (runOnlyForUsers.length != 0) {
       String currentUser = program.LDAZD.get("RESP").toString().trim()
       boolean authorizedToRun = runOnlyForUsers.contains(currentUser)
-      logger.debug("User {$currentUser} authorization check result was ${authorizedToRun}")
       return authorizedToRun
     } else {
       return true
@@ -127,22 +131,41 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
   }
   Closure<?> MITPOPData = { DBContainer ContainerMITPOP ->
     sigma9 = ContainerMITPOP.get("MPITNO")
-    logger.debug("Cosure MITPOP Sigma9 = " + sigma9)
   }
 
 
-  // Execute EXT011MI.GetSupplyPath
-  private executeEXT011GetSupplyPath(String CUNO, String ORTP, String MODL, String POPN, String WHLO, String ORQA, String FLG1, String FLAG) {
-    def parameters = ["CUNO": CUNO, "ORTP": ORTP, "MODL": MODL, "POPN": POPN, "WHLO": WHLO, "ORQA": ORQA, "FLG1": FLG1, "FLAG": FLAG]
-    errorApi=""
+  /**
+   * Call EXT011MI.GetSupplyPath
+   * @param pCuno
+   * @param pOrtp
+   * @param pModl
+   * @param pPopn
+   * @param pWhlo
+   * @param pOrqa
+   * @param pFlg1
+   * @param pFlag
+   * @param pAlun
+   * @return
+   */
+  private executeEXT011GetSupplyPath(String pCuno, String pOrtp, String pModl, String pPopn, String pWhlo, String pOrqa, String pFlg1, String pFlag, String pAlun) {
+    Map<String, String> parameters = [
+      "CUNO": pCuno,
+      "ORTP": pOrtp,
+      "MODL": pModl,
+      "POPN": pPopn,
+      "WHLO": pWhlo,
+      "ORQA": pOrqa,
+      "FLG1": pFlg1,
+      "FLAG": pFlag,
+      "ALUN": pAlun
+    ]
+    errorApi = ""
+    logger.debug("CUNO: ${pCuno}, ORTP: ${pOrtp}, MODL: ${pModl}, POPN: ${pPopn}, WHLO: ${pWhlo}, ORQA: ${pOrqa}, FLG1: ${pFlg1}, FLAG: ${pFlag}")
     Closure<?> handler = { Map<String, String> response ->
-    logger.debug("Closure executeMI")
-        if (response.error != null) {
-           logger.debug("Closure executeMI error"+ response.errorMessage )
-           errorApi ="EXT011.GetSupplyPath : " + response.errorMessage
-           
+      if (response.error != null) {
+        errorApi = "EXT011.GetSupplyPath : " + response.errorMessage
+
       } else {
-        logger.debug("Closure executeMI pas error")
         itno = response.ITNO.trim()
         whlo = response.WHLO.trim()
         ltyp = response.LTYP.trim()

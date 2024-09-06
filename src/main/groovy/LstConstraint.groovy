@@ -8,6 +8,7 @@
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20230620     FLEBARS      QUAX01 - evol contrainte
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */
 
 public class LstConstraint extends ExtendM3Transaction {
@@ -44,7 +45,7 @@ public class LstConstraint extends ExtendM3Transaction {
     }
 
     //Check if record exists
-    String constraintID_ex = (mi.in.get("ZCID") != null ? (Integer) mi.in.get("ZCID") : 0)
+    String constraintIDEx = (mi.in.get("ZCID") != null ? (Integer) mi.in.get("ZCID") : 0)
     String constraintCode = (String) (mi.in.get("ZCOD") != null ? mi.in.get("ZCOD") : "")
     String countryCode = (String) (mi.in.get("CSCD") != null ? mi.in.get("CSCD") : "")
     String status = (String) (mi.in.get("STAT") != null ? mi.in.get("STAT") : "")
@@ -52,7 +53,7 @@ public class LstConstraint extends ExtendM3Transaction {
     String assortmentBloc = (mi.in.get("ZBLO") != null ? (Integer) mi.in.get("ZBLO") : 0)
 
     ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
-    ext030Expression = ext030Expression.ge("EXZCID", constraintID_ex)
+    ext030Expression = ext030Expression.ge("EXZCID", constraintIDEx)
       .and(ext030Expression.ge("EXZCOD", constraintCode))
       .and(ext030Expression.ge("EXSTAT", status))
       .and(ext030Expression.ge("EXZBLO", assortmentBloc))

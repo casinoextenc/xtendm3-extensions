@@ -8,6 +8,7 @@
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20230620     FLEBARS      QUAX01 - evol contrainte 
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */
 
 import java.time.LocalDateTime
@@ -86,6 +87,7 @@ public class UpdConstraint extends ExtendM3Transaction {
     // check assortment
     if (zblo != 0 && zblo != 1) {
       mi.error("L'indicateur dangerosité ZBLO doit être égal à 0 ou 1")
+      return
     }
 
     //Check if record exists in country Code Table (EXT034)

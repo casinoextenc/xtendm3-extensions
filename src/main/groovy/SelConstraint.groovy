@@ -8,6 +8,7 @@
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20230620     FLEBARS      QUAX01 - evol contrainte 
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */
 public class SelConstraint extends ExtendM3Transaction {
   private final MIAPI mi
@@ -33,31 +34,36 @@ public class SelConstraint extends ExtendM3Transaction {
   }
 
   public void main() {
+    int nbKeys = 1
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
-    nbli = (mi.in.get("NBLI") != null ? (Integer)mi.in.get("NBLI") : 0)
-    nbsl = (mi.in.get("NBSL") != null ? (Integer)mi.in.get("NBSL") : 50)
+    nbli = (mi.in.get("NBLI") != null ? (Integer) mi.in.get("NBLI") : 0)
+    nbsl = (mi.in.get("NBSL") != null ? (Integer) mi.in.get("NBSL") : 50)
 
     // Set Record to return
     maxSel = nbli + nbsl
+    if (maxSel > 10000) {
+      mi.error("Nombre d'enregistrement demandés trop important")
+      return
+    }
+    if (mi.in.get("ZCID") == null && mi.in.get("ZCOD") && mi.in.get("CSCD") && mi.in.get("STAT") && mi.in.get("CUNO") && mi.in.get("ZBLO")) {
+      mi.error("Veuillez renseigner au moins un critère de sélection")
+      return
+    }
 
     //Check if record exists
-    String constraintID_ex = (mi.in.get("ZCID") != null ? (Integer)mi.in.get("ZCID") : 0)
-    String constraintCode =  (String)(mi.in.get("ZCOD") != null ? mi.in.get("ZCOD") : "")
-    String countryCode =  (String)(mi.in.get("CSCD") != null ? mi.in.get("CSCD") : "")
-    String status = (String)(mi.in.get("STAT") != null ? mi.in.get("STAT") : "")
-    String customer = (String)(mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
-    String assortmentBloc = (mi.in.get("ZBLO") != null ? (Integer)mi.in.get("ZBLO") : 0)
+    String constraintID_ex = (mi.in.get("ZCID") != null ? (Integer) mi.in.get("ZCID") : 0)
+    String constraintCode = (String) (mi.in.get("ZCOD") != null ? mi.in.get("ZCOD") : "")
+    String countryCode = (String) (mi.in.get("CSCD") != null ? mi.in.get("CSCD") : "")
+    String status = (String) (mi.in.get("STAT") != null ? mi.in.get("STAT") : "")
+    String customer = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
+    String assortmentBloc = (mi.in.get("ZBLO") != null ? (Integer) mi.in.get("ZBLO") : 0)
 
     ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
     int countExpression = 0
-    if (mi.in.get("ZCID") != null) {
-      ext030Expression = ext030Expression.eq("EXZCID", constraintID_ex)
-      countExpression++
-    }
 
     if (constraintCode.length() > 0) {
       if (countExpression == 0) {
@@ -105,9 +111,9 @@ public class SelConstraint extends ExtendM3Transaction {
     }
 
     DBAction ext030Query = database.table("EXT030")
-        .index("00")
-        .matching(ext030Expression)
-        .selection(
+      .index("00")
+      .matching(ext030Expression)
+      .selection(
         "EXZCID",
         "EXZCOD",
         "EXSTAT",
@@ -134,15 +140,19 @@ public class SelConstraint extends ExtendM3Transaction {
         "EXCHNO",
         "EXZOHF",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer ext030request = ext030Query.getContainer()
     ext030request.set("EXCONO", currentCompany)
-    
+
+    if (mi.in.get("ZCID") != null) {
+      nbKeys = 2
+      ext030request.set("EXZCID", mi.in.get("ZCID"))
+    }
+
     //Record exists
-    if (!ext030Query.readAll(ext030request, 1, maxSel,ext030Reader)){
-      //mi.error("L'enregistrement n'existe pas")
+    if (!ext030Query.readAll(ext030request, nbKeys, maxSel, ext030Reader)) {
       return
     }
   }
@@ -203,7 +213,6 @@ public class SelConstraint extends ExtendM3Transaction {
       mi.outData.put("ZOHF", containerEXT030.get("EXZOHF") as String)
       mi.write()
     }
-    
     if (countLine > maxSel) {
       return
     }

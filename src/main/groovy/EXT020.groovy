@@ -1,3 +1,4 @@
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -23,6 +24,7 @@ public class EXT020 extends ExtendM3Batch {
   private String svcuno = ""
   private String fvdt = ""
   private String fdat = ""
+  private String todaydat = ""
   private String ascd = ""
   private String rawData
   private int rawDataLength
@@ -74,7 +76,7 @@ public class EXT020 extends ExtendM3Batch {
       return
     }
     rawData = data.get()
-    String inDATE = getFirstParameter()
+    String inNBDAYS = getFirstParameter()
 
     svcuno = ""
 
@@ -82,8 +84,14 @@ public class EXT020 extends ExtendM3Batch {
     currentDivision = program.getLDAZD().DIVI
     LocalDateTime timeOfCreation = LocalDateTime.now()
 
-    if (inDATE != null && !inDATE.trim().isBlank()) {
-      fdat = inDATE
+    if (inNBDAYS != null && !inNBDAYS.trim().isBlank()) {
+      LocalDate currentDate = LocalDate.now()
+
+      // Subtract 7 days from the current date
+      LocalDate dateMinus7Days = currentDate.minusDays(inNBDAYS as int)
+      DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+      fdat = dateMinus7Days.format(formatter)
+      todaydat = currentDate.format(formatter)
       if (!utility.call("DateUtil", "isDateValid", fdat, "yyyyMMdd")) {
         return
       }
@@ -104,15 +112,19 @@ public class EXT020 extends ExtendM3Batch {
 
   // Read EXT010
   Closure<?> ext010Reader = { DBContainer ext010Result ->
-    cuno = ext010Result.get("EXCUNO")
-    if (cuno != svcuno) {
-      DBAction oascusQuery = database.table("OASCUS").index("00").selection("OCCONO", "OCASCD", "OCCUNO", "OCFDAT").build()
+    cuno = ext010Result.getString("EXCUNO").trim()
+    String[] tbcuno = ["90150", "90153", "90154", "90156", "90158", "97041"]// todo test remove
+    if (cuno != svcuno && cuno in tbcuno) {// todo test remove
+    //if (cuno != svcuno) {// todo test reactivate
+      ExpressionFactory oascusExpression = database.getExpressionFactory("OASCUS")
+      oascusExpression = oascusExpression.le("OCFDAT", todaydat)
+      oascusExpression = oascusExpression.and(oascusExpression.ge("OCTDAT", todaydat))
+      DBAction oascusQuery = database.table("OASCUS").index("20").matching(oascusExpression).selection("OCCONO", "OCASCD", "OCCUNO", "OCFDAT").build()
       DBContainer oascusRequest = oascusQuery.getContainer()
       oascusRequest.set("OCCONO", currentCompany)
       ascd = ext010Result.get("EXCUNO") as String
-      oascusRequest.set("OCASCD", ascd.trim() + "0")
       oascusRequest.set("OCCUNO", cuno)
-      if (!oascusQuery.readAll(oascusRequest, 3, 10000, oascusReader)) {
+      if (!oascusQuery.readAll(oascusRequest, 2, 500, oascusReader)) {
       }
     }
     svcuno = cuno

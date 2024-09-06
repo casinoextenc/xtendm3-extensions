@@ -8,6 +8,7 @@
  * 20230210     SEAR         QUAX01 - Constraints matrix
  * 20230620     FLEBARS      QUAX01 - evol contrainte
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */
 
 import java.time.LocalDateTime
@@ -39,7 +40,12 @@ public class AddConstraint extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer)program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO")
+      currentCompany = mi.in.get("CONO") as int
+      String currentUser = program.getUser()
+      if (!checkCompany(currentCompany, currentUser)) {
+        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
+        return
+      }
     }
 
     //Get mi inputs
@@ -88,6 +94,7 @@ public class AddConstraint extends ExtendM3Transaction {
     // check assortment
     if (zblo != 0 && zblo != 1){
       mi.error("L'indicateur dangerosité ZBLO doit être égal à 0 ou 1")
+      return
     }
 
     //Check if record exists in country Code Table (EXT034)
@@ -311,4 +318,23 @@ public class AddConstraint extends ExtendM3Transaction {
   Closure<?> mitpopReader = { DBContainer mitpopResult ->
     String itno = mitpopResult.get("MPITNO")
   }
+
+  /**
+   *  Check if CONO is alowed for user
+   * @param cono
+   * @param user
+   * @return true if alowed false otherwise
+   */
+  private boolean checkCompany(int cono, String user) {
+    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
+    DBContainer csyusrRequest = csyusrQuery.getContainer()
+    csyusrRequest.set("CRCONO", cono)
+    csyusrRequest.set("CRDIVI", '')
+    csyusrRequest.set("CRRESP", user)
+    if (!csyusrQuery.read(csyusrRequest)) {
+      return false
+    }
+    return true
+  }
+
 }

@@ -6,6 +6,7 @@
  * Date         Changed By    Description
  * 20231010     FLEBARS       Creation
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */
 public class LstConstraints extends ExtendM3Transaction {
   private final MIAPI mi
@@ -67,7 +68,7 @@ public class LstConstraints extends ExtendM3Transaction {
     ]
 
 
-    DBAction OCUSMA_query = database
+    DBAction ocusmaQuery = database
       .table("OCUSMA")
       .index("00")
       .selection("OKCUNO"
@@ -76,27 +77,27 @@ public class LstConstraints extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer OCUSMA_request = OCUSMA_query.getContainer()
-    OCUSMA_request.set("OKCONO", currentCompany)
-    OCUSMA_request.set("OKCUNO", cuno)
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUNO", cuno)
 
     //if record exists
-    if (OCUSMA_query.read(OCUSMA_request)) {
-      okadid = OCUSMA_request.getString("OKADID")
-      okcscd = OCUSMA_request.getString("OKCSCD")
+    if (ocusmaQuery.read(ocusmaRequest)) {
+      okadid = ocusmaRequest.getString("OKADID")
+      okcscd = ocusmaRequest.getString("OKCSCD")
     }
     if (okadid != "") {
-      DBAction OCUSAD_query = database.table("OCUSAD")
+      DBAction ocusadQuery = database.table("OCUSAD")
         .index("00")
         .selection("OPCSCD")
         .build()
-      DBContainer OCUSAD_request = OCUSAD_query.getContainer()
-      OCUSAD_request.set("OPCONO", currentCompany)
-      OCUSAD_request.set("OPCUNO", cuno)
-      OCUSAD_request.set("OPADRT", 1)
-      OCUSAD_request.set("OPADID", okadid)
-      if (OCUSAD_query.read(OCUSAD_request)) {
-        opcscd = OCUSAD_request.getString("OPCSCD")
+      DBContainer ocusadRequest = ocusadQuery.getContainer()
+      ocusadRequest.set("OPCONO", currentCompany)
+      ocusadRequest.set("OPCUNO", cuno)
+      ocusadRequest.set("OPADRT", 1)
+      ocusadRequest.set("OPADID", okadid)
+      if (ocusadQuery.read(ocusadRequest)) {
+        opcscd = ocusadRequest.getString("OPCSCD")
       } else {
         in60 = true
         msgd = "Client ${cuno} inexistant"
@@ -333,7 +334,6 @@ public class LstConstraints extends ExtendM3Transaction {
   public void getLineEXT030() {
     String cuno = datasORDER["CUNO"]
     String cscd = datasORDER["CSCD"]
-
     String hazi = datasITEM["HAZI"]
     String hie5 = datasITEM["HIE5"]
     String cfi4 = datasITEM["CFI4"]

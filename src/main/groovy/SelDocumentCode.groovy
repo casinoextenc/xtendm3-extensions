@@ -50,14 +50,13 @@ public class SelDocumentCode extends ExtendM3Transaction {
     String customerCode = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
     String documentCode = (String) (mi.in.get("DOID") != null ? mi.in.get("DOID") : "")
 
-    if (constraintCode.trim() + countryCode.trim() + customerCode.trim() + documentCode.trim()) {
+    if (constraintCode.trim() + countryCode.trim() + customerCode.trim() + documentCode.trim() == "") {
       mi.error("Veuillez renseigner au moins un cirtère de sélection")
       return
     }
 
 
     ExpressionFactory ext035Expression = database.getExpressionFactory("EXT035")
-
     int countExpression = 0
     if (constraintCode.length() > 0) {
       ext035Expression = ext035Expression.eq("EXZCOD", constraintCode)

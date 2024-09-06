@@ -6,6 +6,7 @@
  * Description : Generates sales order integration report
  * Date         Changed By   Description
  * 20231129     SEAR         CMD008 - Rapport d'intégration de demande
+ * 20240521     PBEAUDOUIN   Si pas trouvé dans alors lecture
  */
 
 import java.math.RoundingMode
@@ -25,6 +26,7 @@ public class EXT013 extends ExtendM3Batch {
   private String rawData
   private String logFileName
   private boolean IN60
+  private boolean orderExist
   private String jobNumber
   private String creationDate
   private String creationTime
@@ -206,7 +208,7 @@ public class EXT013 extends ExtendM3Batch {
     uca5 = ""
     uca6 = ""
     tedl = ""
-
+    orderExist = true
     // retrouver le mail du user
     MailLine = ""
     MailLines = ""
@@ -220,8 +222,33 @@ public class EXT013 extends ExtendM3Batch {
     DBContainer OXCNTR = queryOXCNTR.getContainer()
     OXCNTR.set("EVCONO", currentCompany)
     OXCNTR.set("EVORNO", inOrderNumber)
+
+    // Retrieve OXCNTR
+    Closure<?> outData_OXCNTR = { DBContainer oxcntrResult ->
+      String stat = oxcntrResult.get("EVSTAT")
+      if ("90".equalsIgnoreCase(stat)) {
+        confOrderNumber = oxcntrResult.get("EVORNR")
+      }
+      numDemande = oxcntrResult.get("EVORNR")
+      if (!orderExist)
+        inOrderNumber = oxcntrResult.getString("EVORNO")
+    }
+
     if (!queryOXCNTR.readAll(OXCNTR, 2, outData_OXCNTR)) {
-      logger.debug("pas de commande trouvée")
+      orderExist = false
+      logger.debug("pas de commande trouvée avec EVORNO = " +inOrderNumber )
+    }
+
+    if (orderExist == false) {
+      queryOXCNTR = database.table("OXCNTR").index("50").selection("EVORNO", "EVORNR", "EVSTAT").build()
+      OXCNTR = queryOXCNTR.getContainer()
+      OXCNTR.set("EVCONO", currentCompany)
+      OXCNTR.set("EVORNR", inOrderNumber)
+      if (!queryOXCNTR.readAll(OXCNTR, 2, outData_OXCNTR)) {
+        orderExist = false
+        logger.debug("pas de commande trouvée avec EVORNR = "+inOrderNumber)
+      } else {
+      }
     }
 
     // OXHEAD informations
@@ -435,14 +462,7 @@ public class EXT013 extends ExtendM3Batch {
     deleteEXTJOB()
   }
 
-  // Retrieve OXCNTR
-  Closure<?> outData_OXCNTR = { DBContainer OXCNTR ->
-    String stat = OXCNTR.get("EVSTAT")
-    if ("90".equalsIgnoreCase(stat)) {
-      confOrderNumber = OXCNTR.get("EVORNR")
-    }
-    numDemande = OXCNTR.get("EVORNR")
-  }
+
   // Write date from order head
   public void getLinesData() {
 
@@ -665,7 +685,7 @@ public class EXT013 extends ExtendM3Batch {
         totCol = totCol + equivColArrondie
       }
 
-      if (udn6 != orqt) {
+      if (udn6 != orqt && udn6 != 0 && orqt != 0 ) {
         double qteArrondie = new BigDecimal((orqt / udn6) * 100).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
         int pourcentageArrondie = (int) Math.round(qteArrondie)
         roundedline = itno + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";"  + IntUdn6 + ";" + IntPcb + ";" + pourcentageArrondie
@@ -1113,7 +1133,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write bloking Lines file
   public void writeBlokingAnomalyLineFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "BlokingLines" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "BlokingLines" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté cdées par le client"+ ";" + "Qtés intégrées" + ";" + "PCB"+ ";" + "Equiv Pal" + ";" + "Valeur" + ";" +  "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, bloclines)
@@ -1121,7 +1141,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write non bloking Lines file
   public void writeNonBlokingAnomalyLineFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "NonBlokingLines" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "NonBlokingLines" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté cdées par le client"+ ";" + "Qtés intégrées" + ";" + "PCB"+ ";" + "Equiv Pal" + ";" + "Valeur" + ";" +  "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, nonBloclines)
@@ -1129,7 +1149,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write Replaced Lines file
   public void writeReplacedLineFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "ReplacedLine" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "ReplacedLine" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté cdées par le client"+ ";" + "Qtés intégrées" + ";" + "PCB"+ ";" + "Equiv Pal" + ";" + "Valeur" + ";" +  "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, replacedBloclines)
@@ -1137,7 +1157,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write Rounded Lines file
   public void writeRoundedLineFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "RoundedLine" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RoundedLine" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté fichier"+ ";" + "Qté Cdée" + ";" + "PCB"+ ";" + "taux arrondi"
     logMessage(header, roundedlines)
@@ -1145,7 +1165,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write Rayon Lines file
   public void writeRayonLineFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "RayonLine" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RayonLine" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Rayon" + ";" + "Libellé Rayon" + ";" + "Nb de Lignes"
     logMessage(header, rayonlines)
@@ -1153,7 +1173,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write total Lines file
   public void writeTotlinesFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "totlines" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "totlines" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Sous total lignes par type d'erreur" + ";" + "Nb de Lignes"
     logMessage(header, totlines)
@@ -1161,7 +1181,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write sous total Lines file
   public void writeSsTotlinesFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "ssTotlines" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "ssTotlines" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Code Erreur" + ";" + "Libellé Erreur" + ";" + "Nb de Lignes"
     logMessage(header, ssTotlines)
@@ -1169,7 +1189,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write total integre file
   public void writeTotIntegreFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "TotIntegre" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "TotIntegre" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Total Integré" + ";" + "valeur"
     logMessage(header, totIntegres)
@@ -1177,7 +1197,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write total integre file
   public void writeTotRejeteFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "TotRejete" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "TotRejete" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Total Rejeté" + ";" + "valeur"
     logMessage(header, totRejetes)
@@ -1185,7 +1205,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write header file
   public void writeRapportHeaderFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "Header" + "-" + "rapport.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "Header" + "-" + "rapport.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "N° Magasin" + ";" + "Mode de transport" + ";" + "N° Demande" + ";" + "N° commande" + ";" + "Date Intégration" + ";" + "Code Fournisseur"+ ";" + "Date Pos" + ";" + "rotation" + ";" + "type d'approvisionnement" + ";" + "température" + ";" + "N° Transitaire" + ";" + "Incoterm"
     logMessage(header, "")
@@ -1196,7 +1216,7 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write the file indicating the end of processing
   public void writeMailFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "MailFile.txt"
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "MailFile.txt"
     logger.debug("writeRapportFile ${logFileName}")
     header = "Adresses Mail"
     logMessage(header, MailLines)
@@ -1204,8 +1224,8 @@ public class EXT013 extends ExtendM3Batch {
 
   // Write the file indicating the end of processing
   public void writeEndFile() {
-    logFileName = fileJobNumber + "-" + inOrderNumber + "-" + "docNumber.xml"
-    docnumber = fileJobNumber + "-" + inOrderNumber
+    logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "docNumber.xml"
+    docnumber = fileJobNumber + "-" + confOrderNumber
     logger.debug("write-endfile ${logFileName}")
     header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>RAPPORTINTEGRATION</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>F:\\RapportIntegration\\</DocumentPath></Document>"
     logMessage(header, "")

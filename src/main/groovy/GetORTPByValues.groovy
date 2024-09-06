@@ -66,7 +66,7 @@ public class GetORTPByValues extends ExtendM3Transaction {
     containerCUGEX1.set("F1FILE", "OOTYPE")
 
     //Record exists
-    if (!queryCUGEX1.readAll(containerCUGEX1, 1, outData)){
+    if (!queryCUGEX1.readAll(containerCUGEX1, 1, 1,outData)){
       mi.error("L'enregistrement n'existe pas")
       return
     }

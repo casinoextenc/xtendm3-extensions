@@ -6,13 +6,11 @@
  * Description : allows to plan and submit the schedule job EXT040 for all customers
  * Date         Changed By   Description
  * 20231215     RENARN       COMX02 - Cadencier
+ * 20240806     FLEBARS     Evolution 20, 52, 56
  */
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
-import java.time.LocalDate
-import java.time.temporal.WeekFields
-import java.util.Locale
 
 public class EXT045 extends ExtendM3Batch {
   private final LoggerAPI logger
@@ -28,7 +26,7 @@ public class EXT045 extends ExtendM3Batch {
   private int beginIndex
   private int endIndex
   private String logFileName
-  private boolean IN60
+  private boolean in60
   private String jobNumber
   private Integer currentDate
   private String newCDNN
@@ -58,7 +56,7 @@ public class EXT045 extends ExtendM3Batch {
 
     logger.debug("Début" + program.getProgramName())
     //logger.debug("referenceId = " + batch.getReferenceId().get())
-    if(batch.getReferenceId().isPresent()){
+    if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())
       logger.debug("data = " + data)
       performActualJob(data)
@@ -68,11 +66,11 @@ public class EXT045 extends ExtendM3Batch {
     }
   }
   // Get job data
-  private Optional<String> getJobData(String referenceId){
+  private Optional<String> getJobData(String referenceId) {
     def query = database.table("EXTJOB").index("00").selection("EXDATA").build()
     def container = query.createContainer()
     container.set("EXRFID", referenceId)
-    if (query.read(container)){
+    if (query.read(container)) {
       logger.debug("EXDATA = " + container.getString("EXDATA"))
       return Optional.of(container.getString("EXDATA"))
     } else {
@@ -81,15 +79,15 @@ public class EXT045 extends ExtendM3Batch {
     return Optional.empty()
   }
   // Perform actual job
-  private performActualJob(Optional<String> data){
-    if(!data.isPresent()){
+  private performActualJob(Optional<String> data) {
+    if (!data.isPresent()) {
       logger.debug("Job reference Id ${batch.getReferenceId().get()} is passed but data was not found")
       return
     }
     rawData = data.get()
     logger.debug("Début performActualJob")
 
-    currentCompany = (Integer)program.getLDAZD().CONO
+    currentCompany = (Integer) program.getLDAZD().CONO
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
@@ -97,45 +95,69 @@ public class EXT045 extends ExtendM3Batch {
     // Perform Job
     listAlreadySentCustomers = ""
     counter = 0
-    ExpressionFactory expression = database.getExpressionFactory("OASCUS")
-    expression = expression.le("OCFDAT", currentDate as String).and(expression.ge("OCTDAT", currentDate as String))
-    DBAction queryOASCUS = database.table("OASCUS").index("00").matching(expression).selection("OCCUNO","OCASCD").build()
-    DBContainer OASCUS = queryOASCUS.getContainer()
-    OASCUS.set("OCCONO", currentCompany)
-    if (!queryOASCUS.readAll(OASCUS, 1, outData_OASCUS)) {
+
+    ExpressionFactory ocusmaExpression = database.getExpressionFactory("OCUSMA")
+    ocusmaExpression = ocusmaExpression.eq("OKSTAT", "20")
+    DBAction ocusmaQuery = database.table("OCUSMA").index("01").matching(ocusmaExpression).selection("OKCUNO").build()
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUTP", 0)
+    //no limit for readall we have to compute all normal customers cutp = 0
+    if (!ocusmaQuery.readAll(ocusmaRequest, 2, ocusmaReader)) {
     }
+    /*
+      todo log
+      dans un methode ecrire la log dans un fichier cft/log cadencieryyyyMMdd.log mode append
+      yyyyMMddT10:00:00 EXT045 message
+    */
 
-    // Delete file EXTJOB
-    //deleteEXTJOB()
+
   }
-  // Retrieve OASCUS
-  Closure<?> outData_OASCUS = { DBContainer OASCUS ->
-    customer = OASCUS.get("OCCUNO")
-    assortment = OASCUS.get("OCASCD")
 
-    //if(assortment.trim() == (customer.trim()+"0") && !listAlreadySentCustomers.contains(customer) && counter < 1000) {
-    if(assortment.trim() == (customer.trim()+"0") && !listAlreadySentCustomers.contains(customer) && counter < 1000) {
-      counter++
-      if(listAlreadySentCustomers == ""){
-        listAlreadySentCustomers = "("+customer+")"
-      } else {
-        listAlreadySentCustomers = listAlreadySentCustomers + "|" + "("+customer+")"
+  Closure<?> ocusmaReader = { DBContainer ocusmaResult ->
+    String cuno = ocusmaResult.getString("OKCUNO").trim()
+
+    if (true) {// todo test remove
+      String tAssortment = cuno.trim() + "0"
+      DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1A230").build()
+      DBContainer cugex1Request = cugex1Query.getContainer()
+      cugex1Request.set("F1CONO", currentCompany)
+      cugex1Request.set("F1FILE", "OCUSMA")
+      cugex1Request.set("F1PK01", ocusmaResult.get("OKCUNO") as String)
+      cugex1Request.set("F1PK02", "")
+      cugex1Request.set("F1PK03", "")
+      cugex1Request.set("F1PK04", "")
+      cugex1Request.set("F1PK05", "")
+      cugex1Request.set("F1PK06", "")
+      cugex1Request.set("F1PK07", "")
+      cugex1Request.set("F1PK08", "")
+      if (cugex1Query.read(cugex1Request)) {
+        String ta230 = cugex1Request.get("F1A230") as String
+        if (ta230.trim().length() > 0 && ta230.indexOf(cuno) > -1) {
+          tAssortment = ta230.trim()
+        }
       }
-      logger.debug("listAlreadySentCustomers = " + listAlreadySentCustomers)
 
       newCDNN = ""
-      executeEXT040MIRtvNextCalendar(currentCompany as String, customer)
+      executeEXT040MIRtvNextCalendar(currentCompany as String, cuno)
       calendar = newCDNN
 
-      globalOffer = "0"
+      /*
+        todo log pbm assortment
+        lecture oascus
+        si pas trouve ajout d'une logvia mtd addToLog message = Enregistrement non trouvé dans OASCUS pour le client ${cuno} assortiment ${
+        sinon ext042 call EXT040
+       */
+
+
 
       LocalDateTime timeOfCreation = LocalDateTime.now()
       DBAction query = database.table("EXT042").index("00").build()
       DBContainer EXT042 = query.getContainer()
       EXT042.set("EXCONO", currentCompany)
-      EXT042.set("EXCUNO", customer)
+      EXT042.set("EXCUNO", cuno)
       EXT042.set("EXCDNN", calendar)
-      EXT042.set("EXASCD", assortment)
+      EXT042.set("EXASCD", tAssortment)
       if (!query.read(EXT042)) {
         EXT042.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
         EXT042.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
@@ -148,7 +170,7 @@ public class EXT045 extends ExtendM3Batch {
       allContacts = "1"
       schedule = "1"
 
-      logger.debug("assortment = " + assortment)
+      logger.debug("assortment = " + tAssortment)
       logger.debug("executeEXT820MISubmitBatch :")
       logger.debug("customer = " + customer)
       logger.debug("calendar = " + calendar)
@@ -158,12 +180,18 @@ public class EXT045 extends ExtendM3Batch {
 
       //if(formatTXT.trim() != "" || formatCSV.trim() != "" || formatXLSX.trim() != ""){
       //executeEXT820MISubmitBatch(currentCompany as String, "EXT040", customer, calendar, globalOffer, formatCSV, formatTXT, formatXLSX, allContacts, schedule, "")
-      executeEXT820MISubmitBatch(currentCompany as String, "EXT040", customer, calendar, allContacts, schedule, "", "", "", "", "")
-      //}
-    }
+      executeEXT820MISubmitBatch(currentCompany as String, "EXT040", cuno, calendar, allContacts, schedule, "", "", "", "", "")
+    }// todo test remove
+
   }
-  // Execute EXT040MI.RtvNextCalendar
-  private executeEXT040MIRtvNextCalendar(String CONO, String CUNO){
+
+  /**
+   * Call EXT040MI.RtvNextCalendar
+   * @param CONO
+   * @param CUNO
+   * @return
+   */
+  private executeEXT040MIRtvNextCalendar(String CONO, String CUNO) {
     def parameters = ["CONO": CONO, "CUNO": CUNO]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
@@ -175,7 +203,7 @@ public class EXT045 extends ExtendM3Batch {
   }
   // Execute EXT820MI.SubmitBatch
   //private executeEXT820MISubmitBatch(String CONO, String JOID, String P001, String P002, String P003, String P004, String P005, String P006, String P007, String P008, String P009){
-  private executeEXT820MISubmitBatch(String CONO, String JOID, String P001, String P002, String P003, String P004, String P005, String P006, String P007, String P008, String P009){
+  private executeEXT820MISubmitBatch(String CONO, String JOID, String P001, String P002, String P003, String P004, String P005, String P006, String P007, String P008, String P009) {
     def parameters = ["CONO": CONO, "JOID": JOID, "P001": P001, "P002": P002, "P003": P003, "P004": P004, "P005": P005, "P006": P006, "P007": P007, "P008": P008, "P009": P009]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
@@ -185,7 +213,7 @@ public class EXT045 extends ExtendM3Batch {
     miCaller.call("EXT820MI", "SubmitBatch", parameters, handler)
   }
   // Get first parameter
-  private String getFirstParameter(){
+  private String getFirstParameter() {
     logger.debug("rawData = " + rawData)
     rawDataLength = rawData.length()
     beginIndex = 0
@@ -196,7 +224,7 @@ public class EXT045 extends ExtendM3Batch {
     return parameter
   }
   // Get next parameter
-  private String getNextParameter(){
+  private String getNextParameter() {
     beginIndex = endIndex + 1
     endIndex = rawDataLength - rawData.indexOf(";") - 1
     rawData = rawData.substring(beginIndex, rawDataLength)
@@ -209,12 +237,12 @@ public class EXT045 extends ExtendM3Batch {
     return parameter
   }
   // Delete records related to the current job from EXTJOB table
-  public void deleteEXTJOB(){
+  public void deleteEXTJOB() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXTJOB").index("00").build()
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
-    if(!query.readAllLock(EXTJOB, 1, updateCallBack_EXTJOB)){
+    if (!query.readAllLock(EXTJOB, 1, updateCallBack_EXTJOB)) {
     }
   }
   // Delete EXTJOB
@@ -225,14 +253,14 @@ public class EXT045 extends ExtendM3Batch {
   void logMessage(String header, String message) {
     textFiles.open("FileImport")
     logFileName = "MSG_" + program.getProgramName() + "." + "batch" + "." + jobNumber + ".csv"
-    if(!textFiles.exists(logFileName)) {
+    if (!textFiles.exists(logFileName)) {
       log(header)
       log(message)
     }
   }
   // Log
   void log(String message) {
-    IN60 = true
+    in60 = true
     //logger.debug(message)
     message = LocalDateTime.now().toString() + ";" + message
     Closure<?> consumer = { PrintWriter printWriter ->

@@ -393,11 +393,11 @@ public class EXT040 extends ExtendM3Batch {
         MITAUN.set("MUITNO", EXT040.get("EXITNO"))
         MITAUN.set("MUAUTP", 1)
         MITAUN.set("MUALUN", "COL")
-       if (CUGEX1_MITMAS.get("F1A830") == "30") {
-         savedCOFA = -1
-         sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-         sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
-       }
+        if (CUGEX1_MITMAS.get("F1A830") == "30") {
+          savedCOFA = -1
+          sigma9_NoDirectDelivery = EXT040.get("EXITNO")
+          sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+        }
 
         if (query_MITAUN.read(MITAUN)) {
           currentCOFA = MITAUN.get("MUCOFA")
@@ -466,9 +466,10 @@ public class EXT040 extends ExtendM3Batch {
       line = sigma6 + ";" + libelleSigma6 + ";" + "1"
       line += ";" + dtaMITHRY["HIE1"] + ";" + dtaMITHRY["HIE1D"]
       line += ";" + dtaMITHRY["HIE2"].replace(dtaMITHRY["HIE1"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE3"].replace(dtaMITHRY["HIE2"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE4"].replace(dtaMITHRY["HIE3"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE5"].replace(dtaMITHRY["HIE4"] , "") + ";" + dtaMITHRY["HIE2D"]
+      line += ";" + dtaMITHRY["HIE3"].replace(dtaMITHRY["HIE2"] , "") + ";" + dtaMITHRY["HIE3D"]
+      line += ";" + dtaMITHRY["HIE4"].replace(dtaMITHRY["HIE3"] , "") + ";" + dtaMITHRY["HIE4D"]
+      line += ";" + dtaMITHRY["HIE5"].replace(dtaMITHRY["HIE4"] , "") + ";" + dtaMITHRY["HIE5D"]
+
 
       countLines++
       lines += line + (countLines < 5000 ? "\r\n" : "")
@@ -529,7 +530,7 @@ public class EXT040 extends ExtendM3Batch {
       .build()
     DBContainer mitmasRequest = mitmasQuery.getContainer()
     mitmasRequest.set("MMCONO", currentCompany)
-    mitmasRequest.set("MMITNO", sigma9)
+    mitmasRequest.set("MMITNO", tITNO)
     if (mitmasQuery.read(mitmasRequest)) {
       response["HIE1"] = mitmasRequest.getString("MMHIE1").trim()
       response["HIE2"] = mitmasRequest.getString("MMHIE2").trim()
@@ -982,7 +983,7 @@ public class EXT040 extends ExtendM3Batch {
       logMessage("", line + "\r\n")
       header = "SIGMA6" + ";" + "UL" + ";" + "Code article" + ";" + "EAN13" + ";" + "Libellé article" + ";" + "Code article remplacé" + ";" + "Libellé article remplacé" + ";" + "Prix cadencier précédent" + ";" + "Prix de vente" + ";" + "Evolution prix cadencier précédent (%)" + ";" + "Unité prix de vente" + ";" + "DLC_Totale" + ";" + "DLGR" + ";" + "Code marque" + ";" + "Libellé code marque" + ";" + "Code marketing" + ";" + "Libellé code marketing" + ";" + "Saisonnalité" + ";" + "Nouveauté" + ";" + "Langue packaging" + ";" + "Code département " + ";" + "Libellé département" + ";" + "Code rayon " + ";" + "Libellé rayon" + ";" + "Code famille" + ";" + "Libellé famille" + ";" + "Code sous famille" + ";" + "Libellé Sous famille" + ";" + "Unité de besoin" + ";" + "Libellé unité de besoin" + ";" + "Fournisseur (CASINO ou industriel)" + ";" + "Nom du fournisseur" + ";" + "Fournisseur d'origine" + ";" + "Nom du fournisseur d'origine" + ";" + "Pays d'origine" + ";" + "Code douanier" + ";" + "Type Appro" + ";" + "Entrepôt Casino" + ";" + "Taille" + ";" + "Couleur" + ";" + "Modèle" + ";" + "Diffusion" + ";" + "FBA" + ";" + "DUN14" + ";" + "Minimum de commande" + ";" + "PCB" + ";" + "Nbre couche / Palette" + ";" + "Nbre colis par couche" + ";" + "Nbre colis par palette" + ";" + "Nbre UVC par palette" + ";" + "Contenance (exprimée en L pour l'UC)" + ";" + "Poids net (exprimé en Kg pour l'UC)" + ";" + "Poids brut (exprimé en Kg pour le colis)" + ";" + "Volume colis (exprimé en m3)" + ";" + "Hauteur UVC (exprimé en m)" + ";" + "Largeur UVC (exprimé en m)" + ";" + "Longueur UVC (exprimé en m)" + ";" + "Hauteur colis (exprimé en m)" + ";" + "Largeur colis (exprimé en m)" + ";" + "Longueur colis (exprimé en m)" + ";" + "Degré d'alcool" + ";" + "Réf en droit" + ";" + "Type de box" + ";" + "Nbre de composant box" + ";" + "Température" + ";" + "Assortiment logistique"
     } else {
-      logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "schedule.txt"
+      logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier.txt"
       header = "Schedule number" + ";" + "Creation date" + ";" + "Creation time" + ";" + "Store" + ";" + "Store name" + ";" + "Default delivery method"
       logMessage(header, "")
       line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName + ";" + deliveryMethodName

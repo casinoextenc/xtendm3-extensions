@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-/**                    
-* Name: EXT061MI.UpdSrvChgSelMtx
-* Migration projet GIT
-* old file = EXT061MI_UpdSrvChgSelMtx.groovy
-*/
-
-/**
- * Name : EXT061MI.UpdSrvChgSelMtx 
-=======
 /**
  * Name: EXT061MI.UpdSrvChgSelMtx
  * Migration projet GIT
@@ -16,7 +6,6 @@
 
 /**
  * Name : EXT061MI.UpdSrvChgSelMtx
->>>>>>> origin/development
  * Version 1.0
  * Add records in EXT061
  *
@@ -25,10 +14,8 @@
  * Date         Changed By    Description
  * 20230808     FLEBARS       Creation EXT061
  * 20240130     MLECLERCQ     Support PREX 6 & LVDT
-<<<<<<< HEAD
-=======
  * 20240809     YBLUTEAU      CMD03 - Prio 7
->>>>>>> origin/development
+ * 20241211     YJANNIN      CMD03 2.5 - Prio 6
  */
 public class UpdSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -53,18 +40,19 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // INZ Intialize
     //**********************************
-    currentCompany = (int)program.getLDAZD().CONO
+    currentCompany = (int) program.getLDAZD().CONO
 
     //Get API INPUTS
-    String prex = (String)mi.in.get("PREX")
-    String obv1 = (String)mi.in.get("OBV1")
-    String obv2 = (String)mi.in.get("OBV2")
-    String obv3 = (String)mi.in.get("OBV3")
-    String vfdt = (String)mi.in.get("VFDT")
-    String crid = (String)mi.in.get("CRID")
-    String crfa = (String)mi.in.get("CRFA")
-    String cucd = (String)mi.in.get("CUCD")
-    String lvdt = (String)mi.in.get("LVDT")
+    String prex = mi.in.get("PREX") == null ? "" : mi.in.get("PREX") as String
+    String obv1 = mi.in.get("OBV1") == null ? "" : mi.in.get("OBV1") as String
+    String obv2 = mi.in.get("OBV2") == null ? "" : mi.in.get("OBV2") as String
+    String obv3 = mi.in.get("OBV3") == null ? "" : mi.in.get("OBV3") as String
+    String obv4 = mi.in.get("OBV4") == null ? "" : mi.in.get("OBV4") as String
+    String vfdt = mi.in.get("VFDT") == null ? "" : mi.in.get("VFDT") as String
+    String crid = mi.in.get("CRID") == null ? "" : mi.in.get("CRID") as String
+    String crfa = mi.in.get("CRFA") == null ? "" : mi.in.get("CRFA") as String
+    String cucd = mi.in.get("CUCD") == null ? "" : mi.in.get("CUCD") as String
+    String lvdt = mi.in.get("LVDT") == null ? "" : mi.in.get("LVDT") as String
 
     int crme = 0
     String crd0 = ""
@@ -72,18 +60,29 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // CHECK API INPUT PARAMETERS
     //**********************************
-<<<<<<< HEAD
     if (!["1", "2", "3", "4", "5", "6"].contains(prex)) {
-=======
-    if (!["1", "2", "3", "4", "5", "6", "7"].contains(prex)) {
->>>>>>> origin/development
       mi.error("Priorité ${prex} est invalide")
+      return
+    }
+
+    if(prex == "6" && obv2.trim()!=""){
+      mi.error("Champ 2 doit être à blanc")
+      return
+    }
+
+    if(["5", "6"].contains(prex) && obv3.trim()!=""){
+      mi.error("Champ 3 doit être à blanc")
+      return
+    }
+
+    if(["4", "5", "6"].contains(prex) && obv4.trim()!=""){
+      mi.error("Champ 4 doit être à blanc")
       return
     }
 
     int hlvl = 0
     try {
-      hlvl = 6 - Integer.parseInt(prex)
+      hlvl = 4 - Integer.parseInt(prex)
     } catch (NumberFormatException e) {
       logger.debug("AIE")
     }
@@ -92,24 +91,40 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
 
     //CHECK if obv1 exists in OCUSMA
     DBAction queryOCUSMA00 = database.table("OCUSMA").index("00").selection(
-<<<<<<< HEAD
-        "OKCONO",
-        "OKCUNO",
-        "OKSTAT"
-        ).build()
-=======
       "OKCONO",
       "OKCUNO",
       "OKSTAT"
     ).build()
->>>>>>> origin/development
 
     DBContainer containerOCUSMA = queryOCUSMA00.getContainer()
-    containerOCUSMA.set("OKCONO",currentCompany)
+    containerOCUSMA.set("OKCONO", currentCompany)
     containerOCUSMA.set("OKCUNO", obv1)
     if (!queryOCUSMA00.read(containerOCUSMA)) {
       mi.error("Client ${obv1} inexistant")
       return
+    }
+
+    if( prex != " 6"){
+      if (!["10", "20", "30", "40"].contains(obv2)) {
+        mi.error("Caneva pro ${obv2} est invalide")
+        return
+      }
+    }
+
+    if(prex!=" 5" && prex!=" 6"){
+      //CHECK if obv3 exists in CIDMAS
+      DBAction queryCIDMAS00 = database.table("CIDMAS").index("00").selection(
+        "IDCONO",
+        "IDSUNO"
+      ).build()
+
+      DBContainer containerCIDMAS = queryCIDMAS00.getContainer()
+      containerCIDMAS.set("IDCONO", currentCompany)
+      containerCIDMAS.set("IDSUNO", obv3)
+      if (!queryCIDMAS00.read(containerCIDMAS)) {
+        mi.error("Fournisseur ${obv3} inexistant")
+        return
+      }
     }
 
     if(hlvl > 0){
@@ -123,33 +138,9 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
       DBContainer containerMITHRY = queryMITHRY00.getContainer()
       containerMITHRY.set("HICONO",currentCompany)
       containerMITHRY.set("HIHLVL", hlvl)
-      containerMITHRY.set("HIHIE0", obv2)
+      containerMITHRY.set("HIHIE0", obv4)
       if (!queryMITHRY00.read(containerMITHRY)) {
-        mi.error("Hierarchie article niveau ${hlvl} ${obv2} inexistante")
-        return
-      }
-
-      //CHECK if obv3 exists in CIDMAS
-      DBAction queryCIDMAS00 = database.table("CIDMAS").index("00").selection(
-        "IDCONO",
-        "IDSUNO"
-      ).build()
-
-      DBContainer containerCIDMAS = queryCIDMAS00.getContainer()
-      containerCIDMAS.set("IDCONO",currentCompany)
-<<<<<<< HEAD
-=======
-      if(prex ==  " 6"){
-        containerCIDMAS.set("IDSUNO", obv2)
-        if (!queryCIDMAS00.read(containerCIDMAS)) {
-          mi.error("Fournisseur ${obv3} inexistant")
-          return
-        }
-      }
->>>>>>> origin/development
-      containerCIDMAS.set("IDSUNO", obv3)
-      if (!queryCIDMAS00.read(containerCIDMAS)) {
-        mi.error("Fournisseur ${obv3} inexistant")
+        mi.error("Hierarchie article niveau ${hlvl} ${obv4} inexistante")
         return
       }
     }
@@ -174,19 +165,11 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
 
     //CHECK if crid exists in OLICHA
     DBAction queryOLICHA00 = database.table("OLICHA").index("00").selection(
-<<<<<<< HEAD
-        "MJCONO"
-        ,"MJCRID"
-        ,"MJCRD0"
-        ,"MJCRME"
-        ).build()
-=======
       "MJCONO"
       ,"MJCRID"
       ,"MJCRD0"
       ,"MJCRME"
     ).build()
->>>>>>> origin/development
 
     DBContainer containerOLICHA = queryOLICHA00.getContainer()
     containerOLICHA.set("MJCONO",currentCompany)
@@ -200,20 +183,6 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
     }
     //CHECK if crid exists in CUGEX1
     DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection(
-<<<<<<< HEAD
-        "F1CONO"
-        ,"F1FILE"
-        ,"F1PK01"
-        ,"F1PK02"
-        ,"F1PK03"
-        ,"F1PK04"
-        ,"F1PK05"
-        ,"F1PK06"
-        ,"F1PK07"
-        ,"F1PK08"
-        ,"F1CHB1"
-        ).build()
-=======
       "F1CONO"
       ,"F1FILE"
       ,"F1PK01"
@@ -226,7 +195,6 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
       ,"F1PK08"
       ,"F1CHB1"
     ).build()
->>>>>>> origin/development
 
     //CHECK if crid flagged for extension
     DBContainer containerCUGEX1 = queryCUGEX100.getContainer()
@@ -245,21 +213,12 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
 
     //CHECK if crid exists in CSYTAB
     DBAction queryCSYTAB00 = database.table("CSYTAB").index("00").selection(
-<<<<<<< HEAD
-        "CTCONO"
-        ,"CTDIVI"
-        ,"CTSTCO"
-        ,"CTSTKY"
-        ,"CTLNCD"
-        ).build()
-=======
       "CTCONO"
       ,"CTDIVI"
       ,"CTSTCO"
       ,"CTSTKY"
       ,"CTLNCD"
     ).build()
->>>>>>> origin/development
 
     DBContainer containerCSYTAB = queryCSYTAB00.getContainer()
     containerCSYTAB.set("CTCONO",currentCompany)
@@ -277,32 +236,12 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     //Check if record exists
     DBAction queryEXT06100 = database.table("EXT061").index("00").selection(
-<<<<<<< HEAD
-        "EXCONO"
-        ,"EXPREX"
-        ,"EXOBV1"
-        ,"EXOBV2"
-        ,"EXOBV3"
-        ,"EXVFDT"
-        ,"EXCRID"
-        ,"EXCRD0"
-        ,"EXCMRE"
-        ,"EXCRFA"
-        ,"EXCUCD"
-        ,"EXLVDT"
-        ,"EXRGDT"
-        ,"EXRGTM"
-        ,"EXLMDT"
-        ,"EXCHNO"
-        ,"EXCHID"
-        ,"EXLMTS"
-        ).build()
-=======
       "EXCONO"
       ,"EXPREX"
       ,"EXOBV1"
       ,"EXOBV2"
       ,"EXOBV3"
+      ,"EXOBV4"
       ,"EXVFDT"
       ,"EXCRID"
       ,"EXCRD0"
@@ -315,9 +254,7 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
       ,"EXLMDT"
       ,"EXCHNO"
       ,"EXCHID"
-      ,"EXLMTS"
     ).build()
->>>>>>> origin/development
 
     DBContainer containerEXT061 = queryEXT06100.getContainer()
     containerEXT061.set("EXCONO",currentCompany)
@@ -325,6 +262,7 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
     containerEXT061.set("EXOBV1", obv1)
     containerEXT061.set("EXOBV2", obv2)
     containerEXT061.set("EXOBV3", obv3)
+    containerEXT061.set("EXOBV4", obv4)
     containerEXT061.set("EXVFDT", Integer.parseInt(vfdt))
     Closure<?> updaterEXT061 = { LockedResult lockedResultEXT061 ->
       int changeNumber = lockedResultEXT061.get("EXCHNO")
@@ -337,7 +275,6 @@ public class UpdSrvChgSelMtx extends ExtendM3Transaction {
       lockedResultEXT061.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
       lockedResultEXT061.set("EXCHNO", changeNumber + 1)
       lockedResultEXT061.set("EXCHID", program.getUser())
-      lockedResultEXT061.set("EXLMTS", utility.call("DateUtil", "currentEpochMilliseconds"))
       lockedResultEXT061.update()
     }
     if (!queryEXT06100.readLock(containerEXT061,updaterEXT061 )) {

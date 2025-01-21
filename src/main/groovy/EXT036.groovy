@@ -7,7 +7,7 @@
  * Date         Changed By   Description
  * 20230210     ARENARD      QUAX02 - Constraint engine
  * 20230411     ARENARD      For following criterias, 2 is considered as an empty value : EXHAZI, EXZALC, EXZSAN, EXZALI, EXZORI, EXZPHY
- * 20240701     PBEAUDOUIN   validation Xtend
+ * 20240701     PBEAUDOUIN   For validation Xtend
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -33,6 +33,8 @@ public class EXT036 extends ExtendM3Batch {
   //Used to store list of documents for order line infos
   private Map<String, String> documents
   private Map<String, String> documentsEXT036
+  private List<String> oolines
+  private List<String> ext036s
 
   public EXT036(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -67,7 +69,7 @@ public class EXT036 extends ExtendM3Batch {
    * @return
    */
   private Optional<String> getJobData(String referenceId) {
-     DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
     DBContainer container = query.createContainer()
 
     container.set("EXRFID", referenceId)
@@ -107,6 +109,9 @@ public class EXT036 extends ExtendM3Batch {
       inPOSX = 0
     }
 
+    oolines = new ArrayList<String>()
+    ext036s = new ArrayList<String>()
+
     //Read OOLINE
     ExpressionFactory oolineExpression = database.getExpressionFactory("OOLINE")
     oolineExpression = oolineExpression.le("OBORST", "77")
@@ -139,9 +144,51 @@ public class EXT036 extends ExtendM3Batch {
     //nb keys for OOLINE read all
     int nbk = inPONR == 0 ? 2 : 4
 
-    if (!oolineQuery.readAll(oolineRequest, nbk, performOOLINEJob)) {
-      // TODO WTF
+    if (!oolineQuery.readAll(oolineRequest, nbk, 10000, performOOLINEJob)) {
     }
+
+    //READE ext036
+    DBAction ext036Query = database.table("EXT036")
+      .index("00").build()
+
+    DBContainer ext036Request = ext036Query.getContainer()
+    ext036Request.set("EXCONO", currentCompany)
+    ext036Request.set("EXORNO", inORNO)
+
+    Closure<?> ext036Reader = { DBContainer ext036Result ->
+      String orno = ext036Result.get("EXORNO") as String
+      int ponr = ext036Result.get("EXPONR") as Integer
+      int posx = ext036Result.get("EXPOSX") as Integer
+
+      ext036s.add(orno + "#" + ponr + "#" + posx)
+    }
+
+    if (!ext036Query.readAll(ext036Request, 2, 10000, ext036Reader)) {
+    }
+
+    //identify ext036 to delete
+    Set<String> oolinesSet = new HashSet<>(oolines)
+    List<String> notInOolines = ext036s.findAll { !oolinesSet.contains(it) }
+    notInOolines.each { notInOoline ->
+      String[] ntinooline = notInOoline.split("#")
+
+      ext036Query = database.table("ext036")
+        .index("00").build()
+      ext036Request = ext036Query.getContainer()
+      ext036Request.set("EXCONO", currentCompany)
+      ext036Request.set("EXORNO", ntinooline[0])
+      ext036Request.set("EXPONR", ntinooline[1] as Integer)
+      ext036Request.set("EXPOSX", ntinooline[2] as Integer)
+
+      Closure<?> ext036Updater = { LockedResult ext036LockedResult ->
+        ext036LockedResult.delete()
+      }
+
+      if (!ext036Query.readAllLock(ext036Request, 4, ext036Updater)) {
+      }
+
+    }
+
   }
 
   /**
@@ -230,6 +277,7 @@ public class EXT036 extends ExtendM3Batch {
 
     mngEXT036()
 
+    oolines.add(orno + "#" + ponr + "#" + posx)
   }
 
   /**

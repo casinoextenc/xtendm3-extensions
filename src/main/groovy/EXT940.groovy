@@ -13,6 +13,8 @@
  * 20240419     FLEBARS     Chemin fichier dans docnumber à rendre dynamique **ATTENTION NE PAS FAIRE VALIDER**
  * 20240524     FLEBARS     Alcool et controle prix
  * 20240806     FLEBARS     Evolution 20, 52, 56
+ * 20241002     PBEAUDOUIN  Change Gestion des Ecarts
+ * 20241211     YJANNIN     COMX02-1 - Cadencier
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -39,9 +41,7 @@ public class EXT940 extends ExtendM3Batch {
   private Integer inFormatTXT
   private Integer inFormatCSV
   private Integer inFormatXLSX
-  private String formatTXT
-  private String formatCSV
-  private String formatXLSX
+
   private Integer inAllContacts
   private Integer inSchedule
   private String previousCalendar
@@ -56,7 +56,6 @@ public class EXT940 extends ExtendM3Batch {
   private String sigma9_NoDirectDelivery_assortment
   private String stat
   private int chb7
-  private String cmde
   private String customerName
   private String creationDate
   private String creationTime
@@ -67,7 +66,7 @@ public class EXT940 extends ExtendM3Batch {
   private int countLines
   private double currentCOFA
   private double savedCOFA
-  public boolean gapFileExists
+
   private String UL
   private String EAN13
   private String libelleArticle
@@ -152,13 +151,13 @@ public class EXT940 extends ExtendM3Batch {
   private String temperature
   private double sumCNQT
   private String typeBox
-  private boolean isAlcool //A°FLB 20240524
+  private boolean isAlcool
   private String nombreComposantBox
-  private int count_OASITN = 0
   private String fileJobNumber
   private boolean isMainAssortment = false
   private String mainAssortment
   private boolean isReedition = false
+  private double ocusmaN596
 
   public EXT940(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -198,22 +197,31 @@ public class EXT940 extends ExtendM3Batch {
 
     }
 
+    logger.debug("#YJ perform Actual Job ")
+
     currentCompany = (Integer) program.getLDAZD().CONO
     //Output Type
     inFormatTXT = 0
     inFormatCSV = 0
     inFormatXLSX = 0
-    DBAction query_EXT042_Type = database.table("EXT042").index("10").selection("EXASCD", "EXFLTX", "EXFLCS", "EXFLXL").build()
-    DBContainer EXT042_Type = query_EXT042_Type.getContainer()
-    EXT042_Type.set("EXCONO", currentCompany)
-    EXT042_Type.set("EXCDNN", inCalendar)
-    EXT042_Type.set("EXCUNO", inCustomer) // 20240507 PBEAUDOUIN
-    if (!query_EXT042_Type.readAll(EXT042_Type, 3, outData_EXT042_Type)) {// 20240507 PBEAUDOUIN
 
+    DBAction ext042Query = database.table("EXT042").index("10").selection("EXASCD", "EXFLTX", "EXFLCS", "EXFLXL").build()
+    DBContainer ext042Request = ext042Query.getContainer()
+    ext042Request.set("EXCONO", currentCompany)
+    ext042Request.set("EXCDNN", inCalendar)
+    ext042Request.set("EXCUNO", inCustomer)
+
+    // Retrieve outData_EXT042_Type
+    Closure<?> ext042Reader = { DBContainer ext042Result ->
+      inFormatTXT = ext042Result.get("EXFLTX")
+      inFormatCSV = ext042Result.get("EXFLCS")
+      inFormatXLSX = ext042Result.get("EXFLXL")
+      assortment = ext042Result.get("EXASCD") as String
+    }
+    if (!ext042Query.readAll(ext042Request, 3, ext042Reader)) {
     }
     retrieveCustomerInformations()
     isMainAssortment = assortment.trim().equals(mainAssortment)
-
 
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -223,17 +231,22 @@ public class EXT940 extends ExtendM3Batch {
     creationTime = timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as String
 
     // Perform Job
+    retrievePreviousCalendar()
+
     writeFormatFile()
-
     writeCustomerEmailFile()
-
     writeInternalEmailFile()
 
-    writeEXT040_EXT041()
+    if (isMainAssortment && !isReedition) {
+      writeEXT041()
+    }
+    if (!isReedition) {
+      writeEXT040()
+    }
 
     writeCalendarFile()
-
-    writeGapFile()
+    if (isMainAssortment)
+      writeGapFile()
 
     writeAlertFile()
 
@@ -242,8 +255,10 @@ public class EXT940 extends ExtendM3Batch {
     writeEndFile()
     writeEndFileSFTP()
     if (isMainAssortment) {
+      //Write Prod_STO
       executeEXT820MISubmitBatch(String.valueOf(currentCompany), "EXT041", program.getUser(), String.valueOf(inCustomer), String.valueOf(inCalendar), String.valueOf(inAllContacts))
     }
+
     if (!isReedition)
       deleteTemporaryFiles()
 
@@ -255,19 +270,23 @@ public class EXT940 extends ExtendM3Batch {
     previousCalendarYearWeek = ""
     previousCalendarSuffix = ""
     previousCalendarNextSuffix = ""
-    DBAction query = database.table("EXT041").index("10").selection("EXCDNN").reverse().build()
-    DBContainer EXT041 = query.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCUNO", inCustomer)
-    if (!query.readAll(EXT041, 2, 1, outData_EXT041)) {
+
+
+    DBAction query = database.table("EXT040").index("20").selection("EXCDNN").reverse().build()
+    DBContainer EXT040 = query.getContainer()
+    EXT040.set("EXCONO", currentCompany)
+    EXT040.set("EXCUNO", inCustomer)
+    EXT040.set("EXASCD", assortment)
+    if (!query.readAll(EXT040, 3, 1, ext040reader01)) {
     }
-    if (inCalendar == previousCalendar)
+    if (inCalendar.trim() == previousCalendar.trim())
       isReedition = true
     if (previousCalendar.trim() != "") {
       previousCalendarYearWeek = previousCalendar.substring(0, 6)
       previousCalendarSuffix = previousCalendar.substring(6, 9)
       previousCalendarNextSuffix = "00" + ((previousCalendarSuffix as int) + 1) as String
     }
+    logger.debug("isMain:${isMainAssortment} inCalendar:${inCalendar} previousCalendar:${previousCalendar} is reedition ${isReedition}")
   }
   // Retrieve customer name
   private void retrieveCustomerInformations() {
@@ -302,7 +321,7 @@ public class EXT940 extends ExtendM3Batch {
       }
     }
     mainAssortment = inCustomer.trim() + "0"
-    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1A230").build()
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1A230", "F1N596").build()
     DBContainer cugex1Request = cugex1Query.getContainer()
     cugex1Request.set("F1CONO", currentCompany)
     cugex1Request.set("F1FILE", "OCUSMA")
@@ -316,15 +335,13 @@ public class EXT940 extends ExtendM3Batch {
     cugex1Request.set("F1PK08", "")
     if (cugex1Query.read(cugex1Request)) {
       String ta230 = cugex1Request.get("F1A230") as String
-      if (ta230.trim().length() > 0) {
+      if (ta230.trim().length() > 0 && ta230.indexOf(inCustomer.trim()) > -1) {
         mainAssortment = ta230.trim()
       }
+      ocusmaN596 = cugex1Request.get("F1N596")
     }
   }
-  // Retrieve EXT010
-  Closure<?> outData_EXT010 = { DBContainer EXT010 ->
-    cmde = EXT010.get("EXCMDE")
-  }
+
   // Retrieve EXT010
   Closure<?> outData_EXT010_3 = { DBContainer EXT010 ->
     String suno = ""
@@ -369,6 +386,14 @@ public class EXT940 extends ExtendM3Batch {
   }
   // Retrieve EXT040
   Closure<?> outData_EXT040 = { DBContainer EXT040 ->
+    logger.debug("#YJ out Data EXT040 ")
+    sigma6 = EXT040.get("EXPOPN")
+    sigma6 = sigma6.trim()
+    sigma9_DirectDelivery = ""
+    sigma9_NoDirectDelivery = ""
+    sigma9_DirectDelivery_assortment = ""
+    sigma9_NoDirectDelivery_assortment = ""
+    savedCOFA = 0
     chb7 = 0
     DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1A830").build()
     DBContainer CUGEX1_MITMAS = query_CUGEX1_MITMAS.getContainer()
@@ -386,9 +411,6 @@ public class EXT940 extends ExtendM3Batch {
       if (CUGEX1_MITMAS.get("F1A830") == "20") {
         sigma9_DirectDelivery = EXT040.get("EXITNO")
         sigma9_DirectDelivery_assortment = EXT040.get("EXASCD")
-      } else if (CUGEX1_MITMAS.get("F1A830") == "30") {
-        sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-        sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
       } else {
         DBAction query_MITAUN = database.table("MITAUN").index("00").selection("MUCOFA").build()
         DBContainer MITAUN = query_MITAUN.getContainer()
@@ -396,39 +418,49 @@ public class EXT940 extends ExtendM3Batch {
         MITAUN.set("MUITNO", EXT040.get("EXITNO"))
         MITAUN.set("MUAUTP", 1)
         MITAUN.set("MUALUN", "COL")
-        if (query_MITAUN.read(MITAUN)) {
-          currentCOFA = MITAUN.get("MUCOFA")
-          if (savedCOFA == 0) {
-            savedCOFA = currentCOFA
-            sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-            sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
-          } else {
-            if (currentCOFA < savedCOFA) {
-              savedCOFA = currentCOFA
-              sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-              sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+        if (CUGEX1_MITMAS.get("F1A830") == "30" || ocusmaN596 == 0) {
+          savedCOFA = -1
+          sigma9_NoDirectDelivery = EXT040.get("EXITNO")
+          sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+        } else {
+          logger.debug("#YJ Pas de livraison direct ")
+          logger.debug("#YJ MITMAS A830 = " + CUGEX1_MITMAS.get("F1A830"))
+          logger.debug("#YJ OCUSMA N596 = " + ocusmaN596)
+          if(ocusmaN596!=0){
+            String stringN596 = ocusmaN596 as Integer
+            logger.debug("#YJ OCUSMA String N596 = " + stringN596)
+            if (CUGEX1_MITMAS.get("F1A830") == stringN596.trim()) {
+              if (query_MITAUN.read(MITAUN)) {
+                currentCOFA = MITAUN.get("MUCOFA")
+                if (savedCOFA == 0) {
+                  savedCOFA = currentCOFA
+                  sigma9_NoDirectDelivery = EXT040.get("EXITNO")
+                  sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+                } else {
+                  if (currentCOFA < savedCOFA) {
+                    savedCOFA = currentCOFA
+                    sigma9_NoDirectDelivery = EXT040.get("EXITNO")
+                    sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+                  }
+                }
+              }
             }
           }
         }
       }
     }
+    writeCalendar()
   }
-  // Retrieve outData_EXT042_Type
-  Closure<?> outData_EXT042_Type = { DBContainer EXT042_Type ->
-    inFormatTXT = EXT042_Type.get("EXFLTX")
-    inFormatCSV = EXT042_Type.get("EXFLCS")
-    inFormatXLSX = EXT042_Type.get("EXFLXL")
-    assortment = EXT042_Type.get("EXASCD") as String//A°20240503 FLEBARS
 
-  }
   // Retrieve EXT040
   Closure<?> outData_EXT040_2 = { DBContainer EXT040 ->
     foundSigma6 = true
   }
 
   // Retrieve EXT041
-  Closure<?> outData_EXT041_2 = { DBContainer EXT041 ->
-    sigma6 = EXT041.get("EXPOPN")
+  Closure<?> outData_EXT040_3 = { DBContainer EXT040 ->
+    sigma6 = EXT040.get("EXPOPN")
+    sigma6 = sigma6.trim()
     sigma9_DirectDelivery = ""
     sigma9_NoDirectDelivery = ""
     sigma9_DirectDelivery_assortment = ""
@@ -436,7 +468,7 @@ public class EXT940 extends ExtendM3Batch {
     savedCOFA = 0
     // Read all ITNOs attached to the current POPN
     DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
-    DBContainer EXT040 = query_EXT040.getContainer()
+    EXT040 = query_EXT040.getContainer()
     EXT040.set("EXCONO", currentCompany)
     EXT040.set("EXCUNO", inCustomer)
     EXT040.set("EXCDNN", inCalendar)
@@ -448,13 +480,15 @@ public class EXT940 extends ExtendM3Batch {
   // Retrieve EXT041
   Closure<?> outData_EXT041_3 = { DBContainer EXT041 ->
     sigma6 = EXT041.get("EXPOPN")
+    sigma6 = sigma6.trim()
     libelleSigma6 = EXT041.get("EXFUDS")
+    libelleSigma6 = libelleSigma6.trim()
     foundSigma6 = false
-    DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
+    DBAction query_EXT040 = database.table("EXT040").index("20").selection("EXITNO").build()
     DBContainer EXT040 = query_EXT040.getContainer()
     EXT040.set("EXCONO", currentCompany)
     EXT040.set("EXCUNO", inCustomer)
-    EXT040.set("EXCDNN", inCalendar)
+    EXT040.set("EXASCD", assortment)
     EXT040.set("EXPOPN", sigma6)
     if (!query_EXT040.readAll(EXT040, 4, 1, outData_EXT040_2)) {
     }
@@ -462,10 +496,11 @@ public class EXT940 extends ExtendM3Batch {
       Map<String, String> dtaMITHRY = getMITHRY(sigma6)
       line = sigma6 + ";" + libelleSigma6 + ";" + "1"
       line += ";" + dtaMITHRY["HIE1"] + ";" + dtaMITHRY["HIE1D"]
-      line += ";" + dtaMITHRY["HIE2"].replace(dtaMITHRY["HIE1"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE3"].replace(dtaMITHRY["HIE2"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE4"].replace(dtaMITHRY["HIE3"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE5"].replace(dtaMITHRY["HIE4"] , "") + ";" + dtaMITHRY["HIE2D"]
+      line += ";" + dtaMITHRY["HIE2"].replace(dtaMITHRY["HIE1"], "") + ";" + dtaMITHRY["HIE2D"]
+      line += ";" + dtaMITHRY["HIE3"].replace(dtaMITHRY["HIE2"], "") + ";" + dtaMITHRY["HIE3D"]
+      line += ";" + dtaMITHRY["HIE4"].replace(dtaMITHRY["HIE3"], "") + ";" + dtaMITHRY["HIE4D"]
+      line += ";" + dtaMITHRY["HIE5"].replace(dtaMITHRY["HIE4"], "") + ";" + dtaMITHRY["HIE5D"]
+
 
       countLines++
       lines += line + (countLines < 5000 ? "\r\n" : "")
@@ -526,19 +561,19 @@ public class EXT940 extends ExtendM3Batch {
       .build()
     DBContainer mitmasRequest = mitmasQuery.getContainer()
     mitmasRequest.set("MMCONO", currentCompany)
-    mitmasRequest.set("MMITNO", sigma9)
+    mitmasRequest.set("MMITNO", tITNO)
     if (mitmasQuery.read(mitmasRequest)) {
-      response["HIE1"] = mitmasRequest.get("MMHIE1") as String
-      response["HIE2"] = mitmasRequest.get("MMHIE2") as String
-      response["HIE3"] = mitmasRequest.get("MMHIE3") as String
-      response["HIE4"] = mitmasRequest.get("MMHIE4") as String
-      response["HIE5"] = mitmasRequest.get("MMHIE5") as String
+      response["HIE1"] = mitmasRequest.getString("MMHIE1").trim()
+      response["HIE2"] = mitmasRequest.getString("MMHIE2").trim()
+      response["HIE3"] = mitmasRequest.getString("MMHIE3").trim()
+      response["HIE4"] = mitmasRequest.getString("MMHIE4").trim()
+      response["HIE5"] = mitmasRequest.getString("MMHIE5").trim()
     }
-    response["HIE1D"] = getMITHRYDescription(1, response["HIE1"])
-    response["HIE2D"] = getMITHRYDescription(2, response["HIE2"])
-    response["HIE3D"] = getMITHRYDescription(3, response["HIE3"])
-    response["HIE4D"] = getMITHRYDescription(4, response["HIE4"])
-    response["HIE5D"] = getMITHRYDescription(5, response["HIE5"])
+    response["HIE1D"] = getMITHRYDescription(1, response["HIE1"]).trim()
+    response["HIE2D"] = getMITHRYDescription(2, response["HIE2"]).trim()
+    response["HIE3D"] = getMITHRYDescription(3, response["HIE3"]).trim()
+    response["HIE4D"] = getMITHRYDescription(4, response["HIE4"]).trim()
+    response["HIE5D"] = getMITHRYDescription(5, response["HIE5"]).trim()
 
     return response
 
@@ -567,20 +602,11 @@ public class EXT940 extends ExtendM3Batch {
 
 
   // Retrieve EXT041
-  Closure<?> outData_EXT041 = { DBContainer EXT041 ->
-    previousCalendar = EXT041.get("EXCDNN")
+  Closure<?> ext040reader01 = { DBContainer EXT040 ->
+    previousCalendar = EXT040.get("EXCDNN")
   }
 
-  // Retrieve EXT042
-  Closure<?> outData_EXT042 = { DBContainer EXT042 ->
-    //assortment = EXT042.get("EXASCD")//D° 20240503 FLEBARS
-    DBAction assortmentQuery = database.table("OASITN").index("00").selection("OIITNO", "OIASCD").build()
-    DBContainer OASITN = assortmentQuery.getContainer()
-    OASITN.set("OICONO", currentCompany)
-    OASITN.set("OIASCD", EXT042.get("EXASCD"))
-    if (!assortmentQuery.readAll(OASITN, 2, outData_OASITN)) {
-    }
-  }
+
   // Retrieve EXT043
   Closure<?> outData_EXT043 = { DBContainer EXT043 ->
     line = EXT043.get("EXEMAL")
@@ -678,18 +704,7 @@ public class EXT940 extends ExtendM3Batch {
     }
   }
 
-  // Retrieve OASCUS
-  Closure<?> outData_OASITN = { DBContainer OASITN ->
-    sigma9 = OASITN.get("OIITNO")
-    //assortment = OASITN.get("OIASCD")//D° 20240503 FLEBARS
-    //iscomplet = assortment.substring(assortment.length() - 1, assortment.length()) == "0"//D°20240503 FLEBARS
-    if (itemIsOK()) {
-      retrieveSigma6()
-      retrieveSalesPrice()
-      writeEXT040()
-      writeEXT041()
-    }
-  }
+
   // Retrieve MITPOP
   Closure<?> outData_MITPOP = { DBContainer MITPOP ->
     sigma6 = MITPOP.get("MPPOPN")
@@ -735,19 +750,86 @@ public class EXT940 extends ExtendM3Batch {
     }
   }
   // write EXT040 and EXT041
-  public void writeEXT040_EXT041() {
-    retrievePreviousCalendar()
-    // Check customer assortment
-    DBAction assortmentQuery = database.table("EXT042").index("00").selection("EXASCD").build()
-    DBContainer EXT042 = assortmentQuery.getContainer()
-    EXT042.set("EXCONO", currentCompany)
-    EXT042.set("EXCUNO", inCustomer)
-    EXT042.set("EXCDNN", inCalendar)
-    if (!assortmentQuery.readAll(EXT042, 3, outData_EXT042)) {
+  public void writeEXT040() {
+    //assortment = EXT042.get("EXASCD")//D° 20240503 FLEBARS
+    DBAction oasitnQuery = database.table("OASITN").index("00").selection("OIITNO", "OIASCD").build()
+    DBContainer oasitnRequest = oasitnQuery.getContainer()
+
+    oasitnRequest.set("OICONO", currentCompany)
+    oasitnRequest.set("OIASCD", assortment)
+
+    Map<String, Map<String, String>> sigma6s = new TreeMap<String, Map<String, String>>()
+
+    // Loop on all OASITN records for the current assortment
+    Closure<?> oasitnReader = { DBContainer oasitnResult ->
+      sigma9 = oasitnResult.get("OIITNO")
+      Map<String, String> itemDta = getItemDta()
+      if (itemDta != null) {
+        sigma6s.put(sigma9, itemDta)
+      }
+    }
+    if (!oasitnQuery.readAll(oasitnRequest, 2, oasitnReader)) {
+    }
+
+
+    String ts6 = ""
+    String itnod = ""
+    String itnoe = ""
+    String itno30 = ""
+    double mincofa = Double.MAX_VALUE
+
+    sigma6s.each { key, value ->
+      double cCOFA = value["COFA"] as double
+      if (value["CHB8"] == "20") {
+        itnod = key
+      } else if (value["CHB8"] == "30") {
+        itno30 = key
+      } else if (itno30 == "" && cCOFA < mincofa) {
+        itnoe = key
+      }
+      if (value["SIGMA6"] != ts6 && ts6 != "") {
+        if (itnod != "") {
+          sigma9 = itnod
+          retrieveSigma6()
+          retrieveSalesPrice()
+          writeEXT040db()
+        } else if (itno30 != "") {
+          sigma9 = itno30
+          retrieveSigma6()
+          retrieveSalesPrice()
+          writeEXT040db()
+        } else if (itno30 == "" && itnoe != "") {
+          sigma9 = itnoe
+          retrieveSigma6()
+          retrieveSalesPrice()
+          writeEXT040db()
+        }
+        itnod = ""
+        itnoe = ""
+        itno30 = ""
+        mincofa = Double.MAX_VALUE
+      }
+      ts6 = value["SIGMA6"]
+    }
+    if (itnod != "") {
+      sigma9 = itnod
+      retrieveSigma6()
+      retrieveSalesPrice()
+      writeEXT040db()
+    } else if (itno30 != "") {
+      sigma9 = itno30
+      retrieveSigma6()
+      retrieveSalesPrice()
+      writeEXT040db()
+    } else if (itno30 == "" && itnoe != "") {
+      sigma9 = itnoe
+      retrieveSigma6()
+      retrieveSalesPrice()
+      writeEXT040db()
     }
   }
   // write EXT040
-  public void writeEXT040() {
+  public void writeEXT040db() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXT040").index("00").build()
     DBContainer EXT040 = query.getContainer()
@@ -769,48 +851,111 @@ public class EXT940 extends ExtendM3Batch {
   }
   // write EXT041
   public void writeEXT041() {
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction queryEXT041 = database.table("EXT041").index("00").build()
-    DBContainer EXT041 = queryEXT041.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCDNN", inCalendar)
-    EXT041.set("EXCUNO", inCustomer)
-    EXT041.set("EXPOPN", sigma6)
-    if (!queryEXT041.read(EXT041)) {
-      EXT041.set("EXFUDS", libelleArticle)
-      EXT041.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT041.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-      EXT041.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT041.setInt("EXCHNO", 1)
-      EXT041.set("EXCHID", program.getUser())
-      queryEXT041.insert(EXT041)
+
+    //Delete old Record in EXT041
+    DBAction ext041Query = database.table("EXT041").index("20").build()
+    DBContainer ext041Request = ext041Query.getContainer()
+    ext041Request.set("EXCONO", currentCompany)
+    ext041Request.set("EXCUNO", inCustomer)
+    ext041Request.set("EXASCD", assortment)
+    Closure<?> ext041Updater = { LockedResult ext041LockedResult ->
+
+      ext041LockedResult.delete()
     }
+    if (!ext041Query.readAllLock(ext041Request, 3, ext041Updater)) {
+    }
+
+
+    Closure<?> ext040Reader = { DBContainer EXT040 ->
+      LocalDateTime timeOfCreation = LocalDateTime.now()
+      DBAction queryEXT041 = database.table("EXT041").index("00").build()
+      DBContainer EXT041 = queryEXT041.getContainer()
+      EXT041.set("EXCONO", currentCompany)
+      EXT041.set("EXCDNN", EXT040.get("EXCDNN"))
+      EXT041.set("EXCUNO", EXT040.get("EXCUNO"))
+      EXT041.set("EXPOPN", EXT040.get("EXPOPN"))
+      sigma9 = EXT040.get("EXITNO")
+      sigma9 = sigma9.trim()
+      String fuds = getfuds(sigma9)
+      if (!queryEXT041.read(EXT041)) {
+        EXT041.set("EXFUDS", fuds)
+        EXT041.set("EXASCD", EXT040.get("EXASCD"))
+        EXT041.set("EXITNO", EXT040.get("EXITNO"))
+        EXT041.set("EXSAPR", EXT040.get("EXSAPR"))
+        EXT041.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+        EXT041.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+        EXT041.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+        EXT041.setInt("EXCHNO", 1)
+        EXT041.set("EXCHID", program.getUser())
+        queryEXT041.insert(EXT041)
+
+
+      }
+    }
+
+
+// copy last EXT040 Records in EXT041
+    LocalDateTime timeOfCreation = LocalDateTime.now()
+    DBAction queryEXT040 = database.table("EXT040").index("20").selection("EXCUNO", "EXITNO", "EXASCD", "EXPOPN", "EXCDNN", "EXSAPR").build()
+    DBContainer EXT040 = queryEXT040.getContainer()
+    EXT040.set("EXCONO", currentCompany)
+    EXT040.set("EXCUNO", inCustomer)
+    EXT040.set("EXASCD", mainAssortment)
+    if (!queryEXT040.readAll(EXT040, 3, ext040Reader)) {
+    }
+//Delete Last Record in EXT040
+    DBAction ext040Query = database.table("EXT040").index("20").build()
+    DBContainer ext040Request = ext040Query.getContainer()
+    ext040Request.set("EXCONO", currentCompany)
+    ext040Request.set("EXCUNO", inCustomer)
+    ext040Request.set("EXASCD", assortment)
+
+    Closure<?> ext040Updater = { LockedResult ext040LockedResult ->
+      ext040LockedResult.delete()
+    }
+    if (!ext040Query.readAllLock(ext040Request, 3, ext040Updater)) {
+    }
+
+
+  }
+
+  public String getfuds(String itno) {
+    libelleArticle = ""
+    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMFUDS").build()
+    DBContainer MITMAS = query_MITMAS.getContainer()
+    MITMAS.set("MMCONO", currentCompany)
+    MITMAS.set("MMITNO", itno)
+    if (query_MITMAS.read(MITMAS)) {
+      libelleArticle = MITMAS.get("MMFUDS")
+
+    }
+    if (lhcd.trim() != "FR") {
+      DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
+      DBContainer MITLAD = query_MITLAD.getContainer()
+      MITLAD.set("MDCONO", currentCompany)
+      MITLAD.set("MDITNO", codeArticleRemplace)
+      MITLAD.set("MDLNCD", "GB")
+      if (query_MITLAD.read(MITLAD)) {
+        libelleArticle = MITLAD.get("MDFUDS")
+      }
+    }
+    return libelleArticle
   }
   // Check if item must be selected
-  public boolean itemIsOK() {
+  public Map<String, String> getItemDta() {
+    Map<String, String> response = null
+
     stat = ""
-    libelleArticle = ""
     DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMSTAT", "MMFUDS").build()
     DBContainer MITMAS = query_MITMAS.getContainer()
     MITMAS.set("MMCONO", currentCompany)
     MITMAS.set("MMITNO", sigma9)
     if (query_MITMAS.read(MITMAS)) {
       stat = MITMAS.get("MMSTAT")
-      libelleArticle = MITMAS.get("MMFUDS")
-      if (lhcd.trim() != "FR") {
-        DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
-        DBContainer MITLAD = query_MITLAD.getContainer()
-        MITLAD.set("MDCONO", currentCompany)
-        MITLAD.set("MDITNO", sigma9)
-        MITLAD.set("MDLNCD", "GB")
-        if (query_MITLAD.read(MITLAD)) {
-          libelleArticle = MITLAD.get("MDFUDS")
-        }
-      }
     }
-
     chb7 = 0
-    DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1CHB7").build()
+    String chb8 = ""
+    DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1CHB7", "F1CHB8").build()
     DBContainer CUGEX1_MITMAS = query_CUGEX1_MITMAS.getContainer()
     CUGEX1_MITMAS.set("F1CONO", currentCompany)
     CUGEX1_MITMAS.set("F1FILE", "MITMAS")
@@ -824,24 +969,59 @@ public class EXT940 extends ExtendM3Batch {
     CUGEX1_MITMAS.set("F1PK08", "")
     if (query_CUGEX1_MITMAS.read(CUGEX1_MITMAS)) {
       chb7 = CUGEX1_MITMAS.get("F1CHB7")
+      chb8 = CUGEX1_MITMAS.get("F1CHB8") as String
     }
 
-    cmde = ""
-    ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
-    expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
-    DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXCMDE").build()
-    DBContainer EXT010 = query_EXT010.getContainer()
-    EXT010.set("EXCONO", currentCompany)
-    EXT010.set("EXCUNO", inCustomer)
-    EXT010.set("EXITNO", sigma9)
-    if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010)) {
+    String cmde = ""
+    boolean inEXT010 = false
+
+    ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
+    ext010Expression = ext010Expression.le("EXFVDT", currentDate as String).and(ext010Expression.ge("EXLVDT", currentDate as String))
+    DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCMDE", "EXSAPR").build()
+
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXCUNO", inCustomer)
+    ext010Request.set("EXITNO", sigma9)
+    Double lsapr = 0d
+    // Retrieve EXT010
+    Closure<?> outData_EXT010 = { DBContainer ext010Result ->
+
+      cmde = ext010Result.get("EXCMDE")
+      lsapr = ext010Result.get("EXSAPR") as Double
+      inEXT010 = true
+    }
+    sigma6 = ""
+    ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
+    expression_MITPOP = expression_MITPOP.eq("MPREMK", "SIGMA6")
+    DBAction query_MITPOP = database.table("MITPOP").index("30").matching(expression_MITPOP).selection("MPPOPN").build()
+    DBContainer MITPOP = query_MITPOP.getContainer()
+    MITPOP.set("MPCONO", currentCompany)
+    MITPOP.set("MPALWT", 1)
+    MITPOP.set("MPITNO", sigma9)
+    if (!query_MITPOP.readAll(MITPOP, 3, outData_MITPOP)) {
     }
 
-    if (stat == "20" && chb7 == 0 && cmde == "1") {
-      count_OASITN++
-      return true
+    double cofa = 0d
+    if (ext010Query.readAll(ext010Request, 3, 1, outData_EXT010)) {
+    }
+
+    if (chb8 != '20') {
+      DBAction query_MITAUN = database.table("MITAUN").index("00").selection("MUCOFA").build()
+      DBContainer MITAUN = query_MITAUN.getContainer()
+      MITAUN.set("MUCONO", currentCompany)
+      MITAUN.set("MUITNO", sigma9)
+      MITAUN.set("MUAUTP", 1)
+      MITAUN.set("MUALUN", "COL")
+      if (query_MITAUN.read(MITAUN)) {
+        cofa = MITAUN.get("MUCOFA") as double
+      }
+    }
+    if (stat == "20" && chb7 == 0 && cmde == "1" && lsapr > 0d) {
+      response = ["SIGMA9": sigma9, "SIGMA6": sigma6, "CHB8": chb8, "COFA": "" + cofa]
+      return response
     } else {
-      return false
+      return null
     }
   }
   // Write to format file
@@ -979,7 +1159,7 @@ public class EXT940 extends ExtendM3Batch {
       logMessage("", line + "\r\n")
       header = "SIGMA6" + ";" + "UL" + ";" + "Code article" + ";" + "EAN13" + ";" + "Libellé article" + ";" + "Code article remplacé" + ";" + "Libellé article remplacé" + ";" + "Prix cadencier précédent" + ";" + "Prix de vente" + ";" + "Evolution prix cadencier précédent (%)" + ";" + "Unité prix de vente" + ";" + "DLC_Totale" + ";" + "DLGR" + ";" + "Code marque" + ";" + "Libellé code marque" + ";" + "Code marketing" + ";" + "Libellé code marketing" + ";" + "Saisonnalité" + ";" + "Nouveauté" + ";" + "Langue packaging" + ";" + "Code département " + ";" + "Libellé département" + ";" + "Code rayon " + ";" + "Libellé rayon" + ";" + "Code famille" + ";" + "Libellé famille" + ";" + "Code sous famille" + ";" + "Libellé Sous famille" + ";" + "Unité de besoin" + ";" + "Libellé unité de besoin" + ";" + "Fournisseur (CASINO ou industriel)" + ";" + "Nom du fournisseur" + ";" + "Fournisseur d'origine" + ";" + "Nom du fournisseur d'origine" + ";" + "Pays d'origine" + ";" + "Code douanier" + ";" + "Type Appro" + ";" + "Entrepôt Casino" + ";" + "Taille" + ";" + "Couleur" + ";" + "Modèle" + ";" + "Diffusion" + ";" + "FBA" + ";" + "DUN14" + ";" + "Minimum de commande" + ";" + "PCB" + ";" + "Nbre couche / Palette" + ";" + "Nbre colis par couche" + ";" + "Nbre colis par palette" + ";" + "Nbre UVC par palette" + ";" + "Contenance (exprimée en L pour l'UC)" + ";" + "Poids net (exprimé en Kg pour l'UC)" + ";" + "Poids brut (exprimé en Kg pour le colis)" + ";" + "Volume colis (exprimé en m3)" + ";" + "Hauteur UVC (exprimé en m)" + ";" + "Largeur UVC (exprimé en m)" + ";" + "Longueur UVC (exprimé en m)" + ";" + "Hauteur colis (exprimé en m)" + ";" + "Largeur colis (exprimé en m)" + ";" + "Longueur colis (exprimé en m)" + ";" + "Degré d'alcool" + ";" + "Réf en droit" + ";" + "Type de box" + ";" + "Nbre de composant box" + ";" + "Température" + ";" + "Assortiment logistique"
     } else {
-      logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "schedule.txt"
+      logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier.txt"
       header = "Schedule number" + ";" + "Creation date" + ";" + "Creation time" + ";" + "Store" + ";" + "Store name" + ";" + "Default delivery method"
       logMessage(header, "")
       line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName + ";" + deliveryMethodName
@@ -991,12 +1171,13 @@ public class EXT940 extends ExtendM3Batch {
     lines = ""
 
     // Read all POPNs in the current calendar
-    DBAction query_EXT041 = database.table("EXT041").index("00").selection("EXPOPN").build()
-    DBContainer EXT041 = query_EXT041.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCUNO", inCustomer)
-    EXT041.set("EXCDNN", inCalendar)
-    if (!query_EXT041.readAll(EXT041, 3, outData_EXT041_2)) {
+    DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXPOPN", "EXITNO", "EXASCD").build()
+    DBContainer EXT040 = query_EXT040.getContainer()
+    EXT040.set("EXCONO", currentCompany)
+    EXT040.set("EXCUNO", inCustomer)
+    EXT040.set("EXCDNN", inCalendar)
+    if (!query_EXT040.readAll(EXT040, 3, outData_EXT040)) {
+
     }
 
     if (countLines > 0) {
@@ -1017,6 +1198,9 @@ public class EXT940 extends ExtendM3Batch {
       EXT010.set("EXITNO", sigma9_DirectDelivery)
       if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010_2)) {
       }
+      if (sigma9_DirectDelivery.contains("002671")) {
+        logger.debug(" #PB DirectlyDelivery : Sigma9DirectDelivery = " + sigma9_DirectDelivery + " sigma9NoDirectDelivery = " + sigma9_NoDirectDelivery)
+      }
     }
     if (sigma9_NoDirectDelivery.trim() != "") {
       sigma9 = sigma9_NoDirectDelivery
@@ -1030,6 +1214,9 @@ public class EXT940 extends ExtendM3Batch {
       EXT010.set("EXITNO", sigma9_NoDirectDelivery)
       if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010_2)) {
       }
+      if (sigma9_NoDirectDelivery.contains("002671")) {
+        logger.debug(" #PB DirectlyDelivery : Sigma9DirectDelivery = " + sigma9_DirectDelivery + " sigma9NoDirectDelivery = " + sigma9_NoDirectDelivery)
+      }
     }
   }
   // Write to gap file
@@ -1040,16 +1227,20 @@ public class EXT940 extends ExtendM3Batch {
     line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName
     logMessage("", line + "\r\n")
     header = "SIGMA6" + ";" + "Nom du SIGMA6" + ";" + "Supprimé"
+    header += ";" + "Département" + ";" + "Description"
+    header += ";" + "Rayon" + ";" + "Description"
+    header += ";" + "Famille" + ";" + "Description"
+    header += ";" + "ss famille" + ";" + "Description"
+    header += ";" + "Unité Besoin" + ";" + "Description"
     logMessage(header, "")
     countLines = 0
     lines = ""
-
     // Read all POPNs in the previous calendar
-    DBAction query_EXT041 = database.table("EXT041").index("00").selection("EXPOPN", "EXFUDS").build()
+    DBAction query_EXT041 = database.table("EXT041").index("20").selection("EXPOPN", "EXFUDS").build()
     DBContainer EXT041 = query_EXT041.getContainer()
     EXT041.set("EXCONO", currentCompany)
     EXT041.set("EXCUNO", inCustomer)
-    EXT041.set("EXCDNN", previousCalendar)
+    EXT041.set("EXASCD", assortment)
     if (!query_EXT041.readAll(EXT041, 3, outData_EXT041_3)) {
     }
 
@@ -1317,7 +1508,7 @@ public class EXT940 extends ExtendM3Batch {
 
     typeAppro = ""
     refDroit = ""
-    String A830 = ""
+    String sa830 = ""
     int CHB1 = 0
     DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1A330", "F1A830", "F1CHB1").build()
     DBContainer CUGEX1_MITMAS = query_CUGEX1_MITMAS.getContainer()
@@ -1332,17 +1523,12 @@ public class EXT940 extends ExtendM3Batch {
     CUGEX1_MITMAS.set("F1PK07", "")
     CUGEX1_MITMAS.set("F1PK08", "")
     if (query_CUGEX1_MITMAS.read(CUGEX1_MITMAS)) {
-      A830 = CUGEX1_MITMAS.get("F1A830")
-      CHB1 = CUGEX1_MITMAS.get("F1CHB1")
-
-      if (A830.trim() == "30" || A830.trim() == "40")
+      sa830 = CUGEX1_MITMAS.get("F1A830") as String
+      if (sa830.trim() == "10" || sa830.trim() == "30" || sa830.trim() == "40")
         typeAppro = "E"
-      if (A830.trim() == "20")
+      if (sa830.trim() == "20")
         typeAppro = "D"
-      if (A830.trim() == "10")
-        typeAppro = "S"
-
-      refDroit = CUGEX1_MITMAS.get("F1A330")
+      refDroit = CUGEX1_MITMAS.get("F1A330") as String
     }
 
     codeArticleRemplace = ""
@@ -1583,17 +1769,18 @@ public class EXT940 extends ExtendM3Batch {
     prixCadencierPrecedent = "0"
     evolutionPrixCadencierPrecedent = ""
 
-    DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXSAPR").build()
-    DBContainer EXT040 = query_EXT040.getContainer()
-    EXT040.set("EXCONO", currentCompany)
-    EXT040.set("EXCUNO", inCustomer)
-    EXT040.set("EXCDNN", previousCalendar)
-    EXT040.set("EXPOPN", sigma6)
-    EXT040.set("EXITNO", sigma9)
-    if (!query_EXT040.read(EXT040)) {
+    DBAction query_EXT041 = database.table("EXT041").index("10").selection("EXSAPR").build()
+    DBContainer EXT041 = query_EXT041.getContainer()
+    EXT041.set("EXCONO", currentCompany)
+    EXT041.set("EXCUNO", inCustomer)
+    EXT041.set("EXASCD", assortment)
+    EXT041.set("EXCDNN", previousCalendar)
+    EXT041.set("EXPOPN", sigma6)
+    EXT041.set("EXITNO", sigma9)
+    if (!query_EXT041.read(EXT041)) {
       nouveaute = "N"
     } else {
-      prixCadencierPrecedent = EXT040.get("EXSAPR") as String
+      prixCadencierPrecedent = EXT041.get("EXSAPR") as String
     }
 
     if (prixVente != "0" && prixCadencierPrecedent != "0")
@@ -1664,10 +1851,7 @@ public class EXT940 extends ExtendM3Batch {
   public void deleteTemporaryFiles() {
     ExpressionFactory expressionEXT040 = database.getExpressionFactory("EXT040")
 
-    if (!isMainAssortment)
-      expressionEXT040 = expressionEXT040.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT040 = expressionEXT040.ne("EXCDNN", inCalendar).and(expressionEXT040.ne("EXCDNN", previousCalendar))
+    expressionEXT040 = expressionEXT040.ne("EXCDNN", inCalendar)
     //A°20240503 FLEBARS END
     DBAction query_EXT040 = database.table("EXT040").index("00").matching(expressionEXT040).build()
     DBContainer EXT040 = query_EXT040.getContainer()
@@ -1679,10 +1863,8 @@ public class EXT940 extends ExtendM3Batch {
     ExpressionFactory expressionEXT041 = database.getExpressionFactory("EXT041")
     //expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
     //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT041 = expressionEXT041.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))
+
+    expressionEXT041 = expressionEXT041.ne("EXCDNN", previousCalendar)
     //A°20240503 FLEBARS END
     DBAction query_EXT041 = database.table("EXT041").index("00").matching(expressionEXT041).build()
     DBContainer EXT041 = query_EXT041.getContainer()
@@ -1692,28 +1874,10 @@ public class EXT940 extends ExtendM3Batch {
     if (!query_EXT041.readAllLock(EXT041, 2, updateCallBack_EXT041)) {
     }
 
-    ExpressionFactory expressionEXT042 = database.getExpressionFactory("EXT042")
-    //expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT042 = expressionEXT042.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT042 = database.table("EXT042").index("00").matching(expressionEXT042).build()
-    DBContainer EXT042 = query_EXT042.getContainer()
-    EXT042.set("EXCONO", currentCompany)
-    EXT042.set("EXCUNO", inCustomer)
-    if (!query_EXT042.readAllLock(EXT042, 2, updateCallBack_EXT042)) {
-    }
-
     ExpressionFactory expressionEXT043 = database.getExpressionFactory("EXT043")
-    //expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT043 = expressionEXT043.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))
+
+
+    expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar)
     //A°20240503 FLEBARS END
     DBAction query_EXT043 = database.table("EXT043").index("00").matching(expressionEXT043).build()
     DBContainer EXT043 = query_EXT043.getContainer()
@@ -1723,12 +1887,8 @@ public class EXT940 extends ExtendM3Batch {
     }
 
     ExpressionFactory expressionEXT044 = database.getExpressionFactory("EXT044")
-    //expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT044 = expressionEXT044.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))
+
+    expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar)
     //A°20240503 FLEBARS END
     DBAction query_EXT044 = database.table("EXT044").index("00").matching(expressionEXT044).build()
     DBContainer EXT044 = query_EXT044.getContainer()
@@ -1736,13 +1896,9 @@ public class EXT940 extends ExtendM3Batch {
     EXT044.set("EXCUNO", inCustomer)
     if (!query_EXT044.readAllLock(EXT044, 2, updateCallBack_EXT044)) {
     }
+
     ExpressionFactory expressionEXT045 = database.getExpressionFactory("EXT045")
-    //expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar).and(expressionEXT045.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT045 = expressionEXT045.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar).and(expressionEXT045.ne("EXCDNN", previousCalendar))
+    expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar)
     //A°20240503 FLEBARS END
     DBAction query_EXT045 = database.table("EXT045").index("00").matching(expressionEXT045).build()
     DBContainer EXT045 = query_EXT045.getContainer()
@@ -1752,12 +1908,8 @@ public class EXT940 extends ExtendM3Batch {
     }
 
     ExpressionFactory expressionEXT046 = database.getExpressionFactory("EXT046")
-    //expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT046 = expressionEXT046.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))
+
+    expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar)
     //A°20240503 FLEBARS END
     DBAction query_EXT046 = database.table("EXT046").index("00").matching(expressionEXT046).build()
     DBContainer EXT046 = query_EXT046.getContainer()
@@ -1774,10 +1926,7 @@ public class EXT940 extends ExtendM3Batch {
   Closure<?> updateCallBack_EXT041 = { LockedResult ext041lockedResult ->
     ext041lockedResult.delete()
   }
-  // Delete EXT042
-  Closure<?> updateCallBack_EXT042 = { LockedResult ext042LockedResult ->
-    ext042LockedResult.delete()
-  }
+
   // Delete EXT043
   Closure<?> updateCallBack_EXT043 = { LockedResult ext043LockedResult ->
     ext043LockedResult.delete()

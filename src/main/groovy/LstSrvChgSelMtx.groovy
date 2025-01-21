@@ -8,10 +8,8 @@
  * Date         Changed By    Description
  * 20230808     FLEBARS       CMD03 - Calculation of service charges
  * 20240202     MLECLERCQ     CMD03 - Support PREX6
-<<<<<<< HEAD
-=======
  * 20240809     YBLUTEAU      CMD03 - Prio 7
->>>>>>> origin/development
+ * 20241211     YJANNIN      CMD03 2.5 - Prio 6
  */
 public class LstSrvChgSelMtx extends ExtendM3Transaction {
   private final MIAPI mi
@@ -39,29 +37,26 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
     currentCompany = (int)program.getLDAZD().CONO
 
     //Get API INPUTS
-    String prex = (String)mi.in.get("PREX")
-    String obv1 = (String)mi.in.get("OBV1")
-    String obv2 = (String)mi.in.get("OBV2")
-    String obv3 = (String)mi.in.get("OBV3")
-    String vfdt = (String)mi.in.get("VFDT")
+    String prex = mi.in.get("PREX") == null ? "" : mi.in.get("PREX") as String
+    String obv1 = mi.in.get("OBV1") == null ? "" : mi.in.get("OBV1") as String
+    String obv2 = mi.in.get("OBV2") == null ? "" : mi.in.get("OBV2") as String
+    String obv3 = mi.in.get("OBV3") == null ? "" : mi.in.get("OBV3") as String
+    String obv4 = mi.in.get("OBV4") == null ? "" : mi.in.get("OBV4") as String
+    String vfdt = mi.in.get("VFDT") == null ? "" : mi.in.get("VFDT") as String
 
     int nbfields = 2
 
     //**********************************
     // CHK
     //**********************************
-<<<<<<< HEAD
     if (!["1", "2", "3", "4", "5", "6"].contains(prex)) {
-=======
-    if (!["1", "2", "3", "4", "5", "6", "7"].contains(prex)) {
->>>>>>> origin/development
       mi.error("Priorité ${prex} est invalide")
       return
     }
 
     int hlvl = 0
     try {
-      hlvl = 6 - Integer.parseInt(prex)
+      hlvl = 4 - Integer.parseInt(prex)
     } catch (NumberFormatException e) {
       logger.debug("AIE")
     }
@@ -86,6 +81,7 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
         ,"EXOBV1"
         ,"EXOBV2"
         ,"EXOBV3"
+        ,"EXOBV4"
         ,"EXVFDT"
         ,"EXCRID"
         ,"EXCRD0"
@@ -98,7 +94,6 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
         ,"EXLMDT"
         ,"EXCHNO"
         ,"EXCHID"
-        ,"EXLMTS"
       ).build()
 
     DBContainer containerEXT061 = queryEXT06100.getContainer()
@@ -126,32 +121,31 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
       nbfields++
     }
 
-    if ((obv3 == null || obv3.isEmpty()) && !(vfdt == null || vfdt.isEmpty())) {
+    if ((obv3 == null || obv3.isEmpty()) && !(obv4 == null || obv4.isEmpty())) {
+      mi.error("Critères incorrectes")
+      return
+    } else if (!(obv4 == null || obv4.isEmpty())){
+      containerEXT061.set("EXOBV4", obv3)
+      nbfields++
+    }
+
+    if ((obv4 == null || obv4.isEmpty()) && !(vfdt == null || vfdt.isEmpty())) {
       if(hlvl > 0){
         mi.error("Critères incorrectes")
-<<<<<<< HEAD
-        return  
-=======
         return
->>>>>>> origin/development
       }
-
     } else if (!(vfdt == null || vfdt.isEmpty())){
       containerEXT061.set("EXVFDT", Integer.parseInt(vfdt))
       nbfields++
     }
-<<<<<<< HEAD
-    
-    
-=======
 
 
->>>>>>> origin/development
     Closure<?> outDataEXT061 = { DBContainer responseEXT061 ->
       mi.outData.put("PREX", responseEXT061.get("EXPREX") as String)
       mi.outData.put("OBV1", responseEXT061.get("EXOBV1") as String)
       mi.outData.put("OBV2", responseEXT061.get("EXOBV2") as String)
       mi.outData.put("OBV3", responseEXT061.get("EXOBV3") as String)
+      mi.outData.put("OBV4", responseEXT061.get("EXOBV4") as String)
       mi.outData.put("VFDT", responseEXT061.get("EXVFDT") as String)
       mi.outData.put("CRID", responseEXT061.get("EXCRID") as String)
       mi.outData.put("CRD0", responseEXT061.get("EXCRD0") as String)
@@ -164,11 +158,7 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
       mi.outData.put("LMDT", responseEXT061.get("EXLMDT") as String)
       mi.outData.put("CHNO", responseEXT061.get("EXCHNO") as String)
       mi.outData.put("CHID", responseEXT061.get("EXCHID") as String)
-<<<<<<< HEAD
-      
-=======
 
->>>>>>> origin/development
       mi.write()
     }
 

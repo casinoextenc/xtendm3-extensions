@@ -1,6 +1,6 @@
 /**
- * Name : EXT010MI.AddRefAsso
- * name: AddRefAsso
+ * Name : EXT010MI.AddRefAssoHist
+ * name: AddRefAssoHist
  * program: EXT010MI
  * description: Add assortment record in EXT010
  * COMX01 Gestion des assortiments clients
@@ -14,7 +14,7 @@
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-public class AddRefAsso extends ExtendM3Transaction {
+public class AddRefAssoHist extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
@@ -26,7 +26,7 @@ public class AddRefAsso extends ExtendM3Transaction {
   private String fuds
 
 
-  public AddRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
+  public AddRefAssoHist(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger

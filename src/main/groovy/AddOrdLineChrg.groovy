@@ -7,11 +7,9 @@
  * Date         Changed By   Description
  * 20230821     RENARN       CMD03 - Calculation of service charges
  * 20240208     MLECLERCQ    CMD03 - Support PREX 6
-<<<<<<< HEAD
-=======
  * 20240522     PBEAUDOUIN   Correction SUNO MPLINE quand RORC = 2
  * 20240809     YBLUTEAU     CMD03 - Prio 7 et SUNO Gold
->>>>>>> origin/development
+ * 20241211     YJANNIN      CMD03 2.5 - Prio 7
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -42,6 +40,7 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
   private String hie3
   private String hie4
   private String hie5
+  private String a830
   private String crid
   private String crfa
   private boolean assortmentFound
@@ -227,6 +226,7 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
     hie3 = ""
     hie4 = ""
     hie5 = ""
+    a830 = ""
     DBAction query_OOLINE = database.table("OOLINE").index("00").selection("OBCUNO","OBSUNO","OBITNO","OBRORC","OBRORN","OBRORL","OBRORX").build()
     DBContainer OOLINE = query_OOLINE.getContainer()
     OOLINE.set("OBCONO", currentCompany)
@@ -242,15 +242,9 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
       int rorx = OOLINE.get("OBRORX") as Integer
       logger.debug("OOLINE suno = " + suno)
 
-<<<<<<< HEAD
-      if(suno == "" && rorc == 2 && rorn != ""){
-        logger.debug("OOLINE suno empty, rorc == 2, rorn not empty)")
-        DBAction query_MPLINE = database.table("MPLINE").index("00").selection("IBSUNO").build()
-=======
       if(rorc == 2 && rorn != ""){
         logger.debug("OOLINE suno empty, rorc == 2, rorn not empty)")
         DBAction query_MPLINE = database.table("MPLINE").index("00").selection("IBSUNO", "IBWHLO", "IBSUDO", "IBDNDT").build()
->>>>>>> origin/development
         DBContainer MPLINE = query_MPLINE.getContainer()
         MPLINE.set("IBCONO", currentCompany)
         MPLINE.set("IBPUNO", rorn)
@@ -258,8 +252,6 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
         MPLINE.set("IBPNLS", rorx)
         if(query_MPLINE.read(MPLINE)){
           suno = MPLINE.get("IBSUNO").toString()
-<<<<<<< HEAD
-=======
           String whlo = MPLINE.get("IBWHLO") as String
           String sudo = MPLINE.get("IBSUDO") as String
           int dndt = MPLINE.get("IBDNDT") as Integer
@@ -277,7 +269,6 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
               logger.debug("EXT061 new suno BLI "+ suno +" found")
             }
           }
->>>>>>> origin/development
           logger.debug("MPLINE suno = " + suno)
         }
       }
@@ -294,6 +285,23 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
         hie4 = MITMAS.get("MMHIE4")
         hie5 = MITMAS.get("MMHIE5")
       }
+
+      DBAction qCUGEX1 = database.table("CUGEX1").index("00").selection("F1A830").build()
+      DBContainer CUGEX1 = qCUGEX1.getContainer()
+      CUGEX1.set("F1CONO", currentCompany)
+      CUGEX1.set("F1FILE", "MITMAS")
+      CUGEX1.set("F1PK01", OOLINE.get("OBITNO"))
+      CUGEX1.set("F1PK02", "")
+      CUGEX1.set("F1PK03", "")
+      CUGEX1.set("F1PK04", "")
+      CUGEX1.set("F1PK05", "")
+      CUGEX1.set("F1PK06", "")
+      CUGEX1.set("F1PK07", "")
+      CUGEX1.set("F1PK08", "")
+      if (qCUGEX1.read(CUGEX1)) {
+        a830 = CUGEX1.get("F1A830")
+      }
+
     } else {
       mi.error("Ligne de commande " + ponr + " n'existe pas")
       return
@@ -307,6 +315,7 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
     logger.debug("hie3 = " + hie3)
     logger.debug("hie2 = " + hie2)
     logger.debug("hie1 = " + hie1)
+    logger.debug("a830 = " + a830)
 
     assortmentFound = false
     logger.debug("retrieve EXT061 ordt/cuno/suno = " + ordt.trim() + "/" + cuno.trim() + "/" + suno.trim())
@@ -320,43 +329,31 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
     EXT061.set("EXCONO", currentCompany)
     EXT061.set("EXPREX", " 1")
     EXT061.set("EXOBV1", cuno.trim())
-    EXT061.set("EXOBV2", hie5.trim())
+    EXT061.set("EXOBV2", a830.trim())
     EXT061.set("EXOBV3", suno.trim())
-    if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+    EXT061.set("EXOBV4", hie3.trim())
+    if (!query_EXT061.readAll(EXT061, 6, outData_EXT061)) {
       logger.debug("EXT061 PREX 1 not found")
       EXT061.set("EXPREX", " 2")
-      EXT061.set("EXOBV2", hie4.trim())
-      if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+      EXT061.set("EXOBV4", hie2.trim())
+      if (!query_EXT061.readAll(EXT061, 6, outData_EXT061)) {
         logger.debug("EXT061 PREX 2 not found")
         EXT061.set("EXPREX", " 3")
-        EXT061.set("EXOBV2", hie3.trim())
-        if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+        EXT061.set("EXOBV4", hie1.trim())
+        if (!query_EXT061.readAll(EXT061, 6, outData_EXT061)) {
           logger.debug("EXT061 PREX 3 not found")
           EXT061.set("EXPREX", " 4")
-          EXT061.set("EXOBV2", hie2.trim())
-          if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+          EXT061.set("EXOBV4", "")
+          if (!query_EXT061.readAll(EXT061, 6, outData_EXT061)) {
             logger.debug("EXT061 PREX 4 not found")
             EXT061.set("EXPREX", " 5")
-            EXT061.set("EXOBV2", hie1.trim())
-            if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+            EXT061.set("EXOBV3", "")
+            if (!query_EXT061.readAll(EXT061, 6, outData_EXT061)) {
               logger.debug("EXT061 PREX 5 not found")
               EXT061.set("EXPREX", " 6")
-<<<<<<< HEAD
               EXT061.set("EXOBV2", "")
-              EXT061.set("EXOBV3", "")
-              if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
+              if (!query_EXT061.readAll(EXT061, 6, outData_EXT061)) {
                 logger.debug("EXT061 PREX 6 not found")
-=======
-              EXT061.set("EXOBV2", suno.trim())
-              if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
-                logger.debug("EXT061 PREX 6 not found")
-                EXT061.set("EXPREX", " 7")
-                EXT061.set("EXOBV2", "")
-                EXT061.set("EXOBV3", "")
-                if (!query_EXT061.readAll(EXT061, 5, outData_EXT061)) {
-                  logger.debug("EXT061 PREX 7 not found")
-                }
->>>>>>> origin/development
               }
             }
           }
@@ -382,7 +379,7 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
     }
   }
   private executeOIS100MIAddLineCharge(String ORNO, String PONR, String POSX, String CRID, String CRFA){
-    def parameters = ["ORNO": ORNO, "PONR": PONR, "POSX": POSX, "CRID": CRID, "CRFA": CRFA]
+    Map<String, String> parameters = ["ORNO": ORNO, "PONR": PONR, "POSX": POSX, "CRID": CRID, "CRFA": CRFA]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Erreur OIS100MI AddLineCharge: "+ response.errorMessage)

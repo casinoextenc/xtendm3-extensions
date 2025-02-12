@@ -21,6 +21,7 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
   private int currentCompany
   private String errorMessage
 
+
   public AddOrUpdGDA(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
     this.database = database

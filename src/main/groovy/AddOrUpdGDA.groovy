@@ -20,8 +20,6 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
 
   private int currentCompany
   private String errorMessage
-  //private boolean IN60
-
 
   public AddOrUpdGDA(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi

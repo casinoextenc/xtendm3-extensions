@@ -6,7 +6,7 @@
  *
  *
  * Date         Changed By    Description
- * 20230308     SEAR       Creation
+ * 20230308     SEAR          APP02 - Planning GDA
  */
 public class GetGDADateByDly extends ExtendM3Transaction {
   private final MIAPI mi
@@ -16,15 +16,13 @@ public class GetGDADateByDly extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
-  private String errorMessage
-  private Integer nbMaxRecord = 10000
 
   public GetGDADateByDly(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger
     this.program = program
-    this.utility=utility
+    this.utility = utility
   }
 
   /**
@@ -34,22 +32,22 @@ public class GetGDADateByDly extends ExtendM3Transaction {
    * Serialize in EXT010
    */
   public void main() {
-    currentCompany = (int)program.getLDAZD().CONO
+    currentCompany = (int) program.getLDAZD().CONO
 
     //Get mi inputs
-    String asgd = (String)(mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
-    String cuno = (String)(mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
-    String suno = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
-    int dlgd = (Integer)(mi.in.get("DLGD") != null ? mi.in.get("DLGD") : 0)
+    String asgd = (String) (mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
+    String cuno = (String) (mi.in.get("CUNO") != null ? mi.in.get("CUNO") : "")
+    String suno = (String) (mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
+    int dlgd = (Integer) (mi.in.get("DLGD") != null ? mi.in.get("DLGD") : 0)
 
-    String deliveryDate = (mi.in.get("DLGD") != null ? (Integer)mi.in.get("DLGD") : 0)
+    String deliveryDate = (mi.in.get("DLGD") != null ? (Integer) mi.in.get("DLGD") : 0)
 
-    ExpressionFactory expression = database.getExpressionFactory("EXT012")
-    expression = expression.eq("EXDLGD", deliveryDate)
+    ExpressionFactory expressionExt012 = database.getExpressionFactory("EXT012")
+    expressionExt012 = expressionExt012.eq("EXDLGD", deliveryDate)
 
-    DBAction queryEXT012 = database.table("EXT012")
+    DBAction queryExt012 = database.table("EXT012")
       .index("10")
-      .matching(expression)
+      .matching(expressionExt012)
       .selection(
         "EXCONO",
         "EXCUNO",
@@ -66,7 +64,7 @@ public class GetGDADateByDly extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer containerEXT012 = queryEXT012.getContainer()
+    DBContainer containerEXT012 = queryExt012.getContainer()
     containerEXT012.set("EXCONO", currentCompany)
     containerEXT012.set("EXCUNO", cuno)
     containerEXT012.set("EXSUNO", suno)
@@ -74,7 +72,7 @@ public class GetGDADateByDly extends ExtendM3Transaction {
     containerEXT012.set("EXDLGD", dlgd)
 
     //Record exists
-    if (!queryEXT012.readAll(containerEXT012, 4, nbMaxRecord, outData)){
+    if (!queryExt012.readAll(containerEXT012, 5, 1, outData)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
@@ -107,6 +105,4 @@ public class GetGDADateByDly extends ExtendM3Transaction {
     mi.outData.put("CHID", changedBy)
     mi.write()
   }
-
-
 }

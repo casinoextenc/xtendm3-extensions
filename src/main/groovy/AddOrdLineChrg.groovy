@@ -159,7 +159,6 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
           }
           // The customer wants the charges to be added on an order (orn2) dedicated to the charges. No charges should be added to the original order (orno)
           if (chb6 == 1) {
-            //mi.error("ORNO - Client " + OOHEAD.get("OACUNO") + " est invalide")
             return
           }
         }

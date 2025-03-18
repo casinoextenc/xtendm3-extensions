@@ -228,7 +228,7 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
         newPOSX = 0
         logger.debug("Création ligne orqt:${orqt} alun:${alun}")
         executeOIS100MIAddLineBatchEnt(existingServiceChargeOrderOrno, itno, orqt, "", inWHLO, alun, dwdt)
-        updateServiceOrderLine()
+        executeOIS100MIUpdUserDefCOL()
         mi.outData.put("ORNO", existingServiceChargeOrderOrno)
         mi.outData.put("PONR", newPONR as String)
         mi.outData.put("POSX", newPOSX as String)
@@ -247,7 +247,7 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
           newPOSX = 0
           logger.debug("Ajout ligne")
           executeOIS100MIAddLineBatchEnt(newORNO, itno, orqt, "", inWHLO, alun, dwdt)
-          updateServiceOrderLine()
+          executeOIS100MIUpdUserDefCOL()
         }
         mi.outData.put("ORNO", newORNO)
         mi.outData.put("PONR", newPONR as String)
@@ -260,16 +260,26 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     }
   }
   // Update new order line with delivery order line primary key
-  private updateServiceOrderLine() {
-    logger.debug("Màj ligne newORNO/newPONR/newPOSX = " + newORNO + "/" + newPONR + "/" + newPOSX)
-    DBAction queryOOLINE = database.table("OOLINE").index("00").build()
-    DBContainer OOLINE = queryOOLINE.getContainer()
-    OOLINE.set("OBCONO", currentCompany)
-    OOLINE.set("OBORNO", newORNO)
-    OOLINE.set("OBPONR", newPONR)
-    OOLINE.set("OBPOSX", newPOSX)
-    if (!queryOOLINE.readLock(OOLINE, updateCallBack)) {
+  private executeOIS100MIUpdUserDefCOL() {
+    Map<String, String> parameters = [
+      "ORNO": newORNO,
+      "PONR": newPONR,
+      "POSX": newPOSX,
+      "UCA6": inORNO,
+      "UCA7": inPONR as String,
+      "UCA8": inPOSX as String,
+      "UCA9": inDLIX as String,
+
+    ]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        return mi.error("Erreur OIS100MI CpyOrder: " + response.errorMessage)
+      } else {
+        logger.debug("NewORNO: " + response.ORNO)
+        newORNO = response.ORNO.trim()
+      }
     }
+    miCaller.call("OIS100MI", "CpyOrder", parameters, handler)
   }
   // Execute OIS100MI.CpyOrder
   private executeOIS100MICpyOrder(String ORNR, String ORTP, String CORH, String CORL, String COCH, String COTX, String CLCH, String CLTX, String CADR, String SAPR, String UCOS, String JDCD, String RLDT, String CODT, String EPRI) {
@@ -309,20 +319,6 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       }
     }
     miCaller.call("OIS100MI", "AddLineBatchEnt", parameters, handler)
-  }
-
-  // Update OOLINE
-  Closure<?> updateCallBack = { LockedResult lockedResult ->
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    int changeNumber = lockedResult.get("OBCHNO")
-    lockedResult.set("OBUCA6", inORNO)
-    lockedResult.set("OBUCA7", inPONR as String)
-    lockedResult.set("OBUCA8", inPOSX as String)
-    lockedResult.set("OBUCA9", inDLIX as String)
-    lockedResult.setInt("OBLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-    lockedResult.setInt("OBCHNO", changeNumber + 1)
-    lockedResult.set("OBCHID", program.getUser())
-    lockedResult.update()
   }
 }
 

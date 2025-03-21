@@ -164,10 +164,7 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
     if (ocusmaQuery.read(ocusmaRequest)) {
       String stat = (String)ocusmaRequest.get("OKSTAT")
       int cutp = (Integer)ocusmaRequest.get("OKCUTP")
-      /*if (!stat.equals("20")){
-        errorMessage = "Statut Client ${stat} est invalide"
-        return false
-      }*/
+
       if (cutp != 0){
         errorMessage = "Type Client ${cutp} est invalide"
         return false
@@ -196,7 +193,6 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
 
     DBAction cidvenQuery = database.table("CIDVEN").index("00").selection(
       "IICONO", "IISUNO", "IISUCL").build()
-    DBContainer cidvenRequest = cidvenQuery.getContainer()
 
     cidmasRequest.set("IDCONO", currentCompany)
     cidmasRequest.set("IDSUNO", suno)

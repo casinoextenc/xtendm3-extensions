@@ -9,7 +9,8 @@ Ce dépôt est le dépôt modèle qui permet par duplication d'initialiser les d
 
 
 ## Setup
-Ce projet utilise Maven, Mockito et Junit 4
+Ce projet utilise Maven, Mockito et Junit 4.
+
 
 La structure du projet est identique à celle de tout projet Maven avec en plus le repertoire des sources groovy
 

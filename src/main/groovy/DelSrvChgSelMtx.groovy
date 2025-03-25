@@ -59,7 +59,7 @@ public class DelSrvChgSelMtx extends ExtendM3Transaction {
     // UPD UPDATE DB
     //**********************************
     //Check if record exists
-    DBAction queryEXT06100 = database.table("EXT061").index("00").selection(
+    DBAction queryExt061 = database.table("EXT061").index("00").selection(
       "EXCONO"
       ,"EXPREX"
       ,"EXOBV1"
@@ -80,18 +80,18 @@ public class DelSrvChgSelMtx extends ExtendM3Transaction {
       ,"EXCHID"
     ).build()
 
-    DBContainer containerEXT061 = queryEXT06100.getContainer()
-    containerEXT061.set("EXCONO",currentCompany)
-    containerEXT061.set("EXPREX", prex)
-    containerEXT061.set("EXOBV1", obv1)
-    containerEXT061.set("EXOBV2", obv2)
-    containerEXT061.set("EXOBV3", obv3)
-    containerEXT061.set("EXOBV4", obv4)
-    containerEXT061.set("EXVFDT", Integer.parseInt(vfdt))
-    Closure<?> updaterEXT061 = { LockedResult lockedResultEXT061 ->
-      lockedResultEXT061.delete()
+    DBContainer containerExt061 = queryExt061.getContainer()
+    containerExt061.set("EXCONO",currentCompany)
+    containerExt061.set("EXPREX", prex)
+    containerExt061.set("EXOBV1", obv1)
+    containerExt061.set("EXOBV2", obv2)
+    containerExt061.set("EXOBV3", obv3)
+    containerExt061.set("EXOBV4", obv4)
+    containerExt061.set("EXVFDT", Integer.parseInt(vfdt))
+    Closure<?> updaterExt061 = { LockedResult lockedResultExt061 ->
+      lockedResultExt061.delete()
     }
-    if (!queryEXT06100.readLock(containerEXT061,updaterEXT061 )) {
+    if (!queryExt061.readLock(containerExt061,updaterExt061 )) {
       mi.error("L'enregistrement n'existe pas")
       return
     }

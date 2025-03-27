@@ -75,17 +75,14 @@ public class DelCustomerMas extends ExtendM3Transaction {
     ext014Request.set("EXWHLO", whlo)
     ext014Request.set("EXFVDT", fvdt)
 
-    //Record exists
-    if (!ext014Query.read(ext014Request)) {
-      mi.error("L'enregistrement n'existe pas")
-      return
-    }
-
     Closure<?> ext014Updater = { LockedResult ext014LockedResult ->
       ext014LockedResult.delete()
     }
 
-    ext014Query.readLock(ext014Request, ext014Updater)
+    if (!ext014Query.readLock(ext014Request, ext014Updater)){
+      mi.error("L'enregistrement n'existe pas")
+      return
+    }
 
   }
 }

@@ -74,7 +74,7 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
     //**********************************
     // UPD
     //**********************************
-    DBAction queryEXT06100 = database.table("EXT061")
+    DBAction queryExt06100 = database.table("EXT061")
       .index("00")
       .selection(
         "EXCONO"
@@ -97,12 +97,12 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
         ,"EXCHID"
       ).build()
 
-    DBContainer containerEXT061 = queryEXT06100.getContainer()
-    containerEXT061.set("EXCONO", currentCompany)
-    containerEXT061.set("EXPREX", prex)
+    DBContainer containerExt061 = queryExt06100.getContainer()
+    containerExt061.set("EXCONO", currentCompany)
+    containerExt061.set("EXPREX", prex)
 
     if (!(obv1== null || obv1.isEmpty())) {
-      containerEXT061.set("EXOBV1", obv1)
+      containerExt061.set("EXOBV1", obv1)
       nbfields++
     }
 
@@ -110,7 +110,7 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
       mi.error("Critères incorrectes")
       return
     } else if (obv2 == null || obv2.isEmpty()) {
-      containerEXT061.set("EXOBV2", obv2)
+      containerExt061.set("EXOBV2", obv2)
       nbfields++
     }
 
@@ -118,7 +118,7 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
       mi.error("Critères incorrectes")
       return
     } else if (!(obv3 == null || obv3.isEmpty())){
-      containerEXT061.set("EXOBV3", obv3)
+      containerExt061.set("EXOBV3", obv3)
       nbfields++
     }
 
@@ -126,7 +126,7 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
       mi.error("Critères incorrectes")
       return
     } else if (!(obv4 == null || obv4.isEmpty())){
-      containerEXT061.set("EXOBV4", obv3)
+      containerExt061.set("EXOBV4", obv3)
       nbfields++
     }
 
@@ -136,35 +136,35 @@ public class LstSrvChgSelMtx extends ExtendM3Transaction {
         return
       }
     } else if (!(vfdt == null || vfdt.isEmpty())){
-      containerEXT061.set("EXVFDT", Integer.parseInt(vfdt))
+      containerExt061.set("EXVFDT", Integer.parseInt(vfdt))
       nbfields++
     }
 
 
-    Closure<?> outDataEXT061 = { DBContainer responseEXT061 ->
-      mi.outData.put("PREX", responseEXT061.get("EXPREX") as String)
-      mi.outData.put("OBV1", responseEXT061.get("EXOBV1") as String)
-      mi.outData.put("OBV2", responseEXT061.get("EXOBV2") as String)
-      mi.outData.put("OBV3", responseEXT061.get("EXOBV3") as String)
-      mi.outData.put("OBV4", responseEXT061.get("EXOBV4") as String)
-      mi.outData.put("VFDT", responseEXT061.get("EXVFDT") as String)
-      mi.outData.put("CRID", responseEXT061.get("EXCRID") as String)
-      mi.outData.put("CRD0", responseEXT061.get("EXCRD0") as String)
-      mi.outData.put("CMRE", responseEXT061.get("EXCMRE") as String)
-      mi.outData.put("CRFA", responseEXT061.get("EXCRFA") as String)
-      mi.outData.put("CUCD", responseEXT061.get("EXCUCD") as String)
-      mi.outData.put("LVDT", responseEXT061.get("EXLVDT") as String)
-      mi.outData.put("RGDT", responseEXT061.get("EXRGDT") as String)
-      mi.outData.put("RGTM", responseEXT061.get("EXRGTM") as String)
-      mi.outData.put("LMDT", responseEXT061.get("EXLMDT") as String)
-      mi.outData.put("CHNO", responseEXT061.get("EXCHNO") as String)
-      mi.outData.put("CHID", responseEXT061.get("EXCHID") as String)
+    Closure<?> outDataExt061 = { DBContainer responseExt061 ->
+      mi.outData.put("PREX", responseExt061.get("EXPREX") as String)
+      mi.outData.put("OBV1", responseExt061.get("EXOBV1") as String)
+      mi.outData.put("OBV2", responseExt061.get("EXOBV2") as String)
+      mi.outData.put("OBV3", responseExt061.get("EXOBV3") as String)
+      mi.outData.put("OBV4", responseExt061.get("EXOBV4") as String)
+      mi.outData.put("VFDT", responseExt061.get("EXVFDT") as String)
+      mi.outData.put("CRID", responseExt061.get("EXCRID") as String)
+      mi.outData.put("CRD0", responseExt061.get("EXCRD0") as String)
+      mi.outData.put("CMRE", responseExt061.get("EXCMRE") as String)
+      mi.outData.put("CRFA", responseExt061.get("EXCRFA") as String)
+      mi.outData.put("CUCD", responseExt061.get("EXCUCD") as String)
+      mi.outData.put("LVDT", responseExt061.get("EXLVDT") as String)
+      mi.outData.put("RGDT", responseExt061.get("EXRGDT") as String)
+      mi.outData.put("RGTM", responseExt061.get("EXRGTM") as String)
+      mi.outData.put("LMDT", responseExt061.get("EXLMDT") as String)
+      mi.outData.put("CHNO", responseExt061.get("EXCHNO") as String)
+      mi.outData.put("CHID", responseExt061.get("EXCHID") as String)
 
       mi.write()
     }
 
 
-    if (!queryEXT06100.readAll(containerEXT061, 1, nbMaxRecord, outDataEXT061)){
+    if (!queryExt06100.readAll(containerExt061, nbfields, nbMaxRecord, outDataExt061)){
       mi.error("L'enregistrement n'existe pas")
       return
     }

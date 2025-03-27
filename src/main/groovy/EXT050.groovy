@@ -886,7 +886,7 @@ public class EXT050 extends ExtendM3Batch {
 
     Closure<?> mitploReader = { DBContainer mitploResult ->
       //Define return object structure
-      def mitploData = [
+      Map<String, String> mitploData = [
         "MOWHLO"  : "" + mitploResult.get("MOWHLO")
         , "MOITNO": "" + mitploResult.get("MOITNO")
         , "MOPLDT": "" + mitploResult.get("MOPLDT")
@@ -924,7 +924,7 @@ public class EXT050 extends ExtendM3Batch {
 
     Closure<?> mitaloReader = { DBContainer mitaloResult ->
       //Define return object structure
-      def mitaloData = [
+      Map<String, String> mitaloData = [
         "MQWHLO"  : "" + mitaloResult.get("MQWHLO")
         , "MQITNO": "" + mitaloResult.get("MQITNO")
         , "MQWHSL": "" + mitaloResult.get("MQWHSL")
@@ -1192,7 +1192,7 @@ public class EXT050 extends ExtendM3Batch {
    * @return
    */
   private executeOIS100MIAddOrderLine(String ORNO, String ITNO, String ORQT, String ALUN, String LTYP, String WHLO, String DWDZ, String DWHZ, String ADID, String PIDE, String DIP4, String DWDT, String PLDT, String SAPR) {
-    def parameters = [
+    Map<String, String> parameters = [
       "ORNO": ORNO,
       "ITNO": ITNO,
       "ORQT": ORQT,

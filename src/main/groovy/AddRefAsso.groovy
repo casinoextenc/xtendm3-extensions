@@ -20,17 +20,20 @@ public class AddRefAsso extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final UtilityAPI utility
+  private final MICallerAPI miCaller
 
   private int currentCompany
   private String errorMessage
   private String fuds
+  private double price
 
 
-  public AddRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
+  public AddRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger
     this.program = program
+    this.miCaller = miCaller
     this.utility=utility
   }
 
@@ -42,6 +45,10 @@ public class AddRefAsso extends ExtendM3Transaction {
    */
   public void main() {
     currentCompany = (int)program.getLDAZD().CONO
+
+    String txtMessage = ""
+    String fieldMessage = ""
+    String codeMessage = ""
 
     //Get mi inputs
     String asgd = (String)(mi.in.get("ASGD") != null ? mi.in.get("ASGD") : "")
@@ -124,6 +131,42 @@ public class AddRefAsso extends ExtendM3Transaction {
       }
     }
 
+    // Check double
+    if(!checkDouble(cuno, itno, fvdt as String, lvdt as String)){
+      txtMessage = "Alerte, il existe un doublon pour client ${cuno}, article ${itno}, date de début ${fvdt} et date de fin ${lvdt}"
+    }
+
+    if(txtMessage==""){
+      if (sule.length() == 0 && suld.length() == 0){
+        txtMessage = "Alerte, aucune filière d'approvisionnement "
+      }
+    }
+
+    if(txtMessage==""){
+      if(sule.length()>0){
+        if(!checkSunoItno(sule, itno)){
+          txtMessage = "Alerte, problème filière d'approvisionnement PPS040"
+        }
+      } else {
+        if(!checkSunoItno(suld, itno)){
+          txtMessage = "Alerte, problème filière d'approvisionnement PPS040"
+        }
+      }
+
+    }
+
+    if(txtMessage==""){
+      price = 0
+      if(sule.length()>0){
+        executePPS106MIGetPrice(itno, sule)
+      } else {
+        executePPS106MIGetPrice(itno, suld)
+      }
+      if(price==0){
+        txtMessage = "Alerte, problème filière d'approvisionnement PPS100"
+      }
+    }
+
     //Check if record exists
     DBAction ext010Query = database.table("EXT010")
       .index("00")
@@ -187,6 +230,10 @@ public class AddRefAsso extends ExtendM3Transaction {
     ext010Request.set("EXCHID", program.getUser())
     createEXT011Record(ext010Request, "C")
     ext010Query.insert(ext010Request)
+
+    if(txtMessage!=""){
+      mi.error(txtMessage,fieldMessage,codeMessage)
+    }
   }
 
   /**
@@ -344,5 +391,105 @@ public class AddRefAsso extends ExtendM3Transaction {
     }
 
     return true
+  }
+
+
+
+  /**
+   * Read information from DB EXT010
+   * Double check
+   *
+   * @parameter Customer, Item, From date, To date
+   * @return true if ok false otherwise
+   * */
+  private boolean checkDouble(String cuno, String itno, String fvdt, String lvdt){
+    boolean errorIndicator = false
+    ExpressionFactory ext010Expression1 = database.getExpressionFactory("EXT010")
+    ext010Expression1 = (ext010Expression1.ge("EXFVDT", fvdt)).and(ext010Expression1.le("EXFVDT", lvdt))
+    DBAction ext010Double1 = database.table("EXT010")
+      .index("02")
+      .matching(ext010Expression1)
+      .selection("EXFVDT", "EXLVDT")
+      .build()
+    DBContainer containerExt0101 = ext010Double1.getContainer()
+    containerExt0101.set("EXCONO", currentCompany)
+    containerExt0101.set("EXCUNO", cuno)
+    containerExt0101.set("EXITNO", itno)
+    Closure<?> outEXT0101 = { DBContainer EXT0101result ->
+      errorIndicator = true
+    }
+    if (!ext010Double1.readAll(containerExt0101, 3, 1, outEXT0101)) {
+    }
+    if(errorIndicator){
+      return false
+    }
+    ExpressionFactory ext010Expression2 = database.getExpressionFactory("EXT010")
+    ext010Expression2 = (ext010Expression2.ge("EXLVDT", fvdt)).and(ext010Expression2.le("EXLVDT", lvdt))
+    DBAction ext010Double2 = database.table("EXT010")
+      .index("02")
+      .matching(ext010Expression2)
+      .selection("EXFVDT", "EXLVDT")
+      .build()
+    DBContainer containerExt0102 = ext010Double2.getContainer()
+    containerExt0102.set("EXCONO", currentCompany)
+    containerExt0102.set("EXCUNO", cuno)
+    containerExt0102.set("EXITNO", itno)
+    Closure<?> outEXT0102 = { DBContainer EXT0101result ->
+      errorIndicator = true
+    }
+    if (!ext010Double2.readAll(containerExt0102, 3, 1, outEXT0102)) {
+    }
+    if(errorIndicator){
+      return false
+    }
+    return true
+  }
+
+
+
+  /**
+   * Read information from DB EXT010
+   * Double check
+   *
+   * @parameter Customer, Item, From date, To date
+   * @return true if ok false otherwise
+   * */
+  private boolean checkSunoItno(String suno, String itno){
+    boolean found = false
+    DBAction mitvenQuery = database.table("MITVEN")
+      .index("10")
+      .selection("IFSITE")
+      .build()
+    DBContainer containerMitven = mitvenQuery.getContainer()
+    containerMitven.set("IFCONO", currentCompany)
+    containerMitven.set("IFSUNO", suno)
+    containerMitven.set("IFITNO", itno)
+    Closure<?> outMitven = { DBContainer mitvenResult ->
+      found = true
+    }
+    if (!mitvenQuery.readAll(containerMitven, 3, 1, outMitven)) {
+    }
+    if(found){
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Execute PPS106MI.GetPrice
+   *
+   * @parameter Item, supplier
+   * @return price
+   * */
+  private executePPS106MIGetPrice(String ITNO, String SUNO) {
+    Map<String, String> parameters = ["ITNO": ITNO, "SUNO": SUNO, "ORQA": "1"]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        return response.error
+      }
+      if (response.PUPR != null)
+        price = response.PUPR as double
+    }
+    miCaller.call("PPS106MI", "GetPrice", parameters, handler)
   }
 }

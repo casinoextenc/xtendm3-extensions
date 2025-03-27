@@ -358,14 +358,14 @@ public class UpdRefAssoHist extends ExtendM3Transaction {
       return false
     }
 
-    String dbSucl = ""
+    String dbsucl = ""
 
     cidvenRequest.set("IICONO", currentCompany)
     cidvenRequest.set("IISUNO", suno)
     if (cidvenQuery.read(cidvenRequest)) {
-      dbSucl = (String) cidvenRequest.get("IISUCL")
+      dbsucl = (String) cidvenRequest.get("IISUCL")
     }
-    if (!dbSucl.equals(sucl)) {
+    if (!dbsucl.equals(sucl)) {
       errorMessage = "Groupe fournisseur ${suno} est invalide"
       return false
     }

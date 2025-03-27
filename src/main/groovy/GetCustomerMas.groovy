@@ -70,71 +70,68 @@ public class GetCustomerMas extends ExtendM3Transaction {
     ext014Request.set("EXCUNO", cuno)
     ext014Request.set("EXWHLO", whlo)
     ext014Request.setInt("EXFVDT", fvdt)
-    if (!ext014Query.readAll(ext014Request,4,1,ext014Reader)) {
+    if (!ext014Query.read(ext014Request)) {
       mi.error("L'enregistrement n'existe pas")
-      return
-    }
-  }
-  // Retrieve EXT014
-  Closure<?> ext014Reader = { DBContainer ext014Result ->
-    String cono = ext014Result.get("EXCONO")
-    String cuno = ext014Result.get("EXCUNO")
-    String whlo = ext014Result.get("EXWHLO")
-    String fvdt = ext014Result.get("EXFVDT")
-    String lvdt = ext014Result.get("EXLVDT")
-    String cunm = ""
-    String whnm = ""
-
-    //Retrieve Customer Name
-    DBAction ocusmaQuery = database.table("OCUSMA")
-      .index("00")
-      .selection(
-        "OKCUNM"
-      )
-      .build()
-
-    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
-    ocusmaRequest.set("OKCONO", currentCompany)
-    ocusmaRequest.set("OKCUNO", cuno)
-
-    //Record exists
-    if (!ocusmaQuery.read(ocusmaRequest)) {
-      mi.error("L'enregistrement n'existe pas")
-      return
     } else {
-      cunm = ocusmaRequest.get("OKCUNM")
-    }
+      String cono = ext014Result.get("EXCONO")
+      String cuno = ext014Result.get("EXCUNO")
+      String whlo = ext014Result.get("EXWHLO")
+      String fvdt = ext014Result.get("EXFVDT")
+      String lvdt = ext014Result.get("EXLVDT")
+      String cunm = ""
+      String whnm = ""
+
+      //Retrieve Customer Name
+      DBAction ocusmaQuery = database.table("OCUSMA")
+        .index("00")
+        .selection(
+          "OKCUNM"
+        )
+        .build()
+
+      DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+      ocusmaRequest.set("OKCONO", currentCompany)
+      ocusmaRequest.set("OKCUNO", cuno)
+
+      //Record exists
+      if (!ocusmaQuery.read(ocusmaRequest)) {
+        mi.error("L'enregistrement n'existe pas")
+        return
+      } else {
+        cunm = ocusmaRequest.get("OKCUNM")
+      }
 
 // Retrieve Warehouse description
 
-    //Retrieve Customer Name
-    DBAction mitwhlQuery = database.table("MITWHL")
-      .index("00")
-      .selection(
-        "MWWHNM"
-      )
-      .build()
+      //Retrieve Customer Name
+      DBAction mitwhlQuery = database.table("MITWHL")
+        .index("00")
+        .selection(
+          "MWWHNM"
+        )
+        .build()
 
-    DBContainer mitwhlRequest = mitwhlQuery.getContainer()
-    mitwhlRequest.set("MWCONO", currentCompany)
-    mitwhlRequest.set("MWWHLO", whlo)
+      DBContainer mitwhlRequest = mitwhlQuery.getContainer()
+      mitwhlRequest.set("MWCONO", currentCompany)
+      mitwhlRequest.set("MWWHLO", whlo)
 
-    //Record exists
-    if (!mitwhlQuery.read(mitwhlRequest)) {
-      mi.error("L'enregistrement n'existe pas dans MITWH")
-      return
-    } else {
-      whnm = mitwhlRequest.get("MWWHNM")
+      //Record exists
+      if (!mitwhlQuery.read(mitwhlRequest)) {
+        mi.error("L'enregistrement n'existe pas dans MITWH")
+        return
+      } else {
+        whnm = mitwhlRequest.get("MWWHNM")
+      }
+
+      mi.outData.put("CONO", cono)
+      mi.outData.put("CUNO", cuno)
+      mi.outData.put("CUNM", cunm)
+      mi.outData.put("WHLO", whlo)
+      mi.outData.put("WHNM", whnm)
+      mi.outData.put("FVDT", fvdt)
+      mi.outData.put("LVDT", lvdt)
+
+      mi.write()
     }
-
-    mi.outData.put("CONO", cono)
-    mi.outData.put("CUNO", cuno)
-    mi.outData.put("CUNM", cunm)
-    mi.outData.put("WHLO", whlo)
-    mi.outData.put("WHNM", whnm)
-    mi.outData.put("FVDT", fvdt)
-    mi.outData.put("LVDT", lvdt)
-
-    mi.write()
   }
 }

@@ -868,8 +868,8 @@ public class LstPallet extends ExtendM3Transaction {
    * Check if filters are equals
    */
   private boolean areFiltersEquals(){
-    def quaFiltersKeys = quafiltersInput.keySet()
-    def quaFiltersValues = quafiltersInput.values()
+    Set<String> quaFiltersKeys = quafiltersInput.keySet()
+    Collection<Boolean> quaFiltersValues = quafiltersInput.values()
 
     def filterResultsKeys = filterResults.keySet()
     def filterResultValues = filterResults.values()

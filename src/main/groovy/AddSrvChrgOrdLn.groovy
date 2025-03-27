@@ -19,21 +19,21 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
   private final UtilityAPI utility
   private int currentCompany
   private String currentDate
-  private String inORNO
-  private Integer inPONR
-  private Integer inPOSX
-  private long inDLIX
-  private String inWHLO
-  private String inTEPY
+  private String inOrno
+  private Integer inPonr
+  private Integer inPosx
+  private long inDlix
+  private String inWhlo
+  private String inTepy
   private String itno
   private String orqt
   private String sapr
   private String alun
   private String dwdt
   private String existingServiceChargeOrderOrno
-  private String newORNO
-  private Integer newPONR
-  private Integer newPOSX
+  private String newOrno
+  private Integer newPonr
+  private Integer newPosx
   private String orst
   private Integer chb6
   private boolean serviceChargeOrderLineExists
@@ -59,17 +59,17 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
 
-    inORNO = ""
+    inOrno = ""
     if (mi.in.get("ORNO") != null && mi.in.get("ORNO") != "") {
-      inORNO = mi.in.get("ORNO")
+      inOrno = mi.in.get("ORNO")
     } else {
       mi.error("Numéro commande de vente est obligatoire")
       return
     }
-    inPONR = 0
+    inPonr = 0
     if (mi.in.get("PONR") != null && mi.in.get("PONR") != "") {
       if (utility.call("NumberUtil", "isValidNumber", mi.in.get("PONR") as String, ".")) {
-        inPONR = mi.in.get("PONR") as Integer
+        inPonr = mi.in.get("PONR") as Integer
       } else {
         mi.error("Format numérique ligne est incorrect")
         return
@@ -78,19 +78,19 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       mi.error("Numéro de ligne est obligatoire")
       return
     }
-    inPOSX = 0
+    inPosx = 0
     if (mi.in.get("POSX") != null && mi.in.get("POSX") != "") {
       if (utility.call("NumberUtil", "isValidNumber", mi.in.get("POSX") as String, ".")) {
-        inPOSX = mi.in.get("POSX") as Integer
+        inPosx = mi.in.get("POSX") as Integer
       } else {
         mi.error("Format numérique suffixe est incorrect")
         return
       }
     }
-    inDLIX = 0
+    inDlix = 0
     if (mi.in.get("DLIX") != null && mi.in.get("DLIX") != "") {
       if (utility.call("NumberUtil", "isValidNumber", mi.in.get("DLIX") as String, ".")) {
-        inDLIX = mi.in.get("DLIX") as long
+        inDlix = mi.in.get("DLIX") as long
       } else {
         mi.error("Format numérique index de livraison est incorrect")
         return
@@ -99,15 +99,15 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       mi.error("Index de livraison est obligatoire")
       return
     }
-    inWHLO = ""
+    inWhlo = ""
     if (mi.in.get("WHLO") != null && mi.in.get("WHLO") != "") {
-      inWHLO = mi.in.get("WHLO")
+      inWhlo = mi.in.get("WHLO")
     } else {
       mi.error("Dépôt est obligatoire")
       return
     }
 
-    inTEPY = mi.in.get("TEPY")
+    inTepy = mi.in.get("TEPY")
     orqt = ""
 
     // Check delivery order line
@@ -116,15 +116,15 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       .index("00").build()
     DBContainer odlineRequest = odlineQuery.getContainer()
     odlineRequest.set("UBCONO", currentCompany)
-    odlineRequest.set("UBORNO", inORNO)
-    odlineRequest.set("UBPONR", inPONR)
-    odlineRequest.set("UBPOSX", inPOSX)
-    odlineRequest.set("UBDLIX", inDLIX)
-    odlineRequest.set("UBWHLO", inWHLO)
-    odlineRequest.set("UBTEPY", inTEPY)
+    odlineRequest.set("UBORNO", inOrno)
+    odlineRequest.set("UBPONR", inPonr)
+    odlineRequest.set("UBPOSX", inPosx)
+    odlineRequest.set("UBDLIX", inDlix)
+    odlineRequest.set("UBWHLO", inWhlo)
+    odlineRequest.set("UBTEPY", inTepy)
     if (!odlineQuery.read(odlineRequest)) {
       logger.debug("ODLINE not found")
-      mi.error("Ligne de livraison non trouvée pour la commande " + inORNO + " ligne " + inPONR + " suffixe " + inPOSX + " index de livraison " + inDLIX)
+      mi.error("Ligne de livraison non trouvée pour la commande " + inOrno + " ligne " + inPonr + " suffixe " + inPosx + " index de livraison " + inDlix)
       return
     } else {
       orqt = odlineRequest.get("UBDLQT")
@@ -138,12 +138,12 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     serviceChargeOrderLineExists = false
     if (!serviceChargeOrderLineExists) {
       ExpressionFactory oolineExpression = database.getExpressionFactory("OOLINE")
-      oolineExpression = oolineExpression.eq("OBUCA6", inORNO)
-      oolineExpression = oolineExpression.and(oolineExpression.eq("OBUCA7", inPONR as String))
-      oolineExpression = oolineExpression.and(oolineExpression.eq("OBUCA8", inPOSX as String))
-      oolineExpression = oolineExpression.and(oolineExpression.eq("OBUCA9", inDLIX as String))
-      oolineExpression = oolineExpression.and(oolineExpression.eq("OBWHLO", inWHLO))
-      oolineExpression = oolineExpression.and(oolineExpression.eq("OBTEPY", inTEPY))
+      oolineExpression = oolineExpression.eq("OBUCA6", inOrno)
+      oolineExpression = oolineExpression.and(oolineExpression.eq("OBUCA7", inPonr as String))
+      oolineExpression = oolineExpression.and(oolineExpression.eq("OBUCA8", inPosx as String))
+      oolineExpression = oolineExpression.and(oolineExpression.eq("OBUCA9", inDlix as String))
+      oolineExpression = oolineExpression.and(oolineExpression.eq("OBWHLO", inWhlo))
+      oolineExpression = oolineExpression.and(oolineExpression.eq("OBTEPY", inTepy))
 
       DBAction oolineQuery2 = database.table("OOLINE").index("00").matching(oolineExpression).build()
       DBContainer oolineRequest = oolineQuery2.getContainer()
@@ -162,10 +162,10 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     DBAction ooheadQuery = database.table("OOHEAD").index("00").selection("OACUNO", "OAORST", "OAORTP", "OAORDT").build()
     DBContainer ooheadRequest = ooheadQuery.getContainer()
     ooheadRequest.set("OACONO", currentCompany)
-    ooheadRequest.set("OAORNO", inORNO)
+    ooheadRequest.set("OAORNO", inOrno)
     if (ooheadQuery.read(ooheadRequest)) {
       if (ooheadRequest.get("OAORTP") == "P01") {
-        mi.error("Commande " + inORNO + " est une commande de frais")
+        mi.error("Commande " + inOrno + " est une commande de frais")
         return
       }
       orst = ooheadRequest.get("OAORST")
@@ -199,22 +199,22 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBITNO", "OBORQT", "OBSAPR", "OBWHLO", "OBALUN", "OBDWDT").build()
       DBContainer oolineRequest = oolineQuery.getContainer()
       oolineRequest.set("OBCONO", currentCompany)
-      oolineRequest.set("OBORNO", inORNO)
-      oolineRequest.set("OBPONR", inPONR)
-      oolineRequest.set("OBPOSX", inPOSX)
+      oolineRequest.set("OBORNO", inOrno)
+      oolineRequest.set("OBPONR", inPonr)
+      oolineRequest.set("OBPOSX", inPosx)
       if (oolineQuery.read(oolineRequest)) {
         itno = oolineRequest.get("OBITNO")
         sapr = oolineRequest.get("OBSAPR")
         alun = oolineRequest.get("OBALUN")
         dwdt = oolineRequest.get("OBDWDT")
       } else {
-        mi.error("Ligne de commande client non trouvée ${inORNO} ${inPONR} ${inPOSX}")
+        mi.error("Ligne de commande client non trouvée ${inOrno} ${inPonr} ${inPosx}")
         return
       }
 
       // Search corresponding service charge order
       ExpressionFactory ooheadFrExpression = database.getExpressionFactory("OOHEAD")
-      ooheadFrExpression = ooheadFrExpression.eq("OAOFNO", inORNO)
+      ooheadFrExpression = ooheadFrExpression.eq("OAOFNO", inOrno)
       ooheadFrExpression = ooheadFrExpression.and(ooheadFrExpression.lt("OAORST", "77"))
 
       DBAction ooheadFRQuery = database.table("OOHEAD").index("00").matching(ooheadFrExpression).selection("OACONO", "OAORNO").build()
@@ -224,72 +224,63 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
         logger.debug("Commande de frais existante trouvée - Ajout ligne")
         // Existing service order charge is found, adding the line
         existingServiceChargeOrderOrno = OOHEAD.get("OAORNO")
-        newPONR = 0
-        newPOSX = 0
+        newPonr = 0
+        newPosx = 0
         logger.debug("Création ligne orqt:${orqt} alun:${alun}")
-        executeOIS100MIAddLineBatchEnt(existingServiceChargeOrderOrno, itno, orqt, "", inWHLO, alun, dwdt)
-        executeOIS100MIUpdUserDefCOL()
+        executeOIS100MIAddLineBatchEnt(existingServiceChargeOrderOrno, itno, orqt, "", inWhlo, alun, dwdt)
+        updateServiceOrderLine()
         mi.outData.put("ORNO", existingServiceChargeOrderOrno)
-        mi.outData.put("PONR", newPONR as String)
-        mi.outData.put("POSX", newPOSX as String)
+        mi.outData.put("PONR", newPonr as String)
+        mi.outData.put("POSX", newPosx as String)
         mi.write()
       }
       if (!ooheadFRQuery.readAll(ooheadFRRequest, 1, 1, ooheadFRReader)) {
         logger.debug("Commande de frais n'existe pas")
         // Service charge order does not exist, it must be created
-        newORNO = ""
-        logger.debug("Copie de la commande inORNO = " + inORNO)
-        executeOIS100MICpyOrder(inORNO, "P01", "1", "0", "0", "1", "0", "1", "1", "0", "0", "0", "0", "0", "0")
-        if (newORNO.trim() != "") {
-          logger.debug("Commande de frais créée - No = " + newORNO)
-          executeOIS100MIChgOrderRef(newORNO, inORNO)
-          newPONR = 0
-          newPOSX = 0
+        newOrno = ""
+        logger.debug("Copie de la commande inORNO = " + inOrno)
+        executeOIS100MICpyOrder(inOrno, "P01", "1", "1", "0", "1", "0", "1", "1", "0", "0", "0", "0", "0", "0")
+        if (newOrno.trim() != "") {
+          logger.debug("Commande de frais créée - No = " + newOrno)
+          executeOIS100MIChgOrderRef(newOrno, inOrno)
+          newPonr = 0
+          newPosx = 0
           logger.debug("Ajout ligne")
-          executeOIS100MIAddLineBatchEnt(newORNO, itno, orqt, "", inWHLO, alun, dwdt)
-          executeOIS100MIUpdUserDefCOL()
+          executeOIS100MIAddLineBatchEnt(newOrno, itno, orqt, "", inWhlo, alun, dwdt)
+          updateServiceOrderLine()
         }
-        mi.outData.put("ORNO", newORNO)
-        mi.outData.put("PONR", newPONR as String)
-        mi.outData.put("POSX", newPOSX as String)
+        mi.outData.put("ORNO", newOrno)
+        mi.outData.put("PONR", newPonr as String)
+        mi.outData.put("POSX", newPosx as String)
         mi.write()
       }
     } else {
-      mi.error("Numéro de commande " + inORNO + " n'existe pas")
+      mi.error("Numéro de commande " + inOrno + " n'existe pas")
       return
     }
   }
   // Update new order line with delivery order line primary key
-  private executeOIS100MIUpdUserDefCOL() {
-    Map<String, String> parameters = [
-      "ORNO": newORNO,
-      "PONR": newPONR,
-      "POSX": newPOSX,
-      "UCA6": inORNO,
-      "UCA7": inPONR as String,
-      "UCA8": inPOSX as String,
-      "UCA9": inDLIX as String,
-
-    ]
-    Closure<?> handler = { Map<String, String> response ->
-      if (response.error != null) {
-        return mi.error("Erreur OIS100MI CpyOrder: " + response.errorMessage)
-      } else {
-        logger.debug("NewORNO: " + response.ORNO)
-        newORNO = response.ORNO.trim()
-      }
+  private updateServiceOrderLine() {
+    logger.debug("Màj ligne newORNO/newPONR/newPOSX = " + newOrno + "/" + newPonr + "/" + newPosx)
+    DBAction queryOOLINE = database.table("OOLINE").index("00").build()
+    DBContainer OOLINE = queryOOLINE.getContainer()
+    OOLINE.set("OBCONO", currentCompany)
+    OOLINE.set("OBORNO", newOrno)
+    OOLINE.set("OBPONR", newPonr)
+    OOLINE.set("OBPOSX", newPosx)
+    if (!queryOOLINE.readLock(OOLINE, updateCallBack)) {
     }
-    miCaller.call("OIS100MI", "CpyOrder", parameters, handler)
   }
   // Execute OIS100MI.CpyOrder
-  private executeOIS100MICpyOrder(String ORNR, String ORTP, String CORH, String CORL, String COCH, String COTX, String CLCH, String CLTX, String CADR, String SAPR, String UCOS, String JDCD, String RLDT, String CODT, String EPRI) {
-    Map<String, String> parameters = ["ORNR": ORNR, "ORTP": ORTP, "CORH": CORH, "CORL": CORL, "COCH": COCH, "COTX": COTX, "CLCH": CLCH, "CLTX": CLTX, "CADR": CADR, "SAPR": SAPR, "UCOS": UCOS, "JDCD": JDCD, "RLDT": RLDT, "CODT": CODT, "EPRI": EPRI]
+  private executeOIS100MICpyOrder(String ornr, String ortp, String corh, String corl, String coch, String cotx, String clch, String cltx, String cadr, String sapr, String ucos, String jdcd, String rldt, String codt, String epri) {
+    Map<String, String> parameters = ["ORNR": ornr, "ORTP": ortp, "CORH": corh, "CORL": corl, "COCH": coch, "COTX": cotx, "CLCH": clch, "CLTX": cltx, "CADR": cadr, "SAPR": sapr, "UCOS": ucos, "JDCD": jdcd, "RLDT": rldt, "CODT": codt, "EPRI": epri]
+    logger.debug("Paramètres OIS100MI CpyOrder: " + parameters)
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Erreur OIS100MI CpyOrder: " + response.errorMessage)
       } else {
-        logger.debug("NewORNO: " + response.ORNO)
-        newORNO = response.ORNO.trim()
+        logger.debug("NewORNO: " + response.orno)
+        newOrno = response.orno.trim()
       }
     }
     miCaller.call("OIS100MI", "CpyOrder", parameters, handler)
@@ -307,18 +298,31 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     miCaller.call("OIS100MI", "ChgOrderRef", parameters, handler)
   }
   // Execute OIS100MI.AddLineBatchEnt
-  private executeOIS100MIAddLineBatchEnt(String ORNO, String ITNO, String ORQT, String SAPR, String WHLO, String ALUN, String DWDT) {
-    Map<String, String> parameters = ["ORNO": ORNO, "ITNO": ITNO, "ORQT": ORQT, "SAPR": SAPR, "WHLO": WHLO, "ALUN": ALUN, "DWDT": DWDT]
+  private executeOIS100MIAddLineBatchEnt(String orno, String itno, String orqt, String sapr, String whlo, String alun, String dwdt) {
+    Map<String, String> parameters = ["ORNO": orno, "ITNO": itno, "ORQT": orqt, "SAPR": sapr, "WHLO": whlo, "ALUN": alun, "DWDT": dwdt]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Erreur OIS100MI AddLineBatchEnt: " + response.errorMessage)
       } else {
-        newORNO = response.ORNO.trim()
-        newPONR = response.PONR.trim() as Integer
-        newPOSX = response.POSX.trim() as Integer
+        newOrno = response.orno.trim()
+        newPonr = response.ponr.trim() as Integer
+        newPosx = response.posx.trim() as Integer
       }
     }
     miCaller.call("OIS100MI", "AddLineBatchEnt", parameters, handler)
   }
-}
 
+  // Update OOLINE
+  Closure<?> updateCallBack = { LockedResult lockedResult ->
+    LocalDateTime timeOfCreation = LocalDateTime.now()
+    int changeNumber = lockedResult.get("OBCHNO")
+    lockedResult.set("OBUCA6", inOrno)
+    lockedResult.set("OBUCA7", inPonr as String)
+    lockedResult.set("OBUCA8", inPosx as String)
+    lockedResult.set("OBUCA9", inDlix as String)
+    lockedResult.setInt("OBLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+    lockedResult.setInt("OBCHNO", changeNumber + 1)
+    lockedResult.set("OBCHID", program.getUser())
+    lockedResult.update()
+  }
+}

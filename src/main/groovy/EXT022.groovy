@@ -13,7 +13,6 @@ import java.time.format.DateTimeFormatter
  */
 
 public class EXT022 extends ExtendM3Batch {
-
   private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
@@ -23,15 +22,18 @@ public class EXT022 extends ExtendM3Batch {
   private final BatchAPI batch
   private final TextFilesAPI textFiles
   private int currentCompany
-  private String currentDivision
+
+  //Logging management
+  private List<String> LOGLEVELS = ["DEBUG", "INFO", "WARN", "ERROR"]
+  private List<String> logmessages
+  private String loglevel
+  private String logfile
+  private String logFileName
+
   private String ascd = ""
   private String cuno = ""
-  private String cunt = ""
   private String fdat = ""
-  private String prrf = ""
-  private String cucd = ""
   private String fvdt = ""
-  private String Status = ""
   private String stat = ""
   private Integer iSUNO = 0
   private String suno = ""
@@ -59,6 +61,7 @@ public class EXT022 extends ExtendM3Batch {
   private String cfi2 = ""
   private Integer iITNO = 0
   private String itno = ""
+  private String lastItno = ""
   private Integer iPOPN = 0
   private String popn = ""
   private Integer iULTY = 0
@@ -91,20 +94,23 @@ public class EXT022 extends ExtendM3Batch {
   private Integer zori
   private Integer zphy
   private String sule
+  private String suld
   private String data
   private Integer zohf
+  private Integer ext010Fvdt
+  private Integer ext010Lvdt
+  private double price
 
   private boolean constraintIsOK = false
   private boolean criteriaFound = false
-  private Integer Count = 0
-  private String count = 0
-  private Integer countItem = 0
+  private Integer itemsInOASITN = 0
+  private Integer countExt010Records = 0
   private boolean in60 = false
   private String rawData
   private int rawDataLength
   private int beginIndex
   private int endIndex
-  private String logFileName
+  private String logfile
   private String jobNumber
   private String referenceId
   private Integer nbMaxRecord = 10000
@@ -121,17 +127,30 @@ public class EXT022 extends ExtendM3Batch {
 
   public void main() {
     // Get job number
+    currentCompany = (Integer) program.getLDAZD().CONO
     LocalDateTime timeOfCreation = LocalDateTime.now()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
 
+    //log management
+    initializeLogManagement()
+
+    //initialize log file
+    textFiles.open("log")
+    logfile = program.getProgramName() + "." + "batch" + "." + jobNumber + ".log"
+    logmessages = new LinkedList<String>()
+
+
+    String nbr = getCRS881("","EXTENC", "1", "ExtendM3", "I", "EXT022", "nbMaxRecord", "", "")
+    nbMaxRecord = nbr as Integer
 
     if (batch.getReferenceId().isPresent()) {
       referenceId = "test"
       Optional<String> data = getJobData(batch.getReferenceId().get())
       performActualJob(data)
     } else {
-      // No job data found
+      logMessage("ERROR", "No job data found")
     }
+    logMessages()
   }
   // Get job data
   private Optional<String> getJobData(String referenceId) {
@@ -147,6 +166,7 @@ public class EXT022 extends ExtendM3Batch {
   // Perform actual job
   private performActualJob(Optional<String> data) {
     if (!data.isPresent()) {
+      logMessage("ERROR", "No job data found")
       return
     }
     rawData = data.get()
@@ -155,25 +175,27 @@ public class EXT022 extends ExtendM3Batch {
     String inFDAT = getNextParameter()
     String inITNO = getNextParameter()
     String inOPT2 = getNextParameter()
-    String inPRRF = getNextParameter()
-    String inCUCD = getNextParameter()
     String inFVDT = getNextParameter()
-    String inCUNT = getNextParameter()
+    String inLEVL = getNextParameter()
+    logMessage("DEBUG", "start job EXT022 ascd:${ascd} cuno:${cuno} fdat:${fdat} itno:${itno} opt2:${inOPT2} fvdt:${fvdt} loglevel:${inLEVL}")
 
-    currentCompany = (Integer) program.getLDAZD().CONO
-    currentDivision = program.getLDAZD().DIVI
+    loglevel = inLEVL.length() == 0 ? "WARN" : inLEVL.trim()
+    if (!LOGLEVELS.contains(loglevel)) {
+      String message = "Niveau de log incorrect ${loglevel}"
+      loglevel = "WARN"
+      logMessage("ERROR", message)
+    }
+
     LocalDateTime timeOfCreation = LocalDateTime.now()
 
     ascd = inASCD
     cuno = inCUNO
-    cunt = inCUNT
 
     if (inFDAT != null && !inFDAT.trim().isBlank()) {
       fdat = inFDAT
       if (!utility.call("DateUtil", "isDateValid", fdat, "yyyyMMdd")) {
-        String header = "MSG;" + "FDAT"
         String message = "Date de début est incorrecte " + ";" + fdat
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       }
     } else {
@@ -188,37 +210,32 @@ public class EXT022 extends ExtendM3Batch {
     ext020Request.set("EXCUNO", cuno)
     ext020Request.setInt("EXFDAT", fdat as Integer)
     if (!ext020Query.read(ext020Request)) {
-      String header = "MSG"
-      String message = "Entête sélection n'existe pas"
-      logMessage(header, message)
+      String message = "Entête sélection n'existe pas ${ascd} ${cuno} ${fdat}"
+      logMessage("ERROR", message)
       return
     }
 
     // Check option
     if (inOPT2 == null && !inOPT2.trim().isBlank()) {
-      String header = "MSG"
       String message = "Option est obligatoire"
-      logMessage(header, message)
+      logMessage("ERROR", message)
       return
     }
 
     if (inOPT2 != "1" && inOPT2 != "2") {
       String opt2 = inOPT2
       String header = "MSG"
-      String message = "Option " + opt2 + " est invalide"
-      logMessage(header, message)
+      String message = "Option ${opt2} est invalide"
+      logMessage("ERROR", message)
       return
     }
-
-    prrf = inPRRF
-    cucd = inCUCD
 
     if (inFVDT != null && !inFVDT.trim().isBlank()) {
       fvdt = inFVDT
       if (!utility.call("DateUtil", "isDateValid", fvdt, "yyyyMMdd")) {
         String header = "MSG"
-        String message = "Date de début de validité " + fvdt + " est incorrecte"
-        logMessage(header, message)
+        String message = "Date de début de validité ${fvdt} est incorrecte"
+        logMessage("ERROR", message)
         return
       }
     } else {
@@ -233,12 +250,11 @@ public class EXT022 extends ExtendM3Batch {
     if (ocusmaQuery.read(ocusmaRequest)) {
       constraintCSCD = ocusmaRequest.getString("OKCSCD")
     }
-
     // Check criteria used in the selection
     checkUsedCriteria()
 
     if (criteriaFound) {
-      updateCUGEX1("10", count)
+      updateCUGEX1("10", "" + itemsInOASITN)
 
       // Delete file EXT022
       deleteEXT022()
@@ -246,30 +262,28 @@ public class EXT022 extends ExtendM3Batch {
       ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
       ext010Expression = ext010Expression.le("EXFVDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")))
       ext010Expression = ext010Expression.and(ext010Expression.ge("EXLVDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd"))))
-      DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCUNO", "EXITNO", "EXCMDE", "EXFVDT", "EXLVDT", "EXSULE").build()
+      if (!inITNO.trim().isEmpty()){
+        ext010Expression = ext010Expression.and(ext010Expression.ge("EXITNO", inITNO.trim()))
+      }
+
+      DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCUNO", "EXITNO", "EXCMDE", "EXFVDT", "EXLVDT", "EXSULE", "EXSULD").build()
       DBContainer ext010Request = ext010Query.getContainer()
       ext010Request.set("EXCONO", currentCompany)
       ext010Request.set("EXCUNO", cuno)
       //no limitation in readAll we have to read all ext010 records for the customer
       if (!ext010Query.readAll(ext010Request, 2, nbMaxRecord, ext010Reader)) {
       }
-
-      // Add mode
-      if (inOPT2 == "1") {
-        // Add selected items in the assortment
-        executeEXT820MISubmitBatch(currentCompany as String, "EXT023", ascd, cuno, fdat, "", "", "", "", "")
-      }
-      // Update mode
-      if (inOPT2 == "2") {
-        // Update selected items in the assortment
-        executeEXT023MIUpdAssortItems(ascd, cuno, fdat)
-      }
-      count = Count
-      updateCUGEX1("90", count)
+      updateCUGEX1("90", "" + itemsInOASITN)
+    } else {
+      logMessage("ERROR", "Pas de critères trouvés pour la selection ascd:${ascd} cuno:${cuno} fdat:${fdat}")
     }
-
     // Delete file EXTJOB
     deleteEXTJOB()
+
+    //launch new job
+    if (countExt010Records == nbMaxRecord) {
+      executeEXT820MISubmitBatch(currentCompany as String, "EXT022", inASCD, inCUNO, inFDAT, lastItno, inOPT2, inFVDT, inLEVL, "")
+    }
   }
   /**
    * Check used criteria contained in EXT021 table
@@ -283,62 +297,7 @@ public class EXT022 extends ExtendM3Batch {
     ext021Request.set("EXCUNO", cuno)
     ext021Request.set("EXFDAT", fdat as Integer)
     // Initialization of a boolean for each criteria: 0 = not used, 1 = inclusion, 2 = exclusion
-    ext021Request.set("EXTYPE", "SUNO")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "PROD")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "HIE1")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "HIE2")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "HIE3")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "HIE4")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "HIE5")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "BUAR")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "CFI1")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "CSCD")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "CSNO")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "CFI2")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "ITNO")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "POPN")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "ULTY")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "SLDY")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "CPFX")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "CMDE")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
-    }
-    ext021Request.set("EXTYPE", "GOLD")
-    if (!ext021Query.readAll(ext021Request, 5, 1, outDataEXT021)) {
+    if (!ext021Query.readAll(ext021Request, 4, 10000, outDataEXT021)) {
     }
   }
   // Retrieve MITMAS
@@ -373,14 +332,23 @@ public class EXT022 extends ExtendM3Batch {
     }
 
     // Get the value for the other criteria used in the selection
+    logger.debug("#FLB - getCriteriaValue ${itno}")
     getCriteriaValue()
 
-    boolean  itemOk = itemSelectionOK()
-    // Check if the item matches the selection
-    if ((itemOk)) {
+    logger.debug("#FLB - itemSelectionOK  ${itno}")
+    boolean itemOk = itemSelectionOK()
+    logMessage("DEBUG", "Item GO selection : ITNO:${itno}")
+    if (!itemOk) {
+      logMessage("DEBUG", "ItemKO selection : ITNO:${itno} ok:${itemOk}")
+    }
 
-      countItem++
-      boolean  contOK = constraintsOK()
+    // Check if the item matches the selection
+    logger.debug("#FLB - itemSelectionOK  ${itno}")
+    if ((itemOk)) {
+      boolean contOK = constraintsOK()
+      if (!contOK) {
+        logMessage("DEBUG", "ItemKO qualité : ITNO:${itno} ok:${contOK}")
+      }
       if (contOK) {
         LocalDateTime timeOfCreation = LocalDateTime.now()
         DBAction query = database.table("EXT022").index("00").build()
@@ -397,12 +365,57 @@ public class EXT022 extends ExtendM3Batch {
           EXT022.setInt("EXCHNO", 1)
           EXT022.set("EXCHID", program.getUser())
           query.insert(EXT022)
-          Count++
+          DBAction queryOasitn = database.table("OASITN").index("00").build()
+          DBContainer containerOasitn = queryOasitn.getContainer()
+          containerOasitn.set("OICONO", currentCompany)
+          containerOasitn.set("OIASCD", ascd)
+          containerOasitn.set("OIITNO", itno)
+          containerOasitn.set("OIFDAT", fdat as Integer)
+          if (!queryOasitn.read(containerOasitn)) {
+            executeCRS105MIAddAssmItem(ascd, itno, fdat)
+          }
+          itemsInOASITN++
         }
       }
-      logEXT875(referenceId, "EXT022", "1", "CUNO : ${cuno};ITNO : ${itno};ConstrainteOK =: ${contOK} ;ItemOK : ${itemOk} ")
     }
   }
+
+
+  // Execute CRS105MI.AddAssmItem
+  private executeCRS105MIAddAssmItem(String pAscd, String pItno, String pFdat){
+    Map<String, String> parameters = ["ASCD": pAscd, "ITNO": pItno, "FDAT": pFdat]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        logger.debug("#PB CRS105MI.AddAssmItem error :" + response.errorMessage)
+        String header = "MSG"
+        String message = "Failed CRS105MI.AddAssmItem: " + response.errorMessage
+        logMessage(header, message)
+        return
+      } else {
+      }
+    }
+    //Search Item exclusion
+    boolean exclu = false
+    ExpressionFactory expressionExt025 = database.getExpressionFactory("EXT025")
+    expressionExt025 = expressionExt025.le("EXFDAT", pFdat)
+
+    DBAction ext025Query = database.table("EXT025").index("00").matching(expressionExt025).selection("EXCONO", "EXITNO", "EXCUNO", "EXFDAT", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
+    DBContainer ext025Request = ext025Query.getContainer()
+    ext025Request.set("EXCONO", currentCompany)
+    ext025Request.set("EXCUNO", cuno)
+    ext025Request.set("EXITNO", pItno)
+
+    Closure<?> ext025Reader = { DBContainer ext025Result ->
+      exclu = true
+    }
+
+    if(!ext025Query.readAll(ext025Request, 3, 1, ext025Reader)){
+    }
+    if (!exclu) {
+      miCaller.call("CRS105MI", "AddAssmItem", parameters, handler)
+    }
+  }
+
   /**
    * Delete records related to the assortment from EXT022 table
    */
@@ -461,7 +474,7 @@ public class EXT022 extends ExtendM3Batch {
     MITPOP.set("MPALWT", 1)
     MITPOP.set("MPALWQ", "")
     MITPOP.set("MPITNO", itno)
-    if (!queryMITPOP.readAll(MITPOP, 4, nbMaxRecord, outDataMITPOP)) {
+    if (!queryMITPOP.readAll(MITPOP, 4, 1, outDataMITPOP)) {
     }
     //}
     zalc = 0
@@ -529,6 +542,38 @@ public class EXT022 extends ExtendM3Batch {
     // Status must be greater than or equal to 80
     if (stat >= "80")
       return false
+
+    // Check double
+    if(!checkDouble(cuno, itno, ext010Fvdt as String, ext010Lvdt as String)){
+      return false
+    }
+
+    //chech sule / suld
+    if (sule.length() == 0 && suld.length() == 0){
+      return false
+    }
+
+    //chech suno / itno
+    if(sule.length()>0){
+      if(!checkSunoItno(sule, itno)){
+        return false
+      }
+    } else {
+      if(!checkSunoItno(suld, itno)){
+        return false
+      }
+    }
+
+    //check price
+    price = 0
+    if(sule.length()>0){
+      executePPS106MIGetPrice(itno, sule)
+    } else {
+      executePPS106MIGetPrice(itno, suld)
+    }
+    if(price==0){
+      return false
+    }
 
     // If global assortment is selected, selection is ok for all the items
     if (iGOLD == 1)
@@ -722,6 +767,107 @@ public class EXT022 extends ExtendM3Batch {
   }
 
   /**
+   * Read information from DB EXT010
+   * Double check
+   *
+   * @parameter Customer, Item, From date, To date
+   * @return true if ok false otherwise
+   * */
+  private boolean checkDouble(String cuno, String itno, String fvdt, String lvdt){
+    boolean errorIndicator = false
+    ExpressionFactory ext010Expression1 = database.getExpressionFactory("EXT010")
+    ext010Expression1 = (ext010Expression1.ge("EXFVDT", fvdt)).and(ext010Expression1.le("EXFVDT", lvdt))
+    DBAction ext010Double1 = database.table("EXT010")
+      .index("02")
+      .matching(ext010Expression1)
+      .selection("EXFVDT", "EXLVDT")
+      .build()
+    DBContainer containerExt0101 = ext010Double1.getContainer()
+    containerExt0101.set("EXCONO", currentCompany)
+    containerExt0101.set("EXCUNO", cuno)
+    containerExt0101.set("EXITNO", itno)
+    Closure<?> outEXT0101 = { DBContainer EXT0101result ->
+      errorIndicator = true
+    }
+    if (!ext010Double1.readAll(containerExt0101, 3, 1, outEXT0101)) {
+    }
+    if(errorIndicator){
+      return false
+    }
+    ExpressionFactory ext010Expression2 = database.getExpressionFactory("EXT010")
+    ext010Expression2 = (ext010Expression2.ge("EXLVDT", fvdt)).and(ext010Expression2.le("EXLVDT", lvdt))
+    DBAction ext010Double2 = database.table("EXT010")
+      .index("02")
+      .matching(ext010Expression2)
+      .selection("EXFVDT", "EXLVDT")
+      .build()
+    DBContainer containerExt0102 = ext010Double2.getContainer()
+    containerExt0102.set("EXCONO", currentCompany)
+    containerExt0102.set("EXCUNO", cuno)
+    containerExt0102.set("EXITNO", itno)
+    Closure<?> outEXT0102 = { DBContainer EXT0101result ->
+      errorIndicator = true
+    }
+    if (!ext010Double2.readAll(containerExt0102, 3, 1, outEXT0102)) {
+    }
+    if(errorIndicator){
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Read information from DB EXT010
+   * Double check
+   *
+   * @parameter Customer, Item, From date, To date
+   * @return true if ok false otherwise
+   * */
+  private boolean checkSunoItno(String suno, String itno){
+    boolean found = false
+    DBAction mitvenQuery = database.table("MITVEN")
+      .index("10")
+      .selection("IFSITE")
+      .build()
+    DBContainer containerMitven = mitvenQuery.getContainer()
+    containerMitven.set("IFCONO", currentCompany)
+    containerMitven.set("IFSUNO", suno)
+    containerMitven.set("IFITNO", itno)
+    Closure<?> outMitven = { DBContainer mitvenResult ->
+      found = true
+    }
+    if (!mitvenQuery.readAll(containerMitven, 3, 1, outMitven)) {
+    }
+    if(found){
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Execute PPS106MI.GetPrice
+   *
+   * @parameter Item, supplier
+   * @return price
+   * */
+  private executePPS106MIGetPrice(String ITNO, String SUNO) {
+    Map<String, String> parameters = ["ITNO": ITNO, "SUNO": SUNO, "ORQA": "1"]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        logger.debug("#PB PPS106MI.GetPrice error :" + response.errorMessage)
+        String header = "MSG"
+        String message = "Failed PPS106MI.GetPrice: " + response.errorMessage
+        logMessage(header, message)
+        return
+      } else {
+      }
+      if (response.PUPR != null)
+        price = response.PUPR as double
+    }
+    miCaller.call("PPS106MI", "GetPrice", parameters, handler)
+  }
+
+  /**
    * Return true if no blocking constraint is found for the item
    */
   public boolean constraintsOK() {
@@ -899,7 +1045,7 @@ public class EXT022 extends ExtendM3Batch {
     EXT030.set("EXCONO", currentCompany)
     EXT030.set("EXZBLO", 1)
     EXT030.set("EXSTAT", "20")
-    if (!queryEXT030.readAll(EXT030, 3, nbMaxRecord,outDataEXT030)) {
+    if (!queryEXT030.readAll(EXT030, 3, nbMaxRecord, outDataEXT030)) {
     }
     return constraintIsOK
   }
@@ -916,6 +1062,12 @@ public class EXT022 extends ExtendM3Batch {
     itno = ext010Result.get("EXITNO")
     cmde = ext010Result.get("EXCMDE")
     sule = ext010Result.get("EXSULE")
+    suld = ext010Result.get("EXSULD")
+    ext010Fvdt = ext010Result.get("EXFVDT") as Integer
+    ext010Lvdt = ext010Result.get("EXLVDT") as Integer
+    countExt010Records++
+    lastItno = itno
+
     // Read items et insert in EXT022 the selected items
     if (itno != "") {
       DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMSTAT", "MMPROD", "MMHIE1", "MMHIE2", "MMHIE3", "MMHIE4", "MMHIE5", "MMBUAR", "MMCFI1", "MMCFI2", "MMSPE1", "MMHAZI", "MMCFI4", "MMSUNO").build()
@@ -985,7 +1137,7 @@ public class EXT022 extends ExtendM3Batch {
       if (response.error != null) {
         String header = "MSG"
         String message = "Failed EXT023MI.AddAssortItems: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
@@ -997,6 +1149,11 @@ public class EXT022 extends ExtendM3Batch {
     Map<String, String> parameters = ["CONO": CONO, "JOID": JOID, "P001": P001, "P002": P002, "P003": P003, "P004": P004, "P005": P005, "P006": P006, "P007": P007, "P008": P008]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
+        logger.debug("#PB EXT820MI.SubmitBatch error :" + response.errorMessage)
+        String header = "MSG"
+        String message = "Failed EXT820MI.SubmitBatch: " + response.errorMessage
+        logMessage(header, message)
+        return
       } else {
       }
     }
@@ -1009,7 +1166,7 @@ public class EXT022 extends ExtendM3Batch {
       if (response.error != null) {
         String header = "MSG"
         String message = "Failed EXT023MI.UpdAssortItems: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
@@ -1041,9 +1198,8 @@ public class EXT022 extends ExtendM3Batch {
     Map<String, String> parameters = ["FILE": FILE, "PK01": PK01, "PK02": PK02, "PK03": PK03, "PK04": PK04, "PK05": PK05, "PK06": PK06, "PK07": PK07, "PK08": PK08, "A030": A030, "N096": N096]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        String header = "MSG"
         String message = "Failed CUSEXTMI.AddFieldValue: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
@@ -1055,9 +1211,8 @@ public class EXT022 extends ExtendM3Batch {
     Map<String, String> parameters = ["FILE": FILE, "PK01": PK01, "PK02": PK02, "PK03": PK03, "PK04": PK04, "PK05": PK05, "PK06": PK06, "PK07": PK07, "PK08": PK08, "A030": A030, "N096": N096]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        String header = "MSG"
         String message = "Failed CUSEXTMI.ChgFieldValue: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
@@ -1074,16 +1229,6 @@ public class EXT022 extends ExtendM3Batch {
     return parameter
   }
 
-  // Log EXT875
-  private void logEXT875(String rfid, String jbnm, String levl, String tmsg) {
-    Map parameters = ["RFID": rfid, "JBNM": jbnm, "LEVL": levl, "TMSG": tmsg]
-    Closure<?> handler = { Map<String, String> response ->
-      if (response.error != null) {
-        logger.debug("#PB  error EXT875MI:" + response.errorMessage)
-      }
-    }
-    miCaller.call("EXT875MI", "AddLog", parameters, handler)
-  }
 
   // Get next parameter
   private String getNextParameter() {
@@ -1110,22 +1255,85 @@ public class EXT022 extends ExtendM3Batch {
   Closure<?> updateCallBackEXTJOB = { LockedResult lockedResult ->
     lockedResult.delete()
   }
-  // Log message
-  void logMessage(String header, String message) {
-    textFiles.open("FileImport")
-    logFileName = "MSG_" + program.getProgramName() + "." + "batch" + "." + jobNumber + ".csv"
-    if (!textFiles.exists(logFileName)) {
-      log(header)
-      log(message)
+  /**
+   * Initialize log management
+   */
+  private void initializeLogManagement() {
+    textFiles.open("log")
+    logfile = program.getProgramName() + "." + "batch" + "." + jobNumber + ".log"
+    logmessages = new LinkedList<String>()
+    loglevel = getCRS881("", "EXTENC", "1", "ExtendM3", "I", program.getProgramName(), "LOGLEVEL", "", "")
+    logger.debug("loglevel = " + loglevel)
+    if (!LOGLEVELS.contains(loglevel)) {
+      String message = "Niveau de log incorrect ${loglevel}"
+      loglevel = "ERROR"
+      logMessage("ERROR", message)
     }
   }
-  // Log
-  void log(String message) {
-    in60 = true
-    message = LocalDateTime.now().toString() + ";" + message
+  /**
+   * @param level
+   * @param message
+   */
+  void logMessage(String level, String message) {
+    int lvl = LOGLEVELS.indexOf(level)
+    int lvg = LOGLEVELS.indexOf(loglevel)
+    if (lvl >= lvg) {
+      message = LocalDateTime.now().toString() + ": ${level} ${message}"
+      logmessages.add(message)
+    }
+  }
+  /**
+   * Log messages
+   */
+  private void logMessages(){
+    String message = String.join("\r\n", logmessages)
     Closure<?> consumer = { PrintWriter printWriter ->
       printWriter.println(message)
     }
-    textFiles.write(logFileName, "UTF-8", true, consumer)
+    textFiles.write(logfile, "UTF-8", true, consumer)
   }
+
+  /**
+   * Get the value in CRS881/CRS882
+   * @param division
+   * @param mstd
+   * @param mvrs
+   * @param bmsg
+   * @param ibob
+   * @param elmp
+   * @param elmd
+   * @param elmc
+   * @param mbmc
+   * @return
+   */
+  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
+    String mvxd = ""
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
+    DBContainer requestMbmtrn = queryMbmtrn.getContainer()
+    requestMbmtrn.set("TRTRQF", "0")
+    requestMbmtrn.set("TRMSTD", mstd)
+    requestMbmtrn.set("TRMVRS", mvrs)
+    requestMbmtrn.set("TRBMSG", bmsg)
+    requestMbmtrn.set("TRIBOB", ibob)
+    requestMbmtrn.set("TRELMP", elmp)
+    requestMbmtrn.set("TRELMD", elmd)
+    requestMbmtrn.set("TRELMC", elmc)
+    requestMbmtrn.set("TRMBMC", mbmc)
+    if (queryMbmtrn.read(requestMbmtrn)) {
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBContainer requestMbmtrd = queryMbmtrd.getContainer()
+      requestMbmtrd.set("TDCONO", currentCompany)
+      requestMbmtrd.set("TDDIVI", division)
+      requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
+      // Retrieve MBTRND
+      Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
+        mvxd = resultMbmtrd.get("TDMVXD") as String
+        mvxd = mvxd.trim()
+      }
+      if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {
+      }
+      return mvxd
+    }
+  }
+
 }

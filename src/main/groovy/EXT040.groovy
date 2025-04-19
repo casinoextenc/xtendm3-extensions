@@ -16,6 +16,8 @@
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import mvx.db.common.PositionKey
+import mvx.db.common.PositionEmpty
 
 public class EXT040 extends ExtendM3Batch {
   private final LoggerAPI logger
@@ -25,6 +27,13 @@ public class EXT040 extends ExtendM3Batch {
   private final MICallerAPI miCaller
   private final TextFilesAPI textFiles
   private final UtilityAPI utility
+
+  //Logging management
+  private List<String> LOGLEVELS = ["DEBUG", "INFO", "WARN", "ERROR"]
+  private List<String> logmessages
+  private String loglevel
+  private String logfile
+
   private Integer currentCompany
   private String rawData
   private int rawDataLength
@@ -39,9 +48,8 @@ public class EXT040 extends ExtendM3Batch {
   private Integer inFormatTXT
   private Integer inFormatCSV
   private Integer inFormatXLSX
-  private String formatTXT
-  private String formatCSV
-  private String formatXLSX
+
+
   private Integer inAllContacts
   private Integer inSchedule
   private String previousCalendar
@@ -50,9 +58,9 @@ public class EXT040 extends ExtendM3Batch {
   private String previousCalendarNextSuffix
   private String sigma6
   private String sigma9
-  private String sigma9_DirectDelivery
+  private String sigma9DirectDelivery
   private String sigma9_NoDirectDelivery
-  private String sigma9_DirectDelivery_assortment
+  private String sigma9DirectDeliveryassortment
   private String sigma9_NoDirectDelivery_assortment
   private String stat
   private int chb7
@@ -65,11 +73,17 @@ public class EXT040 extends ExtendM3Batch {
   private String lines
   private String assortment
   private int countLines
+
+  private int lineIncadencier
+  private int lineInGapFile
+  private int lineInAlert
+  private int lineInControlPrice
+
   private double currentCOFA
   private double savedCOFA
-  public boolean gapFileExists
-  private String UL
-  private String EAN13
+
+  private String ul
+  private String ean13
   private String libelleArticle
   private String libelleSigma6
   private String codeArticleRemplace
@@ -80,8 +94,8 @@ public class EXT040 extends ExtendM3Batch {
   private Integer currentFromValidDate
   private String evolutionPrixCadencierPrecedent
   private String unitePrixVente
-  private String DLGR
-  private String DLC
+  private String dlgr
+  private String dlc
   private String codeMarque
   private String libelleCodeMarque
   private String codeMarketing
@@ -112,11 +126,11 @@ public class EXT040 extends ExtendM3Batch {
   private String couleur
   private String modele
   private String diffusion
-  private String FBA
-  private String DUN14
+  private String fba
+  private String dun14
   private String minimumCommande
   private String parCombien
-  private String nbCouche_palette
+  private String nbCouchePalette
   private String nbColisParCouche
   private String nbColisParPalette
   private String nbUVCParPalette
@@ -136,6 +150,7 @@ public class EXT040 extends ExtendM3Batch {
   private String rscl
   private String assortimentLogistique
   private String pltb
+  private String prrf
   private String spe1
   private String spe2
   private String hie2
@@ -152,9 +167,9 @@ public class EXT040 extends ExtendM3Batch {
   private String temperature
   private double sumCNQT
   private String typeBox
-  private boolean isAlcool //A°FLB 20240524
+  private boolean isAlcool
   private String nombreComposantBox
-  private int count_OASITN = 0
+  private int countOasitn = 0
   private String fileJobNumber
   private boolean isMainAssortment = false
   private String mainAssortment
@@ -172,15 +187,22 @@ public class EXT040 extends ExtendM3Batch {
 
   public void main() {
     // Get job number
+    currentCompany = (Integer) program.getLDAZD().CONO
     LocalDateTime timeOfCreation = LocalDateTime.now()
     fileJobNumber = program.getJobNumber()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
+
+    //log management
+    initializeLogManagement()
+
+
     if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())
       performActualJob(data)
     } else {
       // No job data found
     }
+    logMessages()
   }
   // Perform actual job
   private performActualJob(Optional<String> data) {
@@ -198,49 +220,49 @@ public class EXT040 extends ExtendM3Batch {
 
     }
 
-    currentCompany = (Integer) program.getLDAZD().CONO
+    logMessage("INFO", "Start cadencier for customer:${inCustomer} calendar:${inCalendar} allContacts:${inAllContacts} schedule:${inSchedule}")
     //Output Type
     inFormatTXT = 0
     inFormatCSV = 0
     inFormatXLSX = 0
-    DBAction query_EXT042_Type = database.table("EXT042").index("10").selection("EXASCD", "EXFLTX", "EXFLCS", "EXFLXL").build()
-    DBContainer EXT042_Type = query_EXT042_Type.getContainer()
-    EXT042_Type.set("EXCONO", currentCompany)
-    EXT042_Type.set("EXCDNN", inCalendar)
-    EXT042_Type.set("EXCUNO", inCustomer) // 20240507 PBEAUDOUIN
-    if (!query_EXT042_Type.readAll(EXT042_Type, 3, outData_EXT042_Type)) {// 20240507 PBEAUDOUIN
+    DBAction ext042Query = database.table("EXT042").index("10").selection("EXASCD", "EXFLTX", "EXFLCS", "EXFLXL").build()
+    DBContainer ext042Request = ext042Query.getContainer()
+    ext042Request.set("EXCONO", currentCompany)
+    ext042Request.set("EXCDNN", inCalendar)
+    ext042Request.set("EXCUNO", inCustomer) // 20240507 PBEAUDOUIN
+
+    Closure<?> ext042Reader = { DBContainer EXT042_Type ->
+      inFormatTXT = EXT042_Type.get("EXFLTX")
+      inFormatCSV = EXT042_Type.get("EXFLCS")
+      inFormatXLSX = EXT042_Type.get("EXFLXL")
+      assortment = EXT042_Type.get("EXASCD") as String//A°20240503 FLEBARS
+
+    }
+    if (!ext042Query.readAll(ext042Request, 3, 1, ext042Reader)) {// 20240507 PBEAUDOUIN
+      logMessage("ERROR", "Pas de record EXT042 :${inCustomer} calendar:${inCalendar} allContacts:${inAllContacts} schedule:${inSchedule}")
+      return
 
     }
     retrieveCustomerInformations()
     isMainAssortment = assortment.trim().equals(mainAssortment)
 
-
-
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
-
     creationDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as String
     creationTime = timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as String
 
     // Perform Job
-    writeFormatFile()
+    createFormatFile()
+    createCustomerEmailFile()
+    createInternalEmailFile()
+    writeInExt040Ext041()
+    createCalendarFile()
+    createGapFile()
+    createAlertFile()
+    createPriceControlFile()
 
-    writeCustomerEmailFile()
-
-    writeInternalEmailFile()
-
-    writeEXT040_EXT041()
-
-    writeCalendarFile()
-
-    writeGapFile()
-
-    writeAlertFile()
-
-    writePriceControlFile()
-
-    writeEndFile()
-    writeEndFileSFTP()
+    createControlFile()
+    createControlFilesFtp()
     if (isMainAssortment) {
       executeEXT820MISubmitBatch(String.valueOf(currentCompany), "EXT041", program.getUser(), String.valueOf(inCustomer), String.valueOf(inCalendar), String.valueOf(inAllContacts))
     }
@@ -255,11 +277,16 @@ public class EXT040 extends ExtendM3Batch {
     previousCalendarYearWeek = ""
     previousCalendarSuffix = ""
     previousCalendarNextSuffix = ""
-    DBAction query = database.table("EXT041").index("10").selection("EXCDNN").reverse().build()
-    DBContainer EXT041 = query.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCUNO", inCustomer)
-    if (!query.readAll(EXT041, 2, 1, outData_EXT041)) {
+    DBAction ext041Query = database.table("EXT041").index("10").selection("EXCDNN").reverse().build()
+    DBContainer ext041Request = ext041Query.getContainer()
+    ext041Request.set("EXCONO", currentCompany)
+    ext041Request.set("EXCUNO", inCustomer)
+
+    // Retrieve EXT041
+    Closure<?> ext041Reader = { DBContainer EXT041 ->
+      previousCalendar = EXT041.get("EXCDNN")
+    }
+    if (!ext041Query.readAll(ext041Request, 2, 1, ext041Reader)) {
     }
     if (inCalendar == previousCalendar)
       isReedition = true
@@ -320,164 +347,170 @@ public class EXT040 extends ExtendM3Batch {
         mainAssortment = ta230.trim()
       }
     }
+
+    DBAction oprmtxQuery = database.table("OPRMTX").index("00").selection("DXPRRF").build()
+    DBContainer oprmtxRequest = oprmtxQuery.getContainer()
+    oprmtxRequest.set("DXCONO", currentCompany)
+    oprmtxRequest.set("DXPLTB", pltb)
+    oprmtxRequest.set("DXPREX", " 5")
+    oprmtxRequest.set("DXOBV1", inCustomer)
+    oprmtxRequest.set("DXOBV2", "")
+    oprmtxRequest.set("DXOBV3", "")
+    oprmtxRequest.set("DXOBV4", "")
+    oprmtxRequest.set("DXOBV5", "")
+    if (oprmtxQuery.read(oprmtxRequest)) {
+      prrf = oprmtxRequest.get("DXPRRF") as String
+    }
+
   }
+
   // Retrieve EXT010
-  Closure<?> outData_EXT010 = { DBContainer EXT010 ->
-    cmde = EXT010.get("EXCMDE")
-  }
-  // Retrieve EXT010
-  Closure<?> outData_EXT010_3 = { DBContainer EXT010 ->
+  Closure<?> ext010Reader3 = { DBContainer ext010Result ->
     String suno = ""
-    String sule = EXT010.get("EXSULE")
-    String suld = EXT010.get("EXSULD")
+    String sule = ext010Result.get("EXSULE")
+    String suld = ext010Result.get("EXSULD")
     if (sule.trim() != "") {
       suno = sule
     } else {
       suno = suld
     }
     if (suno.trim() != "") {
-      DBAction query = database.table("CIDVEN").index("00").selection("IISUCL").build()
-      DBContainer CIDVEN = query.getContainer()
-      CIDVEN.set("IICONO", currentCompany)
-      CIDVEN.set("IISUNO", suno)
-      if (query.read(CIDVEN)) {
-        String sucl = CIDVEN.get("IISUCL")
+      DBAction cidvenQuery = database.table("CIDVEN").index("00").selection("IISUCL").build()
+      DBContainer cidvenRequest = cidvenQuery.getContainer()
+      cidvenRequest.set("IICONO", currentCompany)
+      cidvenRequest.set("IISUNO", suno)
+      if (cidvenQuery.read(cidvenRequest)) {
+        String sucl = cidvenRequest.get("IISUCL")
         if (sucl.trim() == "100" || sucl.trim() == "200") {
-          DBAction query_CSYTAB = database.table("CSYTAB").index("00").selection("CTTX40").build()
-          DBContainer CSYTAB = query_CSYTAB.getContainer()
-          CSYTAB.set("CTCONO", currentCompany)
-          CSYTAB.set("CTSTCO", "SUCL")
-          CSYTAB.set("CTSTKY", CIDVEN.get("IISUCL"))
-          if (query_CSYTAB.read(CSYTAB)) {
-            fournisseur = CSYTAB.get("CTTX40")
+          DBAction csytabSuclQuery = database.table("CSYTAB").index("00").selection("CTTX40").build()
+          DBContainer csytabSuclRequest = csytabSuclQuery.getContainer()
+          csytabSuclRequest.set("CTCONO", currentCompany)
+          csytabSuclRequest.set("CTSTCO", "SUCL")
+          csytabSuclRequest.set("CTSTKY", cidvenRequest.get("IISUCL"))
+          if (csytabSuclQuery.read(csytabSuclRequest)) {
+            fournisseur = csytabSuclRequest.get("CTTX40")
           }
         }
         if (sucl.trim() == "200") {
           entrepot = sule
         }
       }
-      DBAction query_CIDMAS = database.table("CIDMAS").index("00").selection("IDSUNM").build()
-      DBContainer CIDMAS = query_CIDMAS.getContainer()
-      CIDMAS.set("IDCONO", currentCompany)
-      CIDMAS.set("IDSUNO", suno)
-      if (query_CIDMAS.read(CIDMAS)) {
-        nomFournisseur = CIDMAS.getString("IDSUNM")
+      DBAction cidmasQuery = database.table("CIDMAS").index("00").selection("IDSUNM").build()
+      DBContainer cidmasRequest = cidmasQuery.getContainer()
+      cidmasRequest.set("IDCONO", currentCompany)
+      cidmasRequest.set("IDSUNO", suno)
+      if (cidmasQuery.read(cidmasRequest)) {
+        nomFournisseur = cidmasRequest.getString("IDSUNM")
       }
     }
-    rscl = EXT010.get("EXRSCL")
-    assortimentLogistique = EXT010.get("EXASGD")
+    rscl = ext010Result.get("EXRSCL")
+    assortimentLogistique = ext010Result.get("EXASGD")
   }
   // Retrieve EXT040
-  Closure<?> outData_EXT040 = { DBContainer EXT040 ->
+  Closure<?> ext040ReaderWriteInCalendarFile = { DBContainer ext040Result ->
     chb7 = 0
-    DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1A830").build()
-    DBContainer CUGEX1_MITMAS = query_CUGEX1_MITMAS.getContainer()
-    CUGEX1_MITMAS.set("F1CONO", currentCompany)
-    CUGEX1_MITMAS.set("F1FILE", "MITMAS")
-    CUGEX1_MITMAS.set("F1PK01", EXT040.get("EXITNO"))
-    CUGEX1_MITMAS.set("F1PK02", "")
-    CUGEX1_MITMAS.set("F1PK03", "")
-    CUGEX1_MITMAS.set("F1PK04", "")
-    CUGEX1_MITMAS.set("F1PK05", "")
-    CUGEX1_MITMAS.set("F1PK06", "")
-    CUGEX1_MITMAS.set("F1PK07", "")
-    CUGEX1_MITMAS.set("F1PK08", "")
-    if (query_CUGEX1_MITMAS.read(CUGEX1_MITMAS)) {
-      if (CUGEX1_MITMAS.get("F1A830") == "20") {
-        sigma9_DirectDelivery = EXT040.get("EXITNO")
-        sigma9_DirectDelivery_assortment = EXT040.get("EXASCD")
+    DBAction cugex1MitmasQuery = database.table("CUGEX1").index("00").selection("F1A830").build()
+    DBContainer cugex1MitmasRequest = cugex1MitmasQuery.getContainer()
+    cugex1MitmasRequest.set("F1CONO", currentCompany)
+    cugex1MitmasRequest.set("F1FILE", "MITMAS")
+    cugex1MitmasRequest.set("F1PK01", ext040Result.get("EXITNO"))
+    cugex1MitmasRequest.set("F1PK02", "")
+    cugex1MitmasRequest.set("F1PK03", "")
+    cugex1MitmasRequest.set("F1PK04", "")
+    cugex1MitmasRequest.set("F1PK05", "")
+    cugex1MitmasRequest.set("F1PK06", "")
+    cugex1MitmasRequest.set("F1PK07", "")
+    cugex1MitmasRequest.set("F1PK08", "")
+    if (cugex1MitmasQuery.read(cugex1MitmasRequest)) {
+      if (cugex1MitmasRequest.get("F1A830") == "20") {
+        sigma9DirectDelivery = ext040Result.get("EXITNO")
+        sigma9DirectDeliveryassortment = ext040Result.get("EXASCD")
       } else {
-        DBAction query_MITAUN = database.table("MITAUN").index("00").selection("MUCOFA").build()
-        DBContainer MITAUN = query_MITAUN.getContainer()
-        MITAUN.set("MUCONO", currentCompany)
-        MITAUN.set("MUITNO", EXT040.get("EXITNO"))
-        MITAUN.set("MUAUTP", 1)
-        MITAUN.set("MUALUN", "COL")
-        if (CUGEX1_MITMAS.get("F1A830") == "30") {
+        DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
+        DBContainer mitaunRequest = mitaunQuery.getContainer()
+        mitaunRequest.set("MUCONO", currentCompany)
+        mitaunRequest.set("MUITNO", ext040Result.get("EXITNO"))
+        mitaunRequest.set("MUAUTP", 1)
+        mitaunRequest.set("MUALUN", "COL")
+        if (cugex1MitmasRequest.get("F1A830") == "30") {
           savedCOFA = -1
-          sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-          sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+          sigma9_NoDirectDelivery = ext040Result.get("EXITNO")
+          sigma9_NoDirectDelivery_assortment = ext040Result.get("EXASCD")
         }
-
-        if (query_MITAUN.read(MITAUN)) {
-          currentCOFA = MITAUN.get("MUCOFA")
+        if (mitaunQuery.read(mitaunRequest)) {
+          currentCOFA = mitaunRequest.get("MUCOFA")
           if (savedCOFA == 0) {
             savedCOFA = currentCOFA
-            sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-            sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+            sigma9_NoDirectDelivery = ext040Result.get("EXITNO")
+            sigma9_NoDirectDelivery_assortment = ext040Result.get("EXASCD")
           } else {
             if (currentCOFA < savedCOFA) {
               savedCOFA = currentCOFA
-              sigma9_NoDirectDelivery = EXT040.get("EXITNO")
-              sigma9_NoDirectDelivery_assortment = EXT040.get("EXASCD")
+              sigma9_NoDirectDelivery = ext040Result.get("EXITNO")
+              sigma9_NoDirectDelivery_assortment = ext040Result.get("EXASCD")
             }
           }
         }
       }
     }
   }
-  // Retrieve outData_EXT042_Type
-  Closure<?> outData_EXT042_Type = { DBContainer EXT042_Type ->
-    inFormatTXT = EXT042_Type.get("EXFLTX")
-    inFormatCSV = EXT042_Type.get("EXFLCS")
-    inFormatXLSX = EXT042_Type.get("EXFLXL")
-    assortment = EXT042_Type.get("EXASCD") as String//A°20240503 FLEBARS
-
-  }
-  // Retrieve EXT040
-  Closure<?> outData_EXT040_2 = { DBContainer EXT040 ->
-    foundSigma6 = true
-  }
 
   // Retrieve EXT041
-  Closure<?> outData_EXT041_2 = { DBContainer EXT041 ->
-    sigma6 = EXT041.get("EXPOPN")
-    sigma9_DirectDelivery = ""
+  Closure<?> ext041ReaderWriteInCalendarFile = { DBContainer ext041Result ->
+    sigma6 = ext041Result.get("EXPOPN")
+    logMessage("DEBUG", "ext041ReaderWriteInCalendarFile ${sigma6}")
+    sigma9DirectDelivery = ""
     sigma9_NoDirectDelivery = ""
-    sigma9_DirectDelivery_assortment = ""
+    sigma9DirectDeliveryassortment = ""
     sigma9_NoDirectDelivery_assortment = ""
     savedCOFA = 0
     // Read all ITNOs attached to the current POPN
-    DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
-    DBContainer EXT040 = query_EXT040.getContainer()
-    EXT040.set("EXCONO", currentCompany)
-    EXT040.set("EXCUNO", inCustomer)
-    EXT040.set("EXCDNN", inCalendar)
-    EXT040.set("EXPOPN", sigma6)
-    if (!query_EXT040.readAll(EXT040, 4, outData_EXT040)) {
+    DBAction ext040Query = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
+    DBContainer ext040Request = ext040Query.getContainer()
+    ext040Request.set("EXCONO", currentCompany)
+    ext040Request.set("EXCUNO", inCustomer)
+    ext040Request.set("EXCDNN", inCalendar)
+    ext040Request.set("EXPOPN", sigma6)
+    if (!ext040Query.readAll(ext040Request, 4, 10000, ext040ReaderWriteInCalendarFile)) {
     }
-    writeCalendar()
+    writeInCalendarFile()
   }
   // Retrieve EXT041
-  Closure<?> outData_EXT041_3 = { DBContainer EXT041 ->
-    sigma6 = EXT041.get("EXPOPN")
-    libelleSigma6 = EXT041.get("EXFUDS")
+  Closure<?> ext041ReaderWriteGapFile = { DBContainer ext041Record ->
+    sigma6 = ext041Record.get("EXPOPN")
+    libelleSigma6 = ext041Record.get("EXFUDS")
     foundSigma6 = false
-    DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
-    DBContainer EXT040 = query_EXT040.getContainer()
-    EXT040.set("EXCONO", currentCompany)
-    EXT040.set("EXCUNO", inCustomer)
-    EXT040.set("EXCDNN", inCalendar)
-    EXT040.set("EXPOPN", sigma6)
-    if (!query_EXT040.readAll(EXT040, 4, 1, outData_EXT040_2)) {
+    DBAction ext040Query = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
+    DBContainer ext040Request = ext040Query.getContainer()
+    ext040Request.set("EXCONO", currentCompany)
+    ext040Request.set("EXCUNO", inCustomer)
+    ext040Request.set("EXCDNN", inCalendar)
+    ext040Request.set("EXPOPN", sigma6)
+
+    // Retrieve EXT040
+    Closure<?> ext040Reader = { DBContainer EXT040 ->
+      foundSigma6 = true
     }
+    if (!ext040Query.readAll(ext040Request, 4, 1, ext040Reader)) {
+    }
+
     if (!foundSigma6) {
-      Map<String, String> dtaMITHRY = getMITHRY(sigma6)
+      Map<String, String> dtaMITHRY = getMithry(sigma6)
       line = sigma6 + ";" + libelleSigma6 + ";" + "1"
       line += ";" + dtaMITHRY["HIE1"] + ";" + dtaMITHRY["HIE1D"]
-      line += ";" + dtaMITHRY["HIE2"].replace(dtaMITHRY["HIE1"] , "") + ";" + dtaMITHRY["HIE2D"]
-      line += ";" + dtaMITHRY["HIE3"].replace(dtaMITHRY["HIE2"] , "") + ";" + dtaMITHRY["HIE3D"]
-      line += ";" + dtaMITHRY["HIE4"].replace(dtaMITHRY["HIE3"] , "") + ";" + dtaMITHRY["HIE4D"]
-      line += ";" + dtaMITHRY["HIE5"].replace(dtaMITHRY["HIE4"] , "") + ";" + dtaMITHRY["HIE5D"]
-
+      line += ";" + dtaMITHRY["HIE2"].replace(dtaMITHRY["HIE1"], "") + ";" + dtaMITHRY["HIE2D"]
+      line += ";" + dtaMITHRY["HIE3"].replace(dtaMITHRY["HIE2"], "") + ";" + dtaMITHRY["HIE3D"]
+      line += ";" + dtaMITHRY["HIE4"].replace(dtaMITHRY["HIE3"], "") + ";" + dtaMITHRY["HIE4D"]
+      line += ";" + dtaMITHRY["HIE5"].replace(dtaMITHRY["HIE4"], "") + ";" + dtaMITHRY["HIE5D"]
 
       countLines++
       lines += line + (countLines < 5000 ? "\r\n" : "")
       if (countLines == 5000) {
-        logMessage("", lines)
+        writeInFile("", lines)
         countLines = 0
         lines = ""
       }
+      lineInGapFile++
     }
   }
 
@@ -489,7 +522,7 @@ public class EXT040 extends ExtendM3Batch {
    * @param sigma6
    * @return
    */
-  private Map<String, String> getMITHRY(String sigma6) {
+  private Map<String, String> getMithry(String sigma6) {
     Map<String, String> response = [
       "HIE1"   : ""
       , "HIE1D": ""
@@ -514,10 +547,10 @@ public class EXT040 extends ExtendM3Batch {
     mitpopRequest.set("MPPOPN", sigma6)
 
     String tITNO = ""
-    Closure<?> mitpopReader = { DBContainer mitpopResult ->
+    Closure<?> mitpopReaderLocal = { DBContainer mitpopResult ->
       tITNO = mitpopResult.get("MPITNO") as String
     }
-    if (!mitpopQuery.readAll(mitpopRequest, 4, 1, mitpopReader)) {
+    if (!mitpopQuery.readAll(mitpopRequest, 4, 1, mitpopReaderLocal)) {
     }
 
     DBAction mitmasQuery = database.table("MITMAS").index("00").selection(
@@ -538,11 +571,11 @@ public class EXT040 extends ExtendM3Batch {
       response["HIE4"] = mitmasRequest.getString("MMHIE4").trim()
       response["HIE5"] = mitmasRequest.getString("MMHIE5").trim()
     }
-    response["HIE1D"] = getMITHRYDescription(1, response["HIE1"]).trim()
-    response["HIE2D"] = getMITHRYDescription(2, response["HIE2"]).trim()
-    response["HIE3D"] = getMITHRYDescription(3, response["HIE3"]).trim()
-    response["HIE4D"] = getMITHRYDescription(4, response["HIE4"]).trim()
-    response["HIE5D"] = getMITHRYDescription(5, response["HIE5"]).trim()
+    response["HIE1D"] = getMithryDescription(1, response["HIE1"]).trim()
+    response["HIE2D"] = getMithryDescription(2, response["HIE2"]).trim()
+    response["HIE3D"] = getMithryDescription(3, response["HIE3"]).trim()
+    response["HIE4D"] = getMithryDescription(4, response["HIE4"]).trim()
+    response["HIE5D"] = getMithryDescription(5, response["HIE5"]).trim()
 
     return response
 
@@ -554,7 +587,7 @@ public class EXT040 extends ExtendM3Batch {
    * @param hie0
    * @return
    */
-  private String getMITHRYDescription(int level, String hie0) {
+  private String getMithryDescription(int level, String hie0) {
     DBAction mithryQuery = database.table("MITHRY").index("00").selection(
       "HITX40"
     )
@@ -570,145 +603,45 @@ public class EXT040 extends ExtendM3Batch {
   }
 
 
-  // Retrieve EXT041
-  Closure<?> outData_EXT041 = { DBContainer EXT041 ->
-    previousCalendar = EXT041.get("EXCDNN")
-  }
-
-  // Retrieve EXT042
-  Closure<?> outData_EXT042 = { DBContainer EXT042 ->
-    //assortment = EXT042.get("EXASCD")//D° 20240503 FLEBARS
-    DBAction assortmentQuery = database.table("OASITN").index("00").selection("OIITNO", "OIASCD").build()
-    DBContainer OASITN = assortmentQuery.getContainer()
-    OASITN.set("OICONO", currentCompany)
-    OASITN.set("OIASCD", EXT042.get("EXASCD"))
-    if (!assortmentQuery.readAll(OASITN, 2, outData_OASITN)) {
-    }
-  }
   // Retrieve EXT043
-  Closure<?> outData_EXT043 = { DBContainer EXT043 ->
-    line = EXT043.get("EXEMAL")
+  Closure<?> ext043Reader = { DBContainer ext043Result ->
+    line = ext043Result.get("EXEMAL")
     countLines++
     lines += line + (countLines < 5000 ? "\r\n" : "")
     if (countLines == 5000) {
-      logMessage("", lines)
+      writeInFile("", lines)
       countLines = 0
       lines = ""
     }
   }
   // Retrieve CCUCON
-  Closure<?> outData_CCUCON = { DBContainer CCUCON ->
-    line = CCUCON.get("CCEMAL")
+  Closure<?> ccuconReader = { DBContainer ccuconResult ->
+    line = ccuconResult.get("CCEMAL")
     countLines++
     lines += line + (countLines < 5000 ? "\r\n" : "")
     if (countLines == 5000) {
-      logMessage("", lines)
-      countLines = 0
-      lines = ""
-    }
-  }
-  // Retrieve EXT044
-  Closure<?> outData_EXT044 = { DBContainer EXT044 ->
-    line = EXT044.get("EXEMAL")
-    countLines++
-    lines += line + (countLines < 5000 ? "\r\n" : "")
-    if (countLines == 5000) {
-      logMessage("", lines)
-      countLines = 0
-      lines = ""
-    }
-  }
-  // Retrieve EXT045
-  Closure<?> outData_EXT045 = { DBContainer EXT045 ->
-    sigma9 = EXT045.get("EXITNO")
-    libelleArticle = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMFUDS").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", sigma9)
-    if (query_MITMAS.read(MITMAS)) {
-      libelleArticle = MITMAS.get("MMFUDS")
-    }
-    if (!lhcd.trim().equals("FR")) {
-      DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
-      DBContainer MITLAD = query_MITLAD.getContainer()
-      MITLAD.set("MDCONO", currentCompany)
-      MITLAD.set("MDITNO", sigma9)
-      MITLAD.set("MDLNCD", "GB")
-      if (query_MITLAD.read(MITLAD)) {
-        libelleArticle = MITLAD.get("MDFUDS")
-      }
-    }
-    line = sigma9 + ";" + libelleArticle + ";" + "1"
-    countLines++
-    lines += line + (countLines < 5000 ? "\r\n" : "")
-    if (countLines == 5000) {
-      logMessage("", lines)
-      countLines = 0
-      lines = ""
-    }
-  }
-  // Retrieve EXT046
-  Closure<?> outData_EXT046 = { DBContainer EXT046 ->
-    sigma9 = EXT046.get("EXITNO")
-    sapr = EXT046.get("EXSAPR")
-    appr = EXT046.get("EXAPPR")
-    libelleArticle = ""
-
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMFUDS").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", sigma9)
-    if (query_MITMAS.read(MITMAS)) {
-      libelleArticle = MITMAS.get("MMFUDS")
-    }
-    if (lhcd.trim() != "FR") {
-      DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
-      DBContainer MITLAD = query_MITLAD.getContainer()
-      MITLAD.set("MDCONO", currentCompany)
-      MITLAD.set("MDITNO", sigma9)
-      MITLAD.set("MDLNCD", "GB")
-      if (query_MITLAD.read(MITLAD)) {
-        libelleArticle = MITLAD.get("MDFUDS")
-      }
-    }
-    line = sigma9 + ";" + libelleArticle + ";" + (sapr as String) + ";" + (appr as String)
-    lines += line + "\r\n"
-    countLines++
-    if (countLines == 5000) {
-      logMessage("", lines)
+      writeInFile("", lines)
       countLines = 0
       lines = ""
     }
   }
 
-  // Retrieve OASCUS
-  Closure<?> outData_OASITN = { DBContainer OASITN ->
-    sigma9 = OASITN.get("OIITNO")
-    //assortment = OASITN.get("OIASCD")//D° 20240503 FLEBARS
-    //iscomplet = assortment.substring(assortment.length() - 1, assortment.length()) == "0"//D°20240503 FLEBARS
-    if (itemIsOK()) {
-      retrieveSigma6()
-      retrieveSalesPrice()
-      writeEXT040()
-      writeEXT041()
-    }
-  }
-  // Retrieve MITPOP
-  Closure<?> outData_MITPOP = { DBContainer MITPOP ->
-    sigma6 = MITPOP.get("MPPOPN")
-  }
+
   // Retrieve sigma6
   public void retrieveSigma6() {
     sigma6 = ""
-    ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
-    expression_MITPOP = expression_MITPOP.eq("MPREMK", "SIGMA6")
-    DBAction query_MITPOP = database.table("MITPOP").index("30").matching(expression_MITPOP).selection("MPPOPN").build()
-    DBContainer MITPOP = query_MITPOP.getContainer()
-    MITPOP.set("MPCONO", currentCompany)
-    MITPOP.set("MPALWT", 1)
-    MITPOP.set("MPITNO", sigma9)
-    if (!query_MITPOP.readAll(MITPOP, 3, outData_MITPOP)) {
+    ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
+    mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")
+    DBAction mitpopQuery = database.table("MITPOP").index("30").matching(mitpopExpression).selection("MPPOPN").build()
+    DBContainer mitpopRequest = mitpopQuery.getContainer()
+    mitpopRequest.set("MPCONO", currentCompany)
+    mitpopRequest.set("MPALWT", 1)
+    mitpopRequest.set("MPITNO", sigma9)
+    // Retrieve MITPOP
+    Closure<?> mitpopReaderS6 = { DBContainer mitpopResult ->
+      sigma6 = mitpopResult.get("MPPOPN")
+    }
+    if (!mitpopQuery.readAll(mitpopRequest, 3, 1, mitpopReaderS6)) {
     }
   }
   // Retrieve sales price
@@ -716,150 +649,189 @@ public class EXT040 extends ExtendM3Batch {
     prixVente = "0"
     savedFromValidDate = 0
     currentFromValidDate = 0
-    DBAction query_OPRMTX = database.table("OPRMTX").index("00").selection("DXPRRF").build()
-    DBContainer OPRMTX = query_OPRMTX.getContainer()
-    OPRMTX.set("DXCONO", currentCompany)
-    OPRMTX.set("DXPLTB", pltb)
-    OPRMTX.set("DXPREX", " 5")
-    OPRMTX.set("DXOBV1", inCustomer)
-    OPRMTX.set("DXOBV2", "")
-    OPRMTX.set("DXOBV3", "")
-    OPRMTX.set("DXOBV4", "")
-    OPRMTX.set("DXOBV5", "")
-    if (query_OPRMTX.read(OPRMTX)) {
-      ExpressionFactory expression = database.getExpressionFactory("OPRBAS")
-      expression = expression.le("ODVFDT", currentDate as String).and(expression.ge("ODLVDT", currentDate as String))
-      expression = expression.and(expression.eq("ODITNO", sigma9))
-      expression = expression.and(expression.eq("ODCUNO", inCustomer))
-      DBAction query_OPRBAS = database.table("OPRBAS").index("00").matching(expression).selection("ODVFDT", "ODSAPR", "ODSPUN").build()
-      DBContainer OPRBAS = query_OPRBAS.getContainer()
-      OPRBAS.set("ODCONO", currentCompany)
-      OPRBAS.set("ODPRRF", OPRMTX.get("DXPRRF"))
-      query_OPRBAS.readAll(OPRBAS, 2, outData_OPRBAS)
-    }
+    ExpressionFactory oprbasExpression = database.getExpressionFactory("OPRBAS")
+    oprbasExpression = oprbasExpression.le("ODVFDT", currentDate as String).and(oprbasExpression.ge("ODLVDT", currentDate as String))
+    oprbasExpression = oprbasExpression.and(oprbasExpression.eq("ODITNO", sigma9))
+    oprbasExpression = oprbasExpression.and(oprbasExpression.eq("ODCUNO", inCustomer))
+    DBAction oprbasQuery = database.table("OPRBAS").index("00").matching(oprbasExpression).selection("ODVFDT", "ODSAPR", "ODSPUN").build()
+    DBContainer oprbasRequest = oprbasQuery.getContainer()
+    oprbasRequest.set("ODCONO", currentCompany)
+    oprbasRequest.set("ODPRRF", prrf)
+    oprbasQuery.readAll(oprbasRequest, 2, 10000, oprbasReader)
   }
   // write EXT040 and EXT041
-  public void writeEXT040_EXT041() {
+  public void writeInExt040Ext041() {
     retrievePreviousCalendar()
     // Check customer assortment
-    DBAction assortmentQuery = database.table("EXT042").index("00").selection("EXASCD").build()
-    DBContainer EXT042 = assortmentQuery.getContainer()
-    EXT042.set("EXCONO", currentCompany)
-    EXT042.set("EXCUNO", inCustomer)
-    EXT042.set("EXCDNN", inCalendar)
-    if (!assortmentQuery.readAll(EXT042, 3, outData_EXT042)) {
+    DBAction ext042Query = database.table("EXT042").index("00").selection("EXASCD").build()
+    DBContainer ext042Request = ext042Query.getContainer()
+    ext042Request.set("EXCONO", currentCompany)
+    ext042Request.set("EXCUNO", inCustomer)
+    ext042Request.set("EXCDNN", inCalendar)
+
+    // Retrieve EXT042
+    Closure<?> ext042ReaderWriteExt040Ext041 = { DBContainer ext042Result ->
+      //assortment = EXT042.get("EXASCD")//D° 20240503 FLEBARS
+      DBAction oasitnQuery = database.table("OASITN").index("00").selection("OIITNO", "OIASCD").build()
+      DBContainer oasitnRequest = oasitnQuery.getContainer()
+      oasitnRequest.set("OICONO", currentCompany)
+      oasitnRequest.set("OIASCD", ext042Result.get("EXASCD"))
+
+      // Retrieve OASCUS
+      Closure<?> oasitnReader = { DBContainer oasitnResult ->
+        sigma9 = oasitnResult.get("OIITNO")
+        if (itemIsOK()) {
+          retrieveSigma6()
+          retrieveSalesPrice()
+          writeExt040()
+          writeExt041()
+          countOasitn++
+        }
+      }
+      //Manage loop on oasitn records we can have max 50 000 records per customer
+      boolean doLoop = true
+      int nbIteration = 0
+
+      while (doLoop) {
+        if (nbIteration > 0) {
+          PositionKey position = oasitnQuery.getPositionKey()
+          if (position instanceof PositionEmpty) {
+            doLoop = false
+            break
+          } else {
+            oasitnQuery = database.table("OASITN")
+              .index("00")
+              .selection("OIITNO", "OIASCD")
+              .position(position)
+              .build()
+          }
+        }
+        if (!oasitnQuery.readAll(oasitnRequest, 2, 10000, oasitnReader)) {
+        }
+        nbIteration++
+        if (nbIteration > 5) {//max 50 0000 records
+          logMessage("ERROR", "Nombre d'itération OASITN trop important cuno:${inCustomer} cdnn:${inCalendar}")
+          break
+        }
+      }
+    }
+    if (!ext042Query.readAll(ext042Request, 3, 1, ext042ReaderWriteExt040Ext041)) {
     }
   }
   // write EXT040
-  public void writeEXT040() {
+  public void writeExt040() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("EXT040").index("00").build()
-    DBContainer EXT040 = query.getContainer()
-    EXT040.set("EXCONO", currentCompany)
-    EXT040.set("EXCDNN", inCalendar)
-    EXT040.set("EXCUNO", inCustomer)
-    EXT040.set("EXPOPN", sigma6)
-    EXT040.set("EXITNO", sigma9)
-    if (!query.read(EXT040)) {
-      EXT040.set("EXASCD", assortment)
-      EXT040.set("EXSAPR", prixVente as double)
-      EXT040.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT040.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-      EXT040.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT040.setInt("EXCHNO", 1)
-      EXT040.set("EXCHID", program.getUser())
-      query.insert(EXT040)
+    DBAction ext040Query = database.table("EXT040").index("00").build()
+    DBContainer ext040Request = ext040Query.getContainer()
+    ext040Request.set("EXCONO", currentCompany)
+    ext040Request.set("EXCDNN", inCalendar)
+    ext040Request.set("EXCUNO", inCustomer)
+    ext040Request.set("EXPOPN", sigma6)
+    ext040Request.set("EXITNO", sigma9)
+    if (!ext040Query.read(ext040Request)) {
+      ext040Request.set("EXASCD", assortment)
+      ext040Request.set("EXSAPR", prixVente as double)
+      ext040Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext040Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+      ext040Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext040Request.setInt("EXCHNO", 1)
+      ext040Request.set("EXCHID", program.getUser())
+      ext040Query.insert(ext040Request)
     }
   }
   // write EXT041
-  public void writeEXT041() {
+  public void writeExt041() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction queryEXT041 = database.table("EXT041").index("00").build()
-    DBContainer EXT041 = queryEXT041.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCDNN", inCalendar)
-    EXT041.set("EXCUNO", inCustomer)
-    EXT041.set("EXPOPN", sigma6)
-    if (!queryEXT041.read(EXT041)) {
-      EXT041.set("EXFUDS", libelleArticle)
-      EXT041.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT041.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-      EXT041.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT041.setInt("EXCHNO", 1)
-      EXT041.set("EXCHID", program.getUser())
-      queryEXT041.insert(EXT041)
+    DBAction ext041Query = database.table("EXT041").index("00").build()
+    DBContainer ext041Request = ext041Query.getContainer()
+    ext041Request.set("EXCONO", currentCompany)
+    ext041Request.set("EXCDNN", inCalendar)
+    ext041Request.set("EXCUNO", inCustomer)
+    ext041Request.set("EXPOPN", sigma6)
+    if (!ext041Query.read(ext041Request)) {
+      ext041Request.set("EXFUDS", libelleArticle)
+      ext041Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext041Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+      ext041Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext041Request.setInt("EXCHNO", 1)
+      ext041Request.set("EXCHID", program.getUser())
+      ext041Query.insert(ext041Request)
     }
   }
   // Check if item must be selected
   public boolean itemIsOK() {
     stat = ""
     libelleArticle = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMSTAT", "MMFUDS").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", sigma9)
-    if (query_MITMAS.read(MITMAS)) {
-      stat = MITMAS.get("MMSTAT")
-      libelleArticle = MITMAS.get("MMFUDS")
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMSTAT", "MMFUDS").build()
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", sigma9)
+    if (mitmasQuery.read(mitmasRequest)) {
+      stat = mitmasRequest.get("MMSTAT")
+      libelleArticle = mitmasRequest.get("MMFUDS")
       if (lhcd.trim() != "FR") {
-        DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
-        DBContainer MITLAD = query_MITLAD.getContainer()
-        MITLAD.set("MDCONO", currentCompany)
-        MITLAD.set("MDITNO", sigma9)
-        MITLAD.set("MDLNCD", "GB")
-        if (query_MITLAD.read(MITLAD)) {
-          libelleArticle = MITLAD.get("MDFUDS")
+        DBAction mitladQuery = database.table("MITLAD").index("00").selection("MDFUDS").build()
+        DBContainer mitladRequest = mitladQuery.getContainer()
+        mitladRequest.set("MDCONO", currentCompany)
+        mitladRequest.set("MDITNO", sigma9)
+        mitladRequest.set("MDLNCD", "GB")
+        if (mitladQuery.read(mitladRequest)) {
+          libelleArticle = mitladRequest.get("MDFUDS")
         }
       }
     }
 
     chb7 = 0
-    DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1CHB7").build()
-    DBContainer CUGEX1_MITMAS = query_CUGEX1_MITMAS.getContainer()
-    CUGEX1_MITMAS.set("F1CONO", currentCompany)
-    CUGEX1_MITMAS.set("F1FILE", "MITMAS")
-    CUGEX1_MITMAS.set("F1PK01", sigma9)
-    CUGEX1_MITMAS.set("F1PK02", "")
-    CUGEX1_MITMAS.set("F1PK03", "")
-    CUGEX1_MITMAS.set("F1PK04", "")
-    CUGEX1_MITMAS.set("F1PK05", "")
-    CUGEX1_MITMAS.set("F1PK06", "")
-    CUGEX1_MITMAS.set("F1PK07", "")
-    CUGEX1_MITMAS.set("F1PK08", "")
-    if (query_CUGEX1_MITMAS.read(CUGEX1_MITMAS)) {
-      chb7 = CUGEX1_MITMAS.get("F1CHB7")
+    DBAction cugex1MitmasQuery = database.table("CUGEX1").index("00").selection("F1CHB7").build()
+    DBContainer cugex1MitmasRequest = cugex1MitmasQuery.getContainer()
+    cugex1MitmasRequest.set("F1CONO", currentCompany)
+    cugex1MitmasRequest.set("F1FILE", "MITMAS")
+    cugex1MitmasRequest.set("F1PK01", sigma9)
+    cugex1MitmasRequest.set("F1PK02", "")
+    cugex1MitmasRequest.set("F1PK03", "")
+    cugex1MitmasRequest.set("F1PK04", "")
+    cugex1MitmasRequest.set("F1PK05", "")
+    cugex1MitmasRequest.set("F1PK06", "")
+    cugex1MitmasRequest.set("F1PK07", "")
+    cugex1MitmasRequest.set("F1PK08", "")
+    if (cugex1MitmasQuery.read(cugex1MitmasRequest)) {
+      chb7 = cugex1MitmasRequest.get("F1CHB7")
     }
 
     cmde = ""
-    ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
-    expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
-    DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXCMDE").build()
-    DBContainer EXT010 = query_EXT010.getContainer()
-    EXT010.set("EXCONO", currentCompany)
-    EXT010.set("EXCUNO", inCustomer)
-    EXT010.set("EXITNO", sigma9)
-    if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010)) {
+    ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
+    ext010Expression = ext010Expression.le("EXFVDT", currentDate as String).and(ext010Expression.ge("EXLVDT", currentDate as String))
+    DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCMDE").build()
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXCUNO", inCustomer)
+    ext010Request.set("EXITNO", sigma9)
+    // Retrieve EXT010
+    Closure<?> ext010Reader = { DBContainer ext010Result ->
+      cmde = ext010Result.get("EXCMDE")
+    }
+    if (ext010Query.readAll(ext010Request, 3, 1, ext010Reader)) {
     }
 
     if (stat == "20" && chb7 == 0 && cmde == "1") {
-      count_OASITN++
       return true
     } else {
       return false
     }
   }
+
   // Write to format file
-  public void writeFormatFile() {
+  public void createFormatFile() {
     if (inSchedule == 1) {
       inFormatTXT = 0
       inFormatCSV = 0
       inFormatXLSX = 0
-      DBAction query_CUGEX1 = database.table("CUGEX1").index("00").selection("F1N296", "F1N396", "F1N496").build()
-      DBContainer CUGEX1 = query_CUGEX1.getContainer()
+      DBAction cugex1OcusmaQuery = database.table("CUGEX1").index("00").selection("F1N296", "F1N396", "F1N496").build()
+      DBContainer CUGEX1 = cugex1OcusmaQuery.getContainer()
       CUGEX1.set("F1CONO", currentCompany)
       CUGEX1.set("F1FILE", "OCUSMA")
       CUGEX1.set("F1PK01", inCustomer)
-      if (query_CUGEX1.read(CUGEX1)) {
+      if (cugex1OcusmaQuery.read(CUGEX1)) {
         inFormatTXT = CUGEX1.get("F1N296") as Integer
         inFormatCSV = CUGEX1.get("F1N396") as Integer
         inFormatXLSX = CUGEX1.get("F1N496") as Integer
@@ -867,312 +839,500 @@ public class EXT040 extends ExtendM3Batch {
     }
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "formats.txt"
     header = "CSV" + ";" + "TXT" + ";" + "XLSX"
-    logMessage(header, "")
+    writeInFile(header, "")
     line = inFormatCSV + ";" + inFormatTXT + ";" + inFormatXLSX
-    logMessage("", line)
+    writeInFile("", line)
   }
+
   // Write to customer email file
-  public void writeCustomerEmailFile() {
+  public void createCustomerEmailFile() {
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "mailsClients.txt"
     header = "Mail client"
-    logMessage(header, "")
+    writeInFile(header, "")
     countLines = 0
     lines = ""
 
     if (inAllContacts == 1) {
-      DBAction customerEmailQuery = database.table("CCUCON").index("10").selection("CCEMAL").build()
-      DBContainer CCUCON = customerEmailQuery.getContainer()
-      CCUCON.set("CCCONO", currentCompany)
-      CCUCON.set("CCERTP", 1)
-      CCUCON.set("CCEMRE", inCustomer)
-      if (!customerEmailQuery.readAll(CCUCON, 3, outData_CCUCON)) {
+      DBAction ccuconQuery = database.table("CCUCON").index("10").selection("CCEMAL").build()
+      DBContainer ccuconRequest = ccuconQuery.getContainer()
+      ccuconRequest.set("CCCONO", currentCompany)
+      ccuconRequest.set("CCERTP", 1)
+      ccuconRequest.set("CCEMRE", inCustomer)
+      if (!ccuconQuery.readAll(ccuconRequest, 3, 10000, ccuconReader)) {
       }
     } else {
-      DBAction customerEmailQuery = database.table("EXT043").index("00").selection("EXEMAL").build()
-      DBContainer EXT043 = customerEmailQuery.getContainer()
-      EXT043.set("EXCONO", currentCompany)
-      EXT043.set("EXCUNO", inCustomer)
-      EXT043.set("EXCDNN", inCalendar)
-      if (!customerEmailQuery.readAll(EXT043, 3, outData_EXT043)) {
+      DBAction ext043Query = database.table("EXT043").index("00").selection("EXEMAL").build()
+      DBContainer ext043Reqquest = ext043Query.getContainer()
+      ext043Reqquest.set("EXCONO", currentCompany)
+      ext043Reqquest.set("EXCUNO", inCustomer)
+      ext043Reqquest.set("EXCDNN", inCalendar)
+      if (!ext043Query.readAll(ext043Reqquest, 3, 10000, ext043Reader)) {
       }
     }
 
     if (countLines > 0) {
-      logMessage("", lines)
+      writeInFile("", lines)
     }
   }
   // Write to internal email file
-  public void writeInternalEmailFile() {
+  public void createInternalEmailFile() {
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "mailsInternes.txt"
     header = "Mail interne"
-    logMessage(header, "")
+    writeInFile(header, "")
     countLines = 0
     lines = ""
 
     if (inSchedule == 1) {
-      ExpressionFactory expression_CCUCON = database.getExpressionFactory("CCUCON")
-      expression_CCUCON = expression_CCUCON.eq("CCRFTP", "I-COM")
-      DBAction customerEmailQuery = database.table("CCUCON").index("10").matching(expression_CCUCON).selection("CCEMAL").build()
-      DBContainer CCUCON = customerEmailQuery.getContainer()
-      CCUCON.set("CCCONO", currentCompany)
-      CCUCON.set("CCERTP", 0)
-      CCUCON.set("CCEMRE", inCustomer)
-      if (!customerEmailQuery.readAll(CCUCON, 3, outData_CCUCON)) {
+      ExpressionFactory ccuconExpression = database.getExpressionFactory("CCUCON")
+      ccuconExpression = ccuconExpression.eq("CCRFTP", "I-COM")
+      DBAction ccuconQuery = database.table("CCUCON").index("10").matching(ccuconExpression).selection("CCEMAL").build()
+      DBContainer ccuconRequest = ccuconQuery.getContainer()
+      ccuconRequest.set("CCCONO", currentCompany)
+      ccuconRequest.set("CCERTP", 0)
+      ccuconRequest.set("CCEMRE", inCustomer)
+      if (!ccuconQuery.readAll(ccuconRequest, 3, 10000, ccuconReader)) {
       }
     } else {
-      DBAction customerEmailQuery = database.table("EXT044").index("00").selection("EXEMAL").build()
-      DBContainer EXT044 = customerEmailQuery.getContainer()
-      EXT044.set("EXCONO", currentCompany)
-      EXT044.set("EXCUNO", inCustomer)
-      EXT044.set("EXCDNN", inCalendar)
-      if (!customerEmailQuery.readAll(EXT044, 3, outData_EXT044)) {
+      DBAction ext044Query = database.table("EXT044").index("00").selection("EXEMAL").build()
+      DBContainer ext044Request = ext044Query.getContainer()
+      ext044Request.set("EXCONO", currentCompany)
+      ext044Request.set("EXCUNO", inCustomer)
+      ext044Request.set("EXCDNN", inCalendar)
+
+      // Retrieve EXT044
+      Closure<?> ext044Reader = { DBContainer ext044Result ->
+        line = ext044Result.get("EXEMAL")
+        countLines++
+        lines += line + (countLines < 5000 ? "\r\n" : "")
+        if (countLines == 5000) {
+          writeInFile("", lines)
+          countLines = 0
+          lines = ""
+        }
+      }
+      if (!ext044Query.readAll(ext044Request, 3, 10000, ext044Reader)) {
       }
     }
 
     if (countLines > 0) {
-      logMessage("", lines)
+      writeInFile("", lines)
     }
   }
+
   // write EXT045
-  public void writeEXT045() {
+  public void writeExt045() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("EXT045").index("00").build()
-    DBContainer EXT045 = query.getContainer()
-    EXT045.set("EXCONO", currentCompany)
-    EXT045.set("EXCDNN", inCalendar)
-    EXT045.set("EXCUNO", inCustomer)
-    EXT045.set("EXPOPN", sigma6)
-    EXT045.set("EXITNO", sigma9)
-    if (!query.read(EXT045)) {
-      EXT045.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT045.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-      EXT045.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT045.setInt("EXCHNO", 1)
-      EXT045.set("EXCHID", program.getUser())
-      query.insert(EXT045)
+    DBAction ext045Query = database.table("EXT045").index("00").build()
+    DBContainer ext045Request = ext045Query.getContainer()
+    ext045Request.set("EXCONO", currentCompany)
+    ext045Request.set("EXCDNN", inCalendar)
+    ext045Request.set("EXCUNO", inCustomer)
+    ext045Request.set("EXPOPN", sigma6)
+    ext045Request.set("EXITNO", sigma9)
+    if (!ext045Query.read(ext045Request)) {
+      ext045Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext045Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+      ext045Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext045Request.setInt("EXCHNO", 1)
+      ext045Request.set("EXCHID", program.getUser())
+      ext045Query.insert(ext045Request)
     }
   }
+
   // write EXT046
-  public void writeEXT046() {
+  public void writeExt046() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("EXT046").index("00").build()
-    DBContainer EXT046 = query.getContainer()
-    EXT046.set("EXCONO", currentCompany)
-    EXT046.set("EXCDNN", inCalendar)
-    EXT046.set("EXCUNO", inCustomer)
-    EXT046.set("EXPOPN", sigma6)
-    EXT046.set("EXITNO", sigma9)
-    if (!query.read(EXT046)) {
-      EXT046.set("EXSAPR", sapr)
-      EXT046.set("EXAPPR", appr)
-      EXT046.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT046.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-      EXT046.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT046.setInt("EXCHNO", 1)
-      EXT046.set("EXCHID", program.getUser())
-      query.insert(EXT046)
+    DBAction ext046Query = database.table("EXT046").index("00").build()
+    DBContainer ext046Request = ext046Query.getContainer()
+    ext046Request.set("EXCONO", currentCompany)
+    ext046Request.set("EXCDNN", inCalendar)
+    ext046Request.set("EXCUNO", inCustomer)
+    ext046Request.set("EXPOPN", sigma6)
+    ext046Request.set("EXITNO", sigma9)
+    if (!ext046Query.read(ext046Request)) {
+      ext046Request.set("EXSAPR", sapr)
+      ext046Request.set("EXAPPR", appr)
+      ext046Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext046Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+      ext046Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext046Request.setInt("EXCHNO", 1)
+      ext046Request.set("EXCHID", program.getUser())
+      ext046Query.insert(ext046Request)
     }
   }
+
   // Write to calendar file
-  public void writeCalendarFile() {
+  public void createCalendarFile() {
     if (lhcd.trim() == "FR") {
       logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier.txt"
       header = "Numéro cadencier" + ";" + "Date création" + ";" + "Heure création" + ";" + "Code magasin" + ";" + "Nom magasin" + ";" + "Mode de livraison"
-      logMessage(header, "")
+      writeInFile(header, "")
       line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName + ";" + deliveryMethodName
-      logMessage("", line + "\r\n")
+      writeInFile("", line + "\r\n")
       header = "SIGMA6" + ";" + "UL" + ";" + "Code article" + ";" + "EAN13" + ";" + "Libellé article" + ";" + "Code article remplacé" + ";" + "Libellé article remplacé" + ";" + "Prix cadencier précédent" + ";" + "Prix de vente" + ";" + "Evolution prix cadencier précédent (%)" + ";" + "Unité prix de vente" + ";" + "DLC_Totale" + ";" + "DLGR" + ";" + "Code marque" + ";" + "Libellé code marque" + ";" + "Code marketing" + ";" + "Libellé code marketing" + ";" + "Saisonnalité" + ";" + "Nouveauté" + ";" + "Langue packaging" + ";" + "Code département " + ";" + "Libellé département" + ";" + "Code rayon " + ";" + "Libellé rayon" + ";" + "Code famille" + ";" + "Libellé famille" + ";" + "Code sous famille" + ";" + "Libellé Sous famille" + ";" + "Unité de besoin" + ";" + "Libellé unité de besoin" + ";" + "Fournisseur (CASINO ou industriel)" + ";" + "Nom du fournisseur" + ";" + "Fournisseur d'origine" + ";" + "Nom du fournisseur d'origine" + ";" + "Pays d'origine" + ";" + "Code douanier" + ";" + "Type Appro" + ";" + "Entrepôt Casino" + ";" + "Taille" + ";" + "Couleur" + ";" + "Modèle" + ";" + "Diffusion" + ";" + "FBA" + ";" + "DUN14" + ";" + "Minimum de commande" + ";" + "PCB" + ";" + "Nbre couche / Palette" + ";" + "Nbre colis par couche" + ";" + "Nbre colis par palette" + ";" + "Nbre UVC par palette" + ";" + "Contenance (exprimée en L pour l'UC)" + ";" + "Poids net (exprimé en Kg pour l'UC)" + ";" + "Poids brut (exprimé en Kg pour le colis)" + ";" + "Volume colis (exprimé en m3)" + ";" + "Hauteur UVC (exprimé en m)" + ";" + "Largeur UVC (exprimé en m)" + ";" + "Longueur UVC (exprimé en m)" + ";" + "Hauteur colis (exprimé en m)" + ";" + "Largeur colis (exprimé en m)" + ";" + "Longueur colis (exprimé en m)" + ";" + "Degré d'alcool" + ";" + "Réf en droit" + ";" + "Type de box" + ";" + "Nbre de composant box" + ";" + "Température" + ";" + "Assortiment logistique"
     } else {
       logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier.txt"
       header = "Schedule number" + ";" + "Creation date" + ";" + "Creation time" + ";" + "Store" + ";" + "Store name" + ";" + "Default delivery method"
-      logMessage(header, "")
+      writeInFile(header, "")
       line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName + ";" + deliveryMethodName
-      logMessage("", line + "\r\n")
+      writeInFile("", line + "\r\n")
       header = "SIGMA6" + ";" + "UL" + ";" + "Item code" + ";" + "Barcode" + ";" + "Item designation" + ";" + "Replaced item code" + ";" + "Replaced item designation" + ";" + "Previous unit invoiced price" + ";" + "Unit invoiced price" + ";" + "Price evolution" + ";" + "Selling unit" + ";" + "Total DLC" + ";" + "Warehouse shelf life" + ";" + "Brand code" + ";" + "Brand code name" + ";" + "Marketing code" + ";" + "Marketing code name" + ";" + "Seasonality (P = Permanent S = Seasonality)" + ";" + "New" + ";" + "Pack language" + ";" + "Department Code" + ";" + "Department" + ";" + "Section code" + ";" + "Section" + ";" + "Family code" + ";" + "Family" + ";" + "Sub Family code" + ";" + "Sub family" + ";" + "Unit code" + ";" + "Unit" + ";" + "Supplier" + ";" + "Supplier name" + ";" + "Manufacturer" + ";" + "Manufacturer name" + ";" + "Origin" + ";" + "Custom code" + ";" + "Supply type" + ";" + "Warehouse" + ";" + "Size" + ";" + "Color" + ";" + "Box type" + ";" + "Diffusion" + ";" + "FBA" + ";" + "DUN14" + ";" + "MOQ" + ";" + "SKU/Case" + ";" + "Layer/Pallet" + ";" + "Case/Layer" + ";" + "Case/Pallet" + ";" + "SKU/Pallet" + ";" + "Containing" + ";" + "Net weight" + ";" + "Gross weight" + ";" + "Case volume" + ";" + "Unit height" + ";" + "Unit width" + ";" + "Unit length" + ";" + "Case height" + ";" + "Case width" + ";" + "Case length" + ";" + "Alcohol degree" + ";" + "Legal reference" + ";" + "Box type" + ";" + "Number of box components" + ";" + "Temperature" + ";" + "Logistic assortment"
     }
-    logMessage(header, "")
+    writeInFile(header, "")
     countLines = 0
     lines = ""
 
     // Read all POPNs in the current calendar
-    DBAction query_EXT041 = database.table("EXT041").index("00").selection("EXPOPN").build()
-    DBContainer EXT041 = query_EXT041.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCUNO", inCustomer)
-    EXT041.set("EXCDNN", inCalendar)
-    if (!query_EXT041.readAll(EXT041, 3, outData_EXT041_2)) {
+    DBAction ext041Query = database.table("EXT041").index("00").selection("EXPOPN").build()
+    DBContainer ext041Request = ext041Query.getContainer()
+    ext041Request.set("EXCONO", currentCompany)
+    ext041Request.set("EXCUNO", inCustomer)
+    ext041Request.set("EXCDNN", inCalendar)
+
+    //Manage loop on ext041 records we can have max 50 000 records per customer
+    boolean doLoop = true
+    int nbIteration = 0
+    while (doLoop) {
+      if (nbIteration > 0) {
+        PositionKey position = ext041Query.getPositionKey()
+        if (position instanceof PositionEmpty) {
+          doLoop = false
+          break
+        } else {
+          ext041Query = database.table("EXT041")
+            .index("00")
+            .selection("EXPOPN")
+            .position(position)
+            .build()
+        }
+      }
+      if (!ext041Query.readAll(ext041Request, 3, 10000, ext041ReaderWriteInCalendarFile)) {
+      }
+      nbIteration++
+      if (nbIteration > 5) {//max 50 0000 records
+        logMessage("ERROR", "Nombre d'itération trop important cuno:${inCustomer} cdnn:${inCalendar}")
+        break
+      }
     }
 
     if (countLines > 0) {
-      logMessage("", lines)
+      writeInFile("", lines)
     }
+    logMessage("INFO", "client:${inCustomer} cadencier:${inCalendar} nombre de lignes:${lineIncadencier}")
   }
-  // Write to calendar
-  public void writeCalendar() {
-    if (sigma9_DirectDelivery.trim() != "") {
-      sigma9 = sigma9_DirectDelivery
-      //assortment = sigma9_DirectDelivery_assortment//D°20240503 FLEBARS
-      ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
-      expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
-      DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXCMDE").build()
-      DBContainer EXT010 = query_EXT010.getContainer()
-      EXT010.set("EXCONO", currentCompany)
-      EXT010.set("EXCUNO", inCustomer)
-      EXT010.set("EXITNO", sigma9_DirectDelivery)
-      if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010_2)) {
+
+  /**
+   * Write to calendar file
+   */
+  public void writeInCalendarFile() {
+
+    Closure<?> ext010Reader = { DBContainer ext010Result ->
+      initLine()
+
+      if (prixVente == "0")
+        writeExt045()
+
+      sapr = prixVente as double
+      appr = 0
+      LocalDateTime timeOfCreation = LocalDateTime.now()
+      DBAction mitfacQuery = database.table("MITFAC").index("00").selection("M9APPR").build()
+      DBContainer mitfacRequest = mitfacQuery.getContainer()
+      mitfacRequest.set("M9CONO", currentCompany)
+      mitfacRequest.set("M9FACI", "E10")
+      mitfacRequest.set("M9ITNO", sigma9)
+      if (mitfacQuery.read(mitfacRequest)) {
+        appr = mitfacRequest.get("M9APPR")
+      }
+      if (sapr < appr && !isAlcool)//A°FLB 20240524
+        writeExt046()
+
+      if (sapr >= appr || isAlcool) {//A°FLB 20240524
+        line = sigma6.trim() + ";" + ul.trim() + ";" + sigma9.trim() + ";" + ean13.trim() + ";" + libelleArticle.trim() + ";" + codeArticleRemplace.trim() + ";" + libelleArticleRemplace.trim() + ";" + prixCadencierPrecedent.trim() + ";" + prixVente.trim() + ";" + evolutionPrixCadencierPrecedent.trim() + ";" + unitePrixVente.trim() + ";" + dlc.trim() + ";" + dlgr.trim() + ";" + codeMarque.trim() + ";" + libelleCodeMarque.trim() + ";" + codeMarketing.trim() + ";" + libelleCodeMarketing.trim() + ";" + saisonnalite.trim() + ";" + nouveaute.trim() + ";" + languePackaging.trim() + ";" + codeDepartement.trim() + ";" + nomDepartement.trim() + ";" + codeRayon.trim() + ";" + nomRayon.trim() + ";" + codeFamille.trim() + ";" + nomFamille.trim() + ";" + codeSousFamille.trim() + ";" + nomSousFamille.trim() + ";" + uniteBesoin.trim() + ";" + nomUniteBesoin.trim() + ";" + fournisseur.trim() + ";" + nomFournisseur.trim() + ";" + fournisseurOrigine.trim() + ";" + nomFournisseurOrigine.trim() + ";" + nomPaysOrigine.trim() + ";" + codeDouanier.trim() + ";" + typeAppro.trim() + ";" + entrepot.trim() + ";" + taille.trim() + ";" + couleur.trim() + ";" + modele.trim() + ";" + diffusion.trim() + ";" + fba.trim() + ";" + dun14.trim() + ";" + minimumCommande.trim() + ";" + parCombien.trim() + ";" + nbCouchePalette.trim() + ";" + nbColisParCouche.trim() + ";" + nbColisParPalette.trim() + ";" + nbUVCParPalette.trim() + ";" + contenance.trim() + ";" + poidsNet.trim() + ";" + poidsBrut.trim() + ";" + volumeColis.trim() + ";" + hauteurUVC.trim() + ";" + largeurUVC.trim() + ";" + longueurUVC.trim() + ";" + hauteurColis.trim() + ";" + largeurColis.trim() + ";" + longueurColis.trim() + ";" + degreAlcool.trim() + ";" + refDroit.trim() + ";" + typeBox.trim() + ";" + nombreComposantBox.trim() + ";" + temperature.trim() + ";" + assortimentLogistique.trim()
+        lines += line + "\r\n"
+        countLines++
+        lineIncadencier++
+        if (countLines == 5000) {
+          writeInFile("", lines)
+          countLines = 0
+          lines = ""
+        }
+      }
+    }
+
+
+    if (sigma9DirectDelivery.trim() != "") {
+      sigma9 = sigma9DirectDelivery
+      ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
+      ext010Expression = ext010Expression.le("EXFVDT", currentDate as String).and(ext010Expression.ge("EXLVDT", currentDate as String))
+      DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCMDE").build()
+      DBContainer ext010Request = ext010Query.getContainer()
+      ext010Request.set("EXCONO", currentCompany)
+      ext010Request.set("EXCUNO", inCustomer)
+      ext010Request.set("EXITNO", sigma9DirectDelivery)
+
+      if (ext010Query.readAll(ext010Request, 3, 1, ext010Reader)) {
       }
     }
     if (sigma9_NoDirectDelivery.trim() != "") {
       sigma9 = sigma9_NoDirectDelivery
       //assortment = sigma9_NoDirectDelivery_assortment//D°20240503 FLEBARS
-      ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
-      expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
-      DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXCMDE").build()
-      DBContainer EXT010 = query_EXT010.getContainer()
-      EXT010.set("EXCONO", currentCompany)
-      EXT010.set("EXCUNO", inCustomer)
-      EXT010.set("EXITNO", sigma9_NoDirectDelivery)
-      if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010_2)) {
+      ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
+      ext010Expression = ext010Expression.le("EXFVDT", currentDate as String).and(ext010Expression.ge("EXLVDT", currentDate as String))
+      DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCMDE").build()
+      DBContainer ext010Request = ext010Query.getContainer()
+      ext010Request.set("EXCONO", currentCompany)
+      ext010Request.set("EXCUNO", inCustomer)
+      ext010Request.set("EXITNO", sigma9_NoDirectDelivery)
+      if (ext010Query.readAll(ext010Request, 3, 1, ext010Reader)) {
       }
     }
   }
+
   // Write to gap file
-  public void writeGapFile() {
+  public void createGapFile() {
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "ecarts.txt"
     header = "Numéro cadencier" + ";" + "Date création" + ";" + "Heure création" + ";" + "Code magasin" + ";" + "Nom magasin"
-    logMessage(header, "")
+    writeInFile(header, "")
     line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName
-    logMessage("", line + "\r\n")
+    writeInFile("", line + "\r\n")
     header = "SIGMA6" + ";" + "Nom du SIGMA6" + ";" + "Supprimé"
     header += ";" + "Département" + ";" + "Description"
     header += ";" + "Rayon" + ";" + "Description"
     header += ";" + "Famille" + ";" + "Description"
     header += ";" + "ss famille" + ";" + "Description"
     header += ";" + "Unité Besoin" + ";" + "Description"
-    logMessage(header, "")
+    writeInFile(header, "")
     countLines = 0
     lines = ""
 
     // Read all POPNs in the previous calendar
-    DBAction query_EXT041 = database.table("EXT041").index("00").selection("EXPOPN", "EXFUDS").build()
-    DBContainer EXT041 = query_EXT041.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCUNO", inCustomer)
-    EXT041.set("EXCDNN", previousCalendar)
-    if (!query_EXT041.readAll(EXT041, 3, outData_EXT041_3)) {
-    }
+    DBAction ext041Query = database.table("EXT041").index("00").selection("EXPOPN", "EXFUDS").build()
+    DBContainer ext041Request = ext041Query.getContainer()
+    ext041Request.set("EXCONO", currentCompany)
+    ext041Request.set("EXCUNO", inCustomer)
+    ext041Request.set("EXCDNN", previousCalendar)
 
-    if (countLines > 0) {
-      logMessage("", lines)
+    //Manage loop on ext041 records we can have max 50 000 records per customer
+    boolean doLoop = true
+    int nbIteration = 0
+    while (doLoop) {
+      if (nbIteration > 0) {
+        PositionKey position = ext041Query.getPositionKey()
+        if (position instanceof PositionEmpty) {
+          doLoop = false
+          break
+        } else {
+          ext041Query = database.table("EXT041")
+            .index("00")
+            .selection("EXPOPN", "EXFUDS")
+            .position(position)
+            .build()
+        }
+      }
+      if (!ext041Query.readAll(ext041Request, 3, 10000, ext041ReaderWriteGapFile)) {
+      }
+      nbIteration++
+      if (nbIteration > 5) {//max 50 0000 records
+        logMessage("ERROR", "Nombre d'itération trop important cuno:${inCalendar} cdnn:${inCalendar}")
+        break
+      }
     }
+    if (countLines > 0) {
+      writeInFile("", lines)
+    }
+    logMessage("INFO", "client:${inCustomer} ecarts cadenciers:${inCalendar}/${previousCalendar} nombre de lignes:${lineInGapFile}")
   }
   // Write to alert file
-  public void writeAlertFile() {
+  public void createAlertFile() {
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "alertes.txt"
     header = "Numéro cadencier" + ";" + "Date création" + ";" + "Heure création" + ";" + "Code magasin" + ";" + "Nom magasin"
-    logMessage(header, "")
+    writeInFile(header, "")
     line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName
-    logMessage("", line + "\r\n")
+    writeInFile("", line + "\r\n")
     header = "Code article" + ";" + "Nom article" + ";" + "Prix à 0"
-    logMessage(header, "")
+    writeInFile(header, "")
     countLines = 0
     lines = ""
 
-    DBAction customerEmailQuery = database.table("EXT045").index("00").selection("EXITNO").build()
-    DBContainer EXT045 = customerEmailQuery.getContainer()
-    EXT045.set("EXCONO", currentCompany)
-    EXT045.set("EXCUNO", inCustomer)
-    EXT045.set("EXCDNN", inCalendar)
-    if (!customerEmailQuery.readAll(EXT045, 3, outData_EXT045)) {
+    DBAction ext045Query = database.table("EXT045").index("00").selection("EXITNO").build()
+    DBContainer ext045Request = ext045Query.getContainer()
+    ext045Request.set("EXCONO", currentCompany)
+    ext045Request.set("EXCUNO", inCustomer)
+    ext045Request.set("EXCDNN", inCalendar)
+
+    // Retrieve EXT045
+    Closure<?> ext045Reader = { DBContainer ext045Result ->
+      sigma9 = ext045Result.get("EXITNO")
+      libelleArticle = ""
+      DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMFUDS").build()
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", sigma9)
+      if (mitmasQuery.read(mitmasRequest)) {
+        libelleArticle = mitmasRequest.get("MMFUDS")
+      }
+      if (!lhcd.trim().equals("FR")) {
+        DBAction mitladQuery = database.table("MITLAD").index("00").selection("MDFUDS").build()
+        DBContainer mitladRequest = mitladQuery.getContainer()
+        mitladRequest.set("MDCONO", currentCompany)
+        mitladRequest.set("MDITNO", sigma9)
+        mitladRequest.set("MDLNCD", "GB")
+        if (mitladQuery.read(mitladRequest)) {
+          libelleArticle = mitladRequest.get("MDFUDS")
+        }
+      }
+      line = sigma9 + ";" + libelleArticle + ";" + "1"
+      countLines++
+      lines += line + (countLines < 5000 ? "\r\n" : "")
+      if (countLines == 5000) {
+        writeInFile("", lines)
+        countLines = 0
+        lines = ""
+      }
+      lineInAlert++
     }
 
-    if (countLines > 0) {
-      logMessage("", lines)
+    //Manage loop on ext045 records we can have max 50 000 records per customer
+    boolean doLoop = true
+    int nbIteration = 0
+    while (doLoop) {
+      if (nbIteration > 0) {
+        PositionKey position = ext045Query.getPositionKey()
+        if (position instanceof PositionEmpty) {
+          doLoop = false
+          break
+        } else {
+          ext045Query = database.table("EXT045")
+            .index("00")
+            .selection("EXITNO")
+            .position(position)
+            .build()
+        }
+      }
+      if (!ext045Query.readAll(ext045Request, 3, 10000, ext045Reader)) {
+      }
+      nbIteration++
+      if (nbIteration > 5) {//max 50 0000 records
+        logMessage("ERROR", "Nombre d'itération trop important cuno:${inCustomer} cdnn:${inCalendar}")
+        break
+      }
     }
+    if (countLines > 0) {
+      writeInFile("", lines)
+    }
+    logMessage("INFO", "client:${inCustomer} alertes cadenciers:${inCalendar} nombre de lignes:${lineInAlert}")
   }
   // Write to price control file
-  public void writePriceControlFile() {
+  public void createPriceControlFile() {
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "controlePrix.txt"
     header = "Numéro cadencier" + ";" + "Date création" + ";" + "Heure création" + ";" + "Code magasin" + ";" + "Nom magasin"
-    logMessage(header, "")
+    writeInFile(header, "")
     line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName
-    logMessage("", line + "\r\n")
+    writeInFile("", line + "\r\n")
     header = "Code article" + ";" + "Nom article" + ";" + "Prix de vente" + ";" + "Prix de revient"
-    logMessage(header, "")
+    writeInFile(header, "")
     countLines = 0
     lines = ""
 
-    DBAction customerEmailQuery = database.table("EXT046").index("00").selection("EXITNO", "EXSAPR", "EXAPPR").build()
-    DBContainer EXT046 = customerEmailQuery.getContainer()
-    EXT046.set("EXCONO", currentCompany)
-    EXT046.set("EXCUNO", inCustomer)
-    EXT046.set("EXCDNN", inCalendar)
-    if (!customerEmailQuery.readAll(EXT046, 3, outData_EXT046)) {
+    DBAction ext046Query = database.table("EXT046").index("00").selection("EXITNO", "EXSAPR", "EXAPPR").build()
+    DBContainer ext046Request = ext046Query.getContainer()
+    ext046Request.set("EXCONO", currentCompany)
+    ext046Request.set("EXCUNO", inCustomer)
+    ext046Request.set("EXCDNN", inCalendar)
+
+    // Retrieve EXT046
+    Closure<?> ext046Reader = { DBContainer ext046Result ->
+      sigma9 = ext046Result.get("EXITNO")
+      sapr = ext046Result.get("EXSAPR")
+      appr = ext046Result.get("EXAPPR")
+      libelleArticle = ""
+
+      DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMFUDS").build()
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", sigma9)
+      if (mitmasQuery.read(mitmasRequest)) {
+        libelleArticle = mitmasRequest.get("MMFUDS")
+      }
+      if (lhcd.trim() != "FR") {
+        DBAction mitladQuery = database.table("MITLAD").index("00").selection("MDFUDS").build()
+        DBContainer mitladRequest = mitladQuery.getContainer()
+        mitladRequest.set("MDCONO", currentCompany)
+        mitladRequest.set("MDITNO", sigma9)
+        mitladRequest.set("MDLNCD", "GB")
+        if (mitladQuery.read(mitladRequest)) {
+          libelleArticle = mitladRequest.get("MDFUDS")
+        }
+        lineInControlPrice++
+      }
+      line = sigma9 + ";" + libelleArticle + ";" + (sapr as String) + ";" + (appr as String)
+      lines += line + "\r\n"
+      countLines++
+      if (countLines == 5000) {
+        writeInFile("", lines)
+        countLines = 0
+        lines = ""
+      }
+    }
+    //Manage loop on ext046 records we can have max 50 000 records per customer
+    boolean doLoop = true
+    int nbIteration = 0
+    while (doLoop) {
+      if (nbIteration > 0) {
+        PositionKey position = ext046Query.getPositionKey()
+        if (position instanceof PositionEmpty) {
+          doLoop = false
+          break
+        } else {
+          ext046Query = database.table("EXT046")
+            .index("00")
+            .selection("EXITNO", "EXSAPR", "EXAPPR")
+            .position(position)
+            .build()
+        }
+      }
+      if (!ext046Query.readAll(ext046Request, 3, 10000, ext046Reader)) {
+      }
+      nbIteration++
+      if (nbIteration > 5) {//max 50 0000 records
+        logMessage("ERROR", "Nombre d'itération trop important cuno:${inCustomer} cdnn:${inCalendar}")
+        break
+      }
     }
 
     if (countLines > 0) {
-      logMessage("", lines)
+      writeInFile("", lines)
     }
-  }
-  // Write the file indicating the end of processing
-  public void writeEndFile() {
-    logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
-    docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
-    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>CADENCIER</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>\\\\XC006WKS\\CadencierClient\\</DocumentPath></Document>"
-    logMessage(header, "")
+    logMessage("INFO", "client:${inCustomer} controle prix cadencier:${inCalendar} nombre de lignes:${lineInControlPrice}")
   }
 
-  public void writeEndFileSFTP() {
+  /**
+   *
+   */
+  public void createControlFile() {
+    logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
+    docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
+    //todo changer le chemin serveur
+    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>CADENCIER</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>\\\\XC006WKS\\CadencierClient\\</DocumentPath></Document>"
+    writeInFile(header, "")
+  }
+
+  public void createControlFilesFtp() {
     //logFileName = fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier-docNumber.xml"
     //docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
     docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier"
     header = "<?xml version='1.0' encoding='UTF-8' standalone='no'?><LoaddocumentNumber xmlns='http://schema.infor.com/InforOAGIS/2' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' releaseID='9.2' versionID='2.14.6' xsi:schemaLocation='http://schema.infor.com/InforOAGIS/2 http://schema.infor.com/InforOAGIS/BODs/LoaddocumentNumber.xsd'><ApplicationArea><Sender><LogicalID>casino.com</LogicalID><ConfirmationCode>OnError</ConfirmationCode></Sender><CreationDateTime>2023-04-04</CreationDateTime></ApplicationArea><DataArea><Load><TenantID>CASINO_TST</TenantID><AccountingEntityID>100_</AccountingEntityID><ActionCriteria><ActionExpression actionCode='' expressionLanguage=''/></ActionCriteria></Load><documentNumber><DocumentType>CADENCIER</DocumentType><DocumentNumber>${docnumber}.txt</DocumentNumber><DocumentPath>/FileImport/CadencierClient/${docnumber}.txt</DocumentPath></documentNumber></DataArea></LoaddocumentNumber>"
-    logMessage(header, "")
+    writeInFile(header, "")
   }
 
 
-  // Retrieve EXT010
-  Closure<?> outData_EXT010_2 = { DBContainer EXT010 ->
-    initLine()
-
-    if (prixVente == "0")
-      writeEXT045()
-
-    sapr = prixVente as double
-    appr = 0
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("MITFAC").index("00").selection("M9APPR").build()
-    DBContainer MITFAC = query.getContainer()
-    MITFAC.set("M9CONO", currentCompany)
-    MITFAC.set("M9FACI", "E10")
-    MITFAC.set("M9ITNO", sigma9)
-    if (query.read(MITFAC)) {
-      appr = MITFAC.get("M9APPR")
-    }
-    //if(sapr < appr)//D°FLB 20240524
-    if (sapr < appr && !isAlcool)//A°FLB 20240524
-      writeEXT046()
-
-    //if(sapr >= appr) { //D°FLB 20240524
-    if (sapr >= appr || isAlcool) {//A°FLB 20240524
-      line = sigma6.trim() + ";" + UL.trim() + ";" + sigma9.trim() + ";" + EAN13.trim() + ";" + libelleArticle.trim() + ";" + codeArticleRemplace.trim() + ";" + libelleArticleRemplace.trim() + ";" + prixCadencierPrecedent.trim() + ";" + prixVente.trim() + ";" + evolutionPrixCadencierPrecedent.trim() + ";" + unitePrixVente.trim() + ";" + DLC.trim() + ";" + DLGR.trim() + ";" + codeMarque.trim() + ";" + libelleCodeMarque.trim() + ";" + codeMarketing.trim() + ";" + libelleCodeMarketing.trim() + ";" + saisonnalite.trim() + ";" + nouveaute.trim() + ";" + languePackaging.trim() + ";" + codeDepartement.trim() + ";" + nomDepartement.trim() + ";" + codeRayon.trim() + ";" + nomRayon.trim() + ";" + codeFamille.trim() + ";" + nomFamille.trim() + ";" + codeSousFamille.trim() + ";" + nomSousFamille.trim() + ";" + uniteBesoin.trim() + ";" + nomUniteBesoin.trim() + ";" + fournisseur.trim() + ";" + nomFournisseur.trim() + ";" + fournisseurOrigine.trim() + ";" + nomFournisseurOrigine.trim() + ";" + nomPaysOrigine.trim() + ";" + codeDouanier.trim() + ";" + typeAppro.trim() + ";" + entrepot.trim() + ";" + taille.trim() + ";" + couleur.trim() + ";" + modele.trim() + ";" + diffusion.trim() + ";" + FBA.trim() + ";" + DUN14.trim() + ";" + minimumCommande.trim() + ";" + parCombien.trim() + ";" + nbCouche_palette.trim() + ";" + nbColisParCouche.trim() + ";" + nbColisParPalette.trim() + ";" + nbUVCParPalette.trim() + ";" + contenance.trim() + ";" + poidsNet.trim() + ";" + poidsBrut.trim() + ";" + volumeColis.trim() + ";" + hauteurUVC.trim() + ";" + largeurUVC.trim() + ";" + longueurUVC.trim() + ";" + hauteurColis.trim() + ";" + largeurColis.trim() + ";" + longueurColis.trim() + ";" + degreAlcool.trim() + ";" + refDroit.trim() + ";" + typeBox.trim() + ";" + nombreComposantBox.trim() + ";" + temperature.trim() + ";" + assortimentLogistique.trim()
-      //logMessage("", line)
-      lines += line + "\r\n"
-      countLines++
-      if (countLines == 5000) {
-        logMessage("", lines)
-        countLines = 0
-        lines = ""
-      }
-    }
-  }
   // Init line informations
   public void initLine() {
-    UL = ""
+    ul = ""
     libelleArticle = ""
-    DLGR = ""
-    DLC = ""
+    dlgr = ""
+    dlc = ""
     codeMarque = ""
     libelleCodeMarque = ""
     codeMarketing = ""
@@ -1201,226 +1361,250 @@ public class EXT040 extends ExtendM3Batch {
     degreAlcool = ""
     temperature = ""
     typeBox = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMECVE", "MMFUDS", "MMSPE2", "MMSPE1", "MMBUAR", "MMCFI1", "MMSPE3", "MMHIE1", "MMHIE2", "MMHIE3", "MMHIE4", "MMHIE5", "MMSUNO", "MMDIM1", "MMDIM2", "MMDIM3", "MMSPGV", "MMNEWE", "MMIHEI", "MMIWID", "MMILEN", "MMCFI2", "MMITCL", "MMCFI4").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", sigma9)
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMECVE", "MMFUDS", "MMSPE2", "MMSPE1", "MMBUAR", "MMCFI1", "MMSPE3", "MMHIE1", "MMHIE2", "MMHIE3", "MMHIE4", "MMHIE5", "MMSUNO", "MMDIM1", "MMDIM2", "MMDIM3", "MMSPGV", "MMNEWE", "MMIHEI", "MMIWID", "MMILEN", "MMCFI2", "MMITCL", "MMCFI4").build()
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", sigma9)
 
-    if (query_MITMAS.read(MITMAS)) {
-      UL = MITMAS.get("MMECVE")
-      libelleArticle = MITMAS.get("MMFUDS")
+    if (mitmasQuery.read(mitmasRequest)) {
+      ul = mitmasRequest.get("MMECVE")
+      libelleArticle = mitmasRequest.get("MMFUDS")
       if (lhcd.trim() != "FR") {
-        DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
-        DBContainer MITLAD = query_MITLAD.getContainer()
-        MITLAD.set("MDCONO", currentCompany)
-        MITLAD.set("MDITNO", sigma9)
-        MITLAD.set("MDLNCD", "GB")
-        if (query_MITLAD.read(MITLAD)) {
-          libelleArticle = MITLAD.get("MDFUDS")
+        DBAction mitladQuery = database.table("MITLAD").index("00").selection("MDFUDS").build()
+        DBContainer mitladRequest = mitladQuery.getContainer()
+        mitladRequest.set("MDCONO", currentCompany)
+        mitladRequest.set("MDITNO", sigma9)
+        mitladRequest.set("MDLNCD", "GB")
+        if (mitladQuery.read(mitladRequest)) {
+          libelleArticle = mitladRequest.get("MDFUDS")
         }
       }
-      spe2 = MITMAS.get("MMSPE2")
+      spe2 = mitmasRequest.get("MMSPE2")
 
       if (spe2.trim() != "") {
         //
-        DLGR = spe2
+        dlgr = spe2
       }
 
-      spe1 = MITMAS.get("MMSPE1")
+      spe1 = mitmasRequest.get("MMSPE1")
       if (spe1.trim() != "") {
         //
-        DLC = spe1
+        dlc = spe1
       }
-      codeMarque = MITMAS.get("MMBUAR")
+      codeMarque = mitmasRequest.get("MMBUAR")
       if (codeMarque.trim() != "") {
-        DBAction query_CSYTAB = database.table("CSYTAB").index("00").selection("CTTX40").build()
-        DBContainer CSYTAB = query_CSYTAB.getContainer()
-        CSYTAB.set("CTCONO", currentCompany)
-        CSYTAB.set("CTSTCO", "BUAR")
-        CSYTAB.set("CTSTKY", codeMarque)
-        if (query_CSYTAB.read(CSYTAB)) {
-          libelleCodeMarque = CSYTAB.get("CTTX40")
+        DBAction csytabBuarQuery = database.table("CSYTAB").index("00").selection("CTTX40").build()
+        DBContainer csytabBuarRequest = csytabBuarQuery.getContainer()
+        csytabBuarRequest.set("CTCONO", currentCompany)
+        csytabBuarRequest.set("CTSTCO", "BUAR")
+        csytabBuarRequest.set("CTSTKY", codeMarque)
+        if (csytabBuarQuery.read(csytabBuarRequest)) {
+          libelleCodeMarque = csytabBuarRequest.get("CTTX40")
         }
       }
-      codeMarketing = MITMAS.get("MMCFI1")
+      codeMarketing = mitmasRequest.get("MMCFI1")
       if (codeMarketing.trim() != "") {
-        DBAction query_CSYTAB = database.table("CSYTAB").index("00").selection("CTTX40").build()
-        DBContainer CSYTAB = query_CSYTAB.getContainer()
-        CSYTAB.set("CTCONO", currentCompany)
-        CSYTAB.set("CTSTCO", "CFI1")
-        CSYTAB.set("CTSTKY", codeMarketing)
-        if (query_CSYTAB.read(CSYTAB)) {
-          libelleCodeMarketing = CSYTAB.get("CTTX40")
+        DBAction csytabCfi1Query = database.table("CSYTAB").index("00").selection("CTTX40").build()
+        DBContainer csytabCfi1Request = csytabCfi1Query.getContainer()
+        csytabCfi1Request.set("CTCONO", currentCompany)
+        csytabCfi1Request.set("CTSTCO", "CFI1")
+        csytabCfi1Request.set("CTSTKY", codeMarketing)
+        if (csytabCfi1Query.read(csytabCfi1Request)) {
+          libelleCodeMarketing = csytabCfi1Request.get("CTTX40")
         }
       }
 
-      languePackaging = MITMAS.get("MMSPE3")
+      languePackaging = mitmasRequest.get("MMSPE3")
 
-      codeDepartement = MITMAS.get("MMHIE1")
-      DBAction query = database.table("MITHRY").index("00").selection("HITX40").build()
-      DBContainer MITHRY = query.getContainer()
-      MITHRY.set("HICONO", currentCompany)
-      MITHRY.set("HIHLVL", 1)
-      MITHRY.set("HIHIE0", codeDepartement)
-      if (query.read(MITHRY)) {
-        nomDepartement = MITHRY.get("HITX40")
+      codeDepartement = mitmasRequest.get("MMHIE1")
+      DBAction mithryQuery = database.table("MITHRY").index("00").selection("HITX40").build()
+      DBContainer mithryRequest = mithryQuery.getContainer()
+      mithryRequest.set("HICONO", currentCompany)
+      mithryRequest.set("HIHLVL", 1)
+      mithryRequest.set("HIHIE0", codeDepartement)
+      if (mithryQuery.read(mithryRequest)) {
+        nomDepartement = mithryRequest.get("HITX40")
       }
-      hie2 = MITMAS.get("MMHIE2")
+      hie2 = mitmasRequest.get("MMHIE2")
       if (hie2.trim() != "")
         codeRayon = (hie2 as String).substring((hie2.trim().length() - 2), hie2.trim().length())
-      MITHRY.set("HIHLVL", 2)
-      MITHRY.set("HIHIE0", hie2)
-      if (query.read(MITHRY)) {
-        nomRayon = MITHRY.get("HITX40")
+      mithryRequest.set("HIHLVL", 2)
+      mithryRequest.set("HIHIE0", hie2)
+      if (mithryQuery.read(mithryRequest)) {
+        nomRayon = mithryRequest.get("HITX40")
       }
-      hie3 = MITMAS.get("MMHIE3")
+      hie3 = mitmasRequest.get("MMHIE3")
       if (hie3.trim() != "")
         codeFamille = (hie3 as String).substring((hie3.trim().length() - 3), hie3.trim().length())
-      MITHRY.set("HIHLVL", 3)
-      MITHRY.set("HIHIE0", hie3)
-      if (query.read(MITHRY)) {
-        nomFamille = MITHRY.get("HITX40")
+      mithryRequest.set("HIHLVL", 3)
+      mithryRequest.set("HIHIE0", hie3)
+      if (mithryQuery.read(mithryRequest)) {
+        nomFamille = mithryRequest.get("HITX40")
       }
 
-      hie4 = MITMAS.get("MMHIE4")
+      hie4 = mitmasRequest.get("MMHIE4")
       if (hie4.trim() != "")
         codeSousFamille = (hie4 as String).substring((hie4.trim().length() - 2), hie4.trim().length())
-      MITHRY.set("HIHLVL", 4)
-      MITHRY.set("HIHIE0", hie4)
-      if (query.read(MITHRY)) {
-        nomSousFamille = MITHRY.get("HITX40")
+      mithryRequest.set("HIHLVL", 4)
+      mithryRequest.set("HIHIE0", hie4)
+      if (mithryQuery.read(mithryRequest)) {
+        nomSousFamille = mithryRequest.get("HITX40")
       }
 
-      hie5 = MITMAS.get("MMHIE5")
+      hie5 = mitmasRequest.get("MMHIE5")
       if (hie5.trim() != "")
         uniteBesoin = (hie5 as String).substring((hie5.trim().length() - 2), hie5.trim().length())
-      MITHRY.set("HIHLVL", 5)
-      MITHRY.set("HIHIE0", hie5)
-      if (query.read(MITHRY)) {
-        nomUniteBesoin = MITHRY.get("HITX40")
+      mithryRequest.set("HIHLVL", 5)
+      mithryRequest.set("HIHIE0", hie5)
+      if (mithryQuery.read(mithryRequest)) {
+        nomUniteBesoin = mithryRequest.get("HITX40")
         nomUniteBesoin = nomUniteBesoin.replaceAll(/[<>&"\\]/, " ")
       }
-      fournisseurOrigine = MITMAS.get("MMSUNO")
-      DBAction query_CIDMAS = database.table("CIDMAS").index("00").selection("IDSUNM").build()
-      DBContainer CIDMAS = query_CIDMAS.getContainer()
-      CIDMAS.set("IDCONO", currentCompany)
-      CIDMAS.set("IDSUNO", fournisseurOrigine)
-      if (query_CIDMAS.read(CIDMAS)) {
-        nomFournisseurOrigine = CIDMAS.getString("IDSUNM")
+      fournisseurOrigine = mitmasRequest.get("MMSUNO")
+      DBAction cidmasQuery = database.table("CIDMAS").index("00").selection("IDSUNM").build()
+      DBContainer cidmasRequest = cidmasQuery.getContainer()
+      cidmasRequest.set("IDCONO", currentCompany)
+      cidmasRequest.set("IDSUNO", fournisseurOrigine)
+      if (cidmasQuery.read(cidmasRequest)) {
+        nomFournisseurOrigine = cidmasRequest.getString("IDSUNM")
       }
 
-      taille = MITMAS.get("MMDIM2")
-      couleur = MITMAS.get("MMDIM1")
-      modele = MITMAS.get("MMDIM3")
-      contenance = MITMAS.get("MMSPGV")
-      poidsNet = MITMAS.get("MMNEWE")
-      hauteurUVC = MITMAS.get("MMIHEI")
-      largeurUVC = MITMAS.get("MMIWID")
-      longueurUVC = MITMAS.get("MMILEN")
-      degreAlcool = MITMAS.get("MMCFI2")
-      temperature = MITMAS.get("MMITCL")
-      typeBox = MITMAS.get("MMDIM3")
-      String cfi4 = MITMAS.get("MMCFI4") as String//A°FLB 20240524
-      isAlcool = cfi4.trim().length() > 0//A°FLB 20240524
+      taille = mitmasRequest.get("MMDIM2")
+      couleur = mitmasRequest.get("MMDIM1")
+      modele = mitmasRequest.get("MMDIM3")
+      contenance = mitmasRequest.get("MMSPGV")
+      poidsNet = mitmasRequest.get("MMNEWE")
+      hauteurUVC = mitmasRequest.get("MMIHEI")
+      largeurUVC = mitmasRequest.get("MMIWID")
+      longueurUVC = mitmasRequest.get("MMILEN")
+      degreAlcool = mitmasRequest.get("MMCFI2")
+      temperature = mitmasRequest.get("MMITCL")
+      typeBox = mitmasRequest.get("MMDIM3")
+      String cfi4 = mitmasRequest.get("MMCFI4") as String
+      isAlcool = cfi4.trim().length() > 0
     }
 
     typeAppro = ""
     refDroit = ""
-    String A830 = ""
+    String a830 = ""
     int CHB1 = 0
-    DBAction query_CUGEX1_MITMAS = database.table("CUGEX1").index("00").selection("F1A330", "F1A830", "F1CHB1").build()
-    DBContainer CUGEX1_MITMAS = query_CUGEX1_MITMAS.getContainer()
-    CUGEX1_MITMAS.set("F1CONO", currentCompany)
-    CUGEX1_MITMAS.set("F1FILE", "MITMAS")
-    CUGEX1_MITMAS.set("F1PK01", sigma9)
-    CUGEX1_MITMAS.set("F1PK02", "")
-    CUGEX1_MITMAS.set("F1PK03", "")
-    CUGEX1_MITMAS.set("F1PK04", "")
-    CUGEX1_MITMAS.set("F1PK05", "")
-    CUGEX1_MITMAS.set("F1PK06", "")
-    CUGEX1_MITMAS.set("F1PK07", "")
-    CUGEX1_MITMAS.set("F1PK08", "")
-    if (query_CUGEX1_MITMAS.read(CUGEX1_MITMAS)) {
-      A830 = CUGEX1_MITMAS.get("F1A830")
-      CHB1 = CUGEX1_MITMAS.get("F1CHB1")
+    DBAction cugex1MitmasQuery = database.table("CUGEX1").index("00").selection("F1A330", "F1A830", "F1CHB1").build()
+    DBContainer cugex1MitmasRequest = cugex1MitmasQuery.getContainer()
+    cugex1MitmasRequest.set("F1CONO", currentCompany)
+    cugex1MitmasRequest.set("F1FILE", "MITMAS")
+    cugex1MitmasRequest.set("F1PK01", sigma9)
+    cugex1MitmasRequest.set("F1PK02", "")
+    cugex1MitmasRequest.set("F1PK03", "")
+    cugex1MitmasRequest.set("F1PK04", "")
+    cugex1MitmasRequest.set("F1PK05", "")
+    cugex1MitmasRequest.set("F1PK06", "")
+    cugex1MitmasRequest.set("F1PK07", "")
+    cugex1MitmasRequest.set("F1PK08", "")
+    if (cugex1MitmasQuery.read(cugex1MitmasRequest)) {
+      a830 = cugex1MitmasRequest.get("F1A830")
 
-      if (A830.trim() == "30" || A830.trim() == "40")
+      if (a830.trim() == "30" || a830.trim() == "40")
         typeAppro = "E"
-      if (A830.trim() == "20")
+      if (a830.trim() == "20")
         typeAppro = "D"
-      if (A830.trim() == "10")
+      if (a830.trim() == "10")
         typeAppro = "S"
 
-      refDroit = CUGEX1_MITMAS.get("F1A330")
+      refDroit = cugex1MitmasRequest.get("F1A330")
     }
 
     codeArticleRemplace = ""
     libelleArticleRemplace = ""
-    DBAction query_MITALT = database.table("MITALT").index("40").selection("MAITNO", "MASTDT").build()
-    DBContainer MITALT = query_MITALT.getContainer()
-    MITALT.set("MACONO", currentCompany)
-    MITALT.set("MAALIT", sigma9)
-    MITALT.set("MARPTY", 3)
-    if (query_MITALT.readAll(MITALT, 3, outData_MITALT)) {
+    DBAction mitaltQuery = database.table("MITALT").index("40").selection("MAITNO", "MASTDT").build()
+    DBContainer mitaltRequest = mitaltQuery.getContainer()
+    mitaltRequest.set("MACONO", currentCompany)
+    mitaltRequest.set("MAALIT", sigma9)
+    mitaltRequest.set("MARPTY", 3)
+
+    // Retrieve MITALT
+    Closure<?> mitaltReader = { DBContainer mitaltResult ->
+      int stdt = mitaltResult.get("MASTDT")
+      if (stdt <= currentDate) {
+        codeArticleRemplace = mitaltResult.get("MAITNO")
+        DBAction mitmasQuery2 = database.table("MITMAS").index("00").selection("MMFUDS").build()
+        DBContainer mitmasRequest2 = mitmasQuery2.getContainer()
+        mitmasRequest2.set("MMCONO", currentCompany)
+        mitmasRequest2.set("MMITNO", codeArticleRemplace)
+        if (mitmasQuery2.read(mitmasRequest2)) {
+          libelleArticleRemplace = mitmasRequest2.get("MMFUDS")
+        }
+        if (lhcd.trim() != "FR") {
+          DBAction mitladQuery = database.table("MITLAD").index("00").selection("MDFUDS").build()
+          DBContainer mitlodRequest = mitladQuery.getContainer()
+          mitlodRequest.set("MDCONO", currentCompany)
+          mitlodRequest.set("MDITNO", codeArticleRemplace)
+          mitlodRequest.set("MDLNCD", "GB")
+          if (mitladQuery.read(mitlodRequest)) {
+            libelleArticleRemplace = mitlodRequest.get("MDFUDS")
+          }
+        }
+      }
+    }
+    if (mitaltQuery.readAll(mitaltRequest, 3, 10000, mitaltReader)) {
     }
     poidsBrut = ""
     volumeColis = ""
     hauteurColis = ""
     longueurColis = ""
     largeurColis = ""
-    DBAction query_CUGEX1_MITAUN = database.table("CUGEX1").index("00").selection("F1N096", "F1N196", "F1N296", "F1N396", "F1N496").build()
-    DBContainer CUGEX1_MITAUN = query_CUGEX1_MITAUN.getContainer()
-    CUGEX1_MITAUN.set("F1CONO", currentCompany)
-    CUGEX1_MITAUN.set("F1FILE", "MITAUN")
-    CUGEX1_MITAUN.set("F1PK01", sigma9)
-    CUGEX1_MITAUN.set("F1PK02", "2")
-    CUGEX1_MITAUN.set("F1PK03", "COL")
-    CUGEX1_MITAUN.set("F1PK04", "")
-    CUGEX1_MITAUN.set("F1PK05", "")
-    CUGEX1_MITAUN.set("F1PK06", "")
-    CUGEX1_MITAUN.set("F1PK07", "")
-    CUGEX1_MITAUN.set("F1PK08", "")
-    if (query_CUGEX1_MITAUN.read(CUGEX1_MITAUN)) {
-      poidsBrut = CUGEX1_MITAUN.get("F1N096")
-      volumeColis = CUGEX1_MITAUN.get("F1N196")
-      hauteurColis = CUGEX1_MITAUN.get("F1N296")
-      largeurColis = CUGEX1_MITAUN.get("F1N496")
-      longueurColis = CUGEX1_MITAUN.get("F1N396")
+    DBAction cugex1MitaunQuery = database.table("CUGEX1").index("00").selection("F1N096", "F1N196", "F1N296", "F1N396", "F1N496").build()
+    DBContainer cugex1MitaunRequest = cugex1MitaunQuery.getContainer()
+    cugex1MitaunRequest.set("F1CONO", currentCompany)
+    cugex1MitaunRequest.set("F1FILE", "MITAUN")
+    cugex1MitaunRequest.set("F1PK01", sigma9)
+    cugex1MitaunRequest.set("F1PK02", "2")
+    cugex1MitaunRequest.set("F1PK03", "COL")
+    cugex1MitaunRequest.set("F1PK04", "")
+    cugex1MitaunRequest.set("F1PK05", "")
+    cugex1MitaunRequest.set("F1PK06", "")
+    cugex1MitaunRequest.set("F1PK07", "")
+    cugex1MitaunRequest.set("F1PK08", "")
+    if (cugex1MitaunQuery.read(cugex1MitaunRequest)) {
+      poidsBrut = cugex1MitaunRequest.get("F1N096")
+      volumeColis = cugex1MitaunRequest.get("F1N196")
+      hauteurColis = cugex1MitaunRequest.get("F1N296")
+      largeurColis = cugex1MitaunRequest.get("F1N496")
+      longueurColis = cugex1MitaunRequest.get("F1N396")
     }
     parCombien = ""
-    nbCouche_palette = 0
+    nbCouchePalette = 0
     nbColisParCouche = 0
     nbColisParPalette = 0
     nbUVCParPalette = 0
 
     double cofaCOL = 0
-    DBAction query_MITAUN = database.table("MITAUN").index("00").selection("MUCOFA").build()
-    DBContainer MITAUN = query_MITAUN.getContainer()
-    MITAUN.set("MUCONO", currentCompany)
-    MITAUN.set("MUITNO", sigma9)
-    MITAUN.set("MUAUTP", 1)
-    MITAUN.set("MUALUN", "COL")
-    if (query_MITAUN.read(MITAUN)) {
-      cofaCOL = MITAUN.get("MUCOFA")
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", sigma9)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", "COL")
+    if (mitaunQuery.read(mitaunRequest)) {
+      cofaCOL = mitaunRequest.get("MUCOFA")
     }
 
     double cofaUCO = 0
-    MITAUN.set("MUAUTP", 1)
-    MITAUN.set("MUALUN", "UCO")
-    if (query_MITAUN.read(MITAUN)) {
-      cofaUCO = MITAUN.get("MUCOFA")
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", "UCO")
+    if (mitaunQuery.read(mitaunRequest)) {
+      cofaUCO = mitaunRequest.get("MUCOFA")
     }
 
     double cofaUPA = 0
-    MITAUN.set("MUAUTP", 1)
-    MITAUN.set("MUALUN", "UPA")
-    if (query_MITAUN.read(MITAUN)) {
-      cofaUPA = MITAUN.get("MUCOFA")
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", "UPA")
+    if (mitaunQuery.read(mitaunRequest)) {
+      cofaUPA = mitaunRequest.get("MUCOFA")
     }
 
     parCombien = cofaCOL as String
     if (cofaUCO != 0)
-      nbCouche_palette = cofaUPA / cofaUCO
+      nbCouchePalette = cofaUPA / cofaUCO
     if (cofaCOL != 0) {
       nbColisParCouche = cofaUCO / cofaCOL
       nbColisParPalette = cofaUPA / cofaCOL
@@ -1429,78 +1613,83 @@ public class EXT040 extends ExtendM3Batch {
 
 
     popn = ""
-    EAN13 = ""
-    ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
-    expression_MITPOP = expression_MITPOP.eq("MPREMK", "EA13")
-    DBAction query_MITPOP = database.table("MITPOP").index("30").matching(expression_MITPOP).selection("MPPOPN").build()
-    DBContainer MITPOP = query_MITPOP.getContainer()
-    MITPOP.set("MPCONO", currentCompany)
-    MITPOP.set("MPALWT", 1)
-    MITPOP.set("MPITNO", sigma9)
-    if (!query_MITPOP.readAll(MITPOP, 3, outData_MITPOP2)) {
+    ean13 = ""
+    ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
+    mitpopExpression = mitpopExpression.eq("MPREMK", "EA13")
+    DBAction mitpopQuery = database.table("MITPOP").index("30").matching(mitpopExpression).selection("MPPOPN").build()
+    DBContainer mitpopRequest = mitpopQuery.getContainer()
+    mitpopRequest.set("MPCONO", currentCompany)
+    mitpopRequest.set("MPALWT", 1)
+    mitpopRequest.set("MPITNO", sigma9)
+    if (mitpopQuery.readAll(mitpopRequest, 3, 1, mitPopReader)) {
+      ean13 = popn
     }
-    EAN13 = popn
 
     popn = ""
-    FBA = ""
-    ExpressionFactory expression_MITPOP2 = database.getExpressionFactory("MITPOP")
-    expression_MITPOP2 = expression_MITPOP2.eq("MPREMK", "FBA")
-    DBAction query_MITPOP2 = database.table("MITPOP").index("30").matching(expression_MITPOP2).selection("MPPOPN").build()
-    DBContainer MITPOP2 = query_MITPOP2.getContainer()
-    MITPOP2.set("MPCONO", currentCompany)
-    MITPOP2.set("MPALWT", 1)
-    MITPOP2.set("MPITNO", sigma9)
-    if (!query_MITPOP2.readAll(MITPOP2, 3, outData_MITPOP2)) {
+    fba = ""
+    ExpressionFactory mitpopExpression2 = database.getExpressionFactory("MITPOP")
+    mitpopExpression2 = mitpopExpression2.eq("MPREMK", "FBA")
+    DBAction mitpopQuery2 = database.table("MITPOP").index("30").matching(mitpopExpression2).selection("MPPOPN").build()
+    DBContainer mitpopRequest2 = mitpopQuery2.getContainer()
+    mitpopRequest2.set("MPCONO", currentCompany)
+    mitpopRequest2.set("MPALWT", 1)
+    mitpopRequest2.set("MPITNO", sigma9)
+    if (mitpopQuery2.readAll(mitpopRequest2, 3, 1, mitPopReader)) {
+      fba = popn
     }
-    FBA = popn
 
     popn = ""
-    DUN14 = ""
-    ExpressionFactory expression_MITPOP3 = database.getExpressionFactory("MITPOP")
-    expression_MITPOP3 = expression_MITPOP3.eq("MPREMK", "DUN14")
-    DBAction query_MITPOP3 = database.table("MITPOP").index("30").matching(expression_MITPOP3).selection("MPPOPN").build()
-    DBContainer MITPOP3 = query_MITPOP3.getContainer()
-    MITPOP3.set("MPCONO", currentCompany)
-    MITPOP3.set("MPALWT", 1)
-    MITPOP3.set("MPITNO", sigma9)
-    if (!query_MITPOP3.readAll(MITPOP3, 3, outData_MITPOP2)) {
+    dun14 = ""
+    ExpressionFactory mitpopExpression3 = database.getExpressionFactory("MITPOP")
+    mitpopExpression3 = mitpopExpression3.eq("MPREMK", "DUN14")
+    DBAction mitpopQuery3 = database.table("MITPOP").index("30").matching(mitpopExpression3).selection("MPPOPN").build()
+    DBContainer mitpopRequest3 = mitpopQuery.getContainer()
+    mitpopRequest3.set("MPCONO", currentCompany)
+    mitpopRequest3.set("MPALWT", 1)
+    mitpopRequest3.set("MPITNO", sigma9)
+    if (mitpopQuery3.readAll(mitpopRequest3, 3, 1, mitPopReader)) {
+      dun14 = popn
     }
-    DUN14 = popn
 
     paysOrigine = ""
     nomPaysOrigine = ""
     codeDouanier = ""
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction query = database.table("MITFAC").index("00").selection("M9ORCO", "M9CSNO").build()
-    DBContainer MITFAC = query.getContainer()
-    MITFAC.set("M9CONO", currentCompany)
-    MITFAC.set("M9FACI", "E10")
-    MITFAC.set("M9ITNO", sigma9)
-    if (query.read(MITFAC)) {
-      paysOrigine = MITFAC.get("M9ORCO")
+    DBAction mitfacQuery = database.table("MITFAC").index("00").selection("M9ORCO", "M9CSNO").build()
+    DBContainer mitfacRequest = mitfacQuery.getContainer()
+    mitfacRequest.set("M9CONO", currentCompany)
+    mitfacRequest.set("M9FACI", "E10")
+    mitfacRequest.set("M9ITNO", sigma9)
+    if (mitfacQuery.read(mitfacRequest)) {
+      paysOrigine = mitfacRequest.get("M9ORCO")
       if (paysOrigine.trim() != "") {
-        DBAction query_CSYTAB = database.table("CSYTAB").index("00").selection("CTTX40").build()
-        DBContainer CSYTAB = query_CSYTAB.getContainer()
-        CSYTAB.set("CTCONO", currentCompany)
-        CSYTAB.set("CTSTCO", "CSCD")
-        CSYTAB.set("CTSTKY", paysOrigine)
-        if (query_CSYTAB.read(CSYTAB)) {
-          nomPaysOrigine = CSYTAB.get("CTTX40")
+        DBAction csytabCscdQuery = database.table("CSYTAB").index("00").selection("CTTX40").build()
+        DBContainer csytabRequest = csytabCscdQuery.getContainer()
+        csytabRequest.set("CTCONO", currentCompany)
+        csytabRequest.set("CTSTCO", "CSCD")
+        csytabRequest.set("CTSTKY", paysOrigine)
+        if (csytabCscdQuery.read(csytabRequest)) {
+          nomPaysOrigine = csytabRequest.get("CTTX40")
         }
       }
-
-      codeDouanier = MITFAC.get("M9CSNO")
+      codeDouanier = mitfacRequest.get("M9CSNO")
     }
 
     nombreComposantBox = ""
     sumCNQT = 0
-    DBAction query_MPDMAT = database.table("MPDMAT").index("00").selection("PMCNQT").build()
-    DBContainer MPDMAT = query_MPDMAT.getContainer()
-    MPDMAT.set("PMCONO", currentCompany)
-    MPDMAT.set("PMFACI", "E10")
-    MPDMAT.set("PMPRNO", sigma9)
-    MPDMAT.set("PMSTRT", "KIT")
-    if (query_MPDMAT.readAll(MPDMAT, 4, outData_MPDMAT)) {
+    DBAction mpdmatQuery = database.table("MPDMAT").index("00").selection("PMCNQT").build()
+    DBContainer mpdmatRequest = mpdmatQuery.getContainer()
+    mpdmatRequest.set("PMCONO", currentCompany)
+    mpdmatRequest.set("PMFACI", "E10")
+    mpdmatRequest.set("PMPRNO", sigma9)
+    mpdmatRequest.set("PMSTRT", "KIT")
+
+    // Retrieve MPDMAT
+    Closure<?> mpdmatResult = { DBContainer mpdmatResult ->
+      sumCNQT += mpdmatResult.get("PMCNQT") as double
+    }
+
+    if (mpdmatQuery.readAll(mpdmatRequest, 4, 10000, mpdmatResult)) {
     }
     nombreComposantBox = sumCNQT
 
@@ -1511,30 +1700,17 @@ public class EXT040 extends ExtendM3Batch {
     assortimentLogistique = ""
     saisonnalite = ""
     diffusion = ""
-    ExpressionFactory expression_EXT010 = database.getExpressionFactory("EXT010")
-    expression_EXT010 = expression_EXT010.le("EXFVDT", currentDate as String).and(expression_EXT010.ge("EXLVDT", currentDate as String))
-    DBAction query_EXT010 = database.table("EXT010").index("02").matching(expression_EXT010).selection("EXSULE", "EXSULD", "EXRSCL", "EXASGD").build()
-    DBContainer EXT010 = query_EXT010.getContainer()
-    EXT010.set("EXCONO", currentCompany)
-    EXT010.set("EXCUNO", inCustomer)
-    EXT010.set("EXITNO", sigma9)
-    if (query_EXT010.readAll(EXT010, 3, 1, outData_EXT010_3)) {
+    ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
+    ext010Expression = ext010Expression.le("EXFVDT", currentDate as String).and(ext010Expression.ge("EXLVDT", currentDate as String))
+    DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXSULE", "EXSULD", "EXRSCL", "EXASGD").build()
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXCUNO", inCustomer)
+    ext010Request.set("EXITNO", sigma9)
+    if (ext010Query.readAll(ext010Request, 3, 1, ext010Reader3)) {
     }
 
-    /*
-    if(rscl.trim() == "999" ||
-        rscl.trim() == "" ||
-        (utility.call("NumberUtil","isValidInteger", rscl.trim()) && rscl.trim().length() == 2)) {
-      saisonnalite = "Permanent"
-    }
-    if(rscl.trim() == "998") {
-      saisonnalite = "Saisonnalite"
-    }
 
-    if(utility.call("NumberUtil","isValidInteger", rscl.trim()) && rscl.trim().length() == 2) {
-      diffusion = rscl
-    }
-    */
     if (rscl.trim() == "999" ||
       rscl.trim() == "") {
       saisonnalite = "Permanent"
@@ -1556,53 +1732,41 @@ public class EXT040 extends ExtendM3Batch {
     unitePrixVente = ""
     savedFromValidDate = 0
     currentFromValidDate = 0
-    DBAction query_OPRMTX = database.table("OPRMTX").index("00").selection("DXPRRF").build()
-    DBContainer OPRMTX = query_OPRMTX.getContainer()
-    OPRMTX.set("DXCONO", currentCompany)
-    OPRMTX.set("DXPLTB", pltb)
-    OPRMTX.set("DXPREX", " 5")
-    OPRMTX.set("DXOBV1", inCustomer)
-    OPRMTX.set("DXOBV2", "")
-    OPRMTX.set("DXOBV3", "")
-    OPRMTX.set("DXOBV4", "")
-    OPRMTX.set("DXOBV5", "")
-    if (query_OPRMTX.read(OPRMTX)) {
-      ExpressionFactory expression = database.getExpressionFactory("OPRBAS")
-      expression = expression.le("ODVFDT", currentDate as String).and(expression.ge("ODLVDT", currentDate as String))
-      expression = expression.and(expression.eq("ODITNO", sigma9))
-      expression = expression.and(expression.eq("ODCUNO", inCustomer))
-      DBAction query_OPRBAS = database.table("OPRBAS").index("00").matching(expression).selection("ODVFDT", "ODSAPR", "ODSPUN").build()
-      DBContainer OPRBAS = query_OPRBAS.getContainer()
-      OPRBAS.set("ODCONO", currentCompany)
-      OPRBAS.set("ODPRRF", OPRMTX.get("DXPRRF"))
-      query_OPRBAS.readAll(OPRBAS, 2, outData_OPRBAS)
-    }
+    ExpressionFactory oprbasExpression = database.getExpressionFactory("OPRBAS")
+    oprbasExpression = oprbasExpression.le("ODVFDT", currentDate as String).and(oprbasExpression.ge("ODLVDT", currentDate as String))
+    oprbasExpression = oprbasExpression.and(oprbasExpression.eq("ODITNO", sigma9))
+    oprbasExpression = oprbasExpression.and(oprbasExpression.eq("ODCUNO", inCustomer))
+    DBAction oprbasQuery = database.table("OPRBAS").index("00").matching(oprbasExpression).selection("ODVFDT", "ODSAPR", "ODSPUN").build()
+    DBContainer oprbasRequest = oprbasQuery.getContainer()
+    oprbasRequest.set("ODCONO", currentCompany)
+    oprbasRequest.set("ODPRRF", prrf)
+    oprbasQuery.readAll(oprbasRequest, 2, 10000, oprbasReader)
 
     minimumCommande = ""
-    DBAction query_OCUSIT = database.table("OCUSIT").index("00").selection("ORD2QT").build()
-    DBContainer OCUSIT = query_OCUSIT.getContainer()
-    OCUSIT.set("ORCONO", currentCompany)
-    OCUSIT.set("ORCUNO", "")
-    OCUSIT.set("ORITNO", sigma9)
-    if (query_OCUSIT.read(OCUSIT)) {
-      minimumCommande = OCUSIT.get("ORD2QT")
+    DBAction ocusitQuery = database.table("OCUSIT").index("00").selection("ORD2QT").build()
+    DBContainer ocusitRequest = ocusitQuery.getContainer()
+    ocusitRequest.set("ORCONO", currentCompany)
+    ocusitRequest.set("ORCUNO", "")
+    ocusitRequest.set("ORITNO", sigma9)
+    if (ocusitQuery.read(ocusitRequest)) {
+      minimumCommande = ocusitRequest.get("ORD2QT")
     }
 
     nouveaute = ""
     prixCadencierPrecedent = "0"
     evolutionPrixCadencierPrecedent = ""
 
-    DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXSAPR").build()
-    DBContainer EXT040 = query_EXT040.getContainer()
-    EXT040.set("EXCONO", currentCompany)
-    EXT040.set("EXCUNO", inCustomer)
-    EXT040.set("EXCDNN", previousCalendar)
-    EXT040.set("EXPOPN", sigma6)
-    EXT040.set("EXITNO", sigma9)
-    if (!query_EXT040.read(EXT040)) {
+    DBAction ext040Query = database.table("EXT040").index("00").selection("EXSAPR").build()
+    DBContainer ext040Reader = ext040Query.getContainer()
+    ext040Reader.set("EXCONO", currentCompany)
+    ext040Reader.set("EXCUNO", inCustomer)
+    ext040Reader.set("EXCDNN", previousCalendar)
+    ext040Reader.set("EXPOPN", sigma6)
+    ext040Reader.set("EXITNO", sigma9)
+    if (!ext040Query.read(ext040Reader)) {
       nouveaute = "N"
     } else {
-      prixCadencierPrecedent = EXT040.get("EXSAPR") as String
+      prixCadencierPrecedent = ext040Reader.get("EXSAPR") as String
     }
 
     if (prixVente != "0" && prixCadencierPrecedent != "0")
@@ -1629,181 +1793,219 @@ public class EXT040 extends ExtendM3Batch {
     miCaller.call("EXT820MI", "SubmitBatch", parameters, handler)
   }
   // Retrieve OPRBAS
-  Closure<?> outData_OPRBAS = { DBContainer OPRBAS ->
-    currentFromValidDate = OPRBAS.get("ODVFDT")
+  Closure<?> oprbasReader = { DBContainer oprbasResult ->
+    currentFromValidDate = oprbasResult.get("ODVFDT")
     if (currentFromValidDate > savedFromValidDate) {
-      savedFromValidDate = OPRBAS.get("ODVFDT")
-      prixVente = OPRBAS.get("ODSAPR")
-      unitePrixVente = OPRBAS.get("ODSPUN")
+      savedFromValidDate = oprbasResult.get("ODVFDT")
+      prixVente = oprbasResult.get("ODSAPR")
+      unitePrixVente = oprbasResult.get("ODSPUN")
     }
   }
-  // Retrieve MITALT
-  Closure<?> outData_MITALT = { DBContainer MITALT ->
-    int stdt = MITALT.get("MASTDT")
-    if (stdt <= currentDate) {
-      codeArticleRemplace = MITALT.get("MAITNO")
-      DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMFUDS").build()
-      DBContainer MITMAS = query_MITMAS.getContainer()
-      MITMAS.set("MMCONO", currentCompany)
-      MITMAS.set("MMITNO", codeArticleRemplace)
-      if (query_MITMAS.read(MITMAS)) {
-        libelleArticleRemplace = MITMAS.get("MMFUDS")
+
+  // Retrieve MITPOP
+  Closure<?> mitPopReader = { DBContainer mitpopResult ->
+    popn = mitpopResult.get("MPPOPN")
+  }
+
+  public void deleteTemporaryFiles() {
+    // Delete EXT040  records for previous calendar
+    ExpressionFactory ext040Expression = database.getExpressionFactory("EXT040")
+    if (!isMainAssortment)
+      ext040Expression = ext040Expression.ne("EXCDNN", previousCalendar)
+    if (isMainAssortment)
+      ext040Expression = ext040Expression.ne("EXCDNN", inCalendar).and(ext040Expression.ne("EXCDNN", previousCalendar))
+
+    DBAction ext040Query = database.table("EXT040").index("00").matching(ext040Expression).build()
+    DBContainer ext040Request = ext040Query.getContainer()
+    ext040Request.set("EXCONO", currentCompany)
+    ext040Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext040MassDeleter = { DBContainer ext040Result ->
+      // Delete EXT040
+      Closure<?> ext040Updater = { LockedResult ext040lockedResult ->
+        ext040lockedResult.delete()
       }
-      if (lhcd.trim() != "FR") {
-        DBAction query_MITLAD = database.table("MITLAD").index("00").selection("MDFUDS").build()
-        DBContainer MITLAD = query_MITLAD.getContainer()
-        MITLAD.set("MDCONO", currentCompany)
-        MITLAD.set("MDITNO", codeArticleRemplace)
-        MITLAD.set("MDLNCD", "GB")
-        if (query_MITLAD.read(MITLAD)) {
-          libelleArticleRemplace = MITLAD.get("MDFUDS")
+      ext040Query.readLock(ext040Result, ext040Updater)
+    }
+
+    //Manage loop on ext040 records we can have max 50 000 records per customer
+    boolean doLoop = true
+    int nbIteration = 0
+    while (doLoop) {
+      if (nbIteration > 0) {
+        PositionKey position = ext040Query.getPositionKey()
+        if (position instanceof PositionEmpty) {
+          doLoop = false
+          break
+        } else {
+          ext040Query = database.table("EXT040")
+            .index("00")
+            .matching(ext040Expression)
+            .position(position)
+            .build()
         }
       }
+      if (!ext040Query.readAll(ext040Request, 2, 10000, ext040MassDeleter)) {
+      }
+      nbIteration++
+      if (nbIteration > 5) {//max 50 0000 records
+        logMessage("ERROR", "Nombre d'itération trop important cuno:${inCustomer} cdnn:${inCalendar}")
+        break
+      }
     }
-  }
-  // Retrieve MPDMAT
-  Closure<?> outData_MPDMAT = { DBContainer MPDMAT ->
-    sumCNQT += MPDMAT.get("PMCNQT") as double
-  }
-  // Retrieve MITPOP
-  Closure<?> outData_MITPOP2 = { DBContainer MITPOP ->
-    popn = MITPOP.get("MPPOPN")
-  }
-  // Delete EXT040 and EXT041 records for previous calendar
-  public void deleteTemporaryFiles() {
-    ExpressionFactory expressionEXT040 = database.getExpressionFactory("EXT040")
 
-    logger.debug("isMain:${isMainAssortment} inCalendar:${inCalendar} previousCalendar:${previousCalendar}")
-
+    // Delete EXT041  records for previous calendar
+    ExpressionFactory ext041Expression = database.getExpressionFactory("EXT041")
     if (!isMainAssortment)
-      expressionEXT040 = expressionEXT040.ne("EXCDNN", previousCalendar)
+      ext041Expression = ext041Expression.ne("EXCDNN", previousCalendar)
     if (isMainAssortment)
-      expressionEXT040 = expressionEXT040.ne("EXCDNN", inCalendar).and(expressionEXT040.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT040 = database.table("EXT040").index("00").matching(expressionEXT040).build()
-    DBContainer EXT040 = query_EXT040.getContainer()
-    EXT040.set("EXCONO", currentCompany)
-    EXT040.set("EXCUNO", inCustomer)
-    if (!query_EXT040.readAllLock(EXT040, 2, updateCallBack_EXT040)) {
+      ext041Expression = ext041Expression.ne("EXCDNN", inCalendar).and(ext041Expression.ne("EXCDNN", previousCalendar))
+
+    DBAction ext041Query = database.table("EXT041").index("00").matching(ext041Expression).build()
+    DBContainer ext041Request = ext041Query.getContainer()
+    ext041Request.set("EXCONO", currentCompany)
+    ext041Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext041MassDeleter = { DBContainer ext041Result ->
+      // Delete ext041
+      Closure<?> ext041Updater = { LockedResult ext041lockedResult ->
+        ext041lockedResult.delete()
+      }
+      ext041Query.readLock(ext041Result, ext041Updater)
     }
 
-    ExpressionFactory expressionEXT041 = database.getExpressionFactory("EXT041")
-    //expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
-    if (!isMainAssortment)
-      expressionEXT041 = expressionEXT041.ne("EXCDNN", previousCalendar)
-    if (isMainAssortment)
-      expressionEXT041 = expressionEXT041.ne("EXCDNN", inCalendar).and(expressionEXT041.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT041 = database.table("EXT041").index("00").matching(expressionEXT041).build()
-    DBContainer EXT041 = query_EXT041.getContainer()
-    EXT041.set("EXCONO", currentCompany)
-    EXT041.set("EXCUNO", inCustomer)
-    //EXT041.set("EXCDNN", previousCalendar)
-    if (!query_EXT041.readAllLock(EXT041, 2, updateCallBack_EXT041)) {
+    //Manage loop on ext041 records we can have max 50 000 records per customer
+    doLoop = true
+    nbIteration = 0
+    while (doLoop) {
+      if (nbIteration > 0) {
+        PositionKey position = ext041Query.getPositionKey()
+        if (position instanceof PositionEmpty) {
+          doLoop = false
+          break
+        } else {
+          ext041Query = database.table("EXT041")
+            .index("00")
+            .matching(ext041Expression)
+            .position(position)
+            .build()
+        }
+      }
+      if (!ext041Query.readAll(ext041Request, 2, 10000, ext041MassDeleter)) {
+      }
+      nbIteration++
+      if (nbIteration > 5) {//max 50 0000 records
+        logMessage("ERROR", "Nombre d'itération trop important cuno:${inCustomer} cdnn:${inCalendar}")
+        break
+      }
     }
 
-    ExpressionFactory expressionEXT042 = database.getExpressionFactory("EXT042")
-    //expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
+    //DELETE EXT042 Records for previous calendar
+    ExpressionFactory ext042Expression = database.getExpressionFactory("EXT042")
     if (!isMainAssortment)
-      expressionEXT042 = expressionEXT042.ne("EXCDNN", previousCalendar)
+      ext042Expression = ext042Expression.ne("EXCDNN", previousCalendar)
     if (isMainAssortment)
-      expressionEXT042 = expressionEXT042.ne("EXCDNN", inCalendar).and(expressionEXT042.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT042 = database.table("EXT042").index("00").matching(expressionEXT042).build()
-    DBContainer EXT042 = query_EXT042.getContainer()
-    EXT042.set("EXCONO", currentCompany)
-    EXT042.set("EXCUNO", inCustomer)
-    if (!query_EXT042.readAllLock(EXT042, 2, updateCallBack_EXT042)) {
+      ext042Expression = ext042Expression.ne("EXCDNN", inCalendar).and(ext042Expression.ne("EXCDNN", previousCalendar))
+    DBAction ext042Query = database.table("EXT042").index("00").matching(ext042Expression).build()
+    DBContainer ext042Request = ext042Query.getContainer()
+    ext042Request.set("EXCONO", currentCompany)
+    ext042Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext042MassDeleter = { DBContainer ext042Result ->
+      // Delete ext041
+      Closure<?> ext042Updater = { LockedResult ext042lockedResult ->
+        ext042lockedResult.delete()
+      }
+      ext042Query.readLock(ext042Result, ext042Updater)
+    }
+    if (!ext042Query.readAll(ext042Request, 2, 10000, ext042MassDeleter)) {
     }
 
-    ExpressionFactory expressionEXT043 = database.getExpressionFactory("EXT043")
-    //expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
+    //DELETE EXT043 Records for previous calendar
+    ExpressionFactory ext043Expression = database.getExpressionFactory("EXT043")
     if (!isMainAssortment)
-      expressionEXT043 = expressionEXT043.ne("EXCDNN", previousCalendar)
+      ext043Expression = ext043Expression.ne("EXCDNN", previousCalendar)
     if (isMainAssortment)
-      expressionEXT043 = expressionEXT043.ne("EXCDNN", inCalendar).and(expressionEXT043.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT043 = database.table("EXT043").index("00").matching(expressionEXT043).build()
-    DBContainer EXT043 = query_EXT043.getContainer()
-    EXT043.set("EXCONO", currentCompany)
-    EXT043.set("EXCUNO", inCustomer)
-    if (!query_EXT043.readAllLock(EXT043, 2, updateCallBack_EXT043)) {
+      ext043Expression = ext043Expression.ne("EXCDNN", inCalendar).and(ext043Expression.ne("EXCDNN", previousCalendar))
+    DBAction ext043Query = database.table("EXT043").index("00").matching(ext043Expression).build()
+    DBContainer ext043Request = ext043Query.getContainer()
+    ext043Request.set("EXCONO", currentCompany)
+    ext043Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext043MassDeleter = { DBContainer ext043Result ->
+      // Delete ext041
+      Closure<?> ext043Updater = { LockedResult ext043lockedResult ->
+        ext043lockedResult.delete()
+      }
+      ext043Query.readLock(ext043Result, ext043Updater)
+    }
+    if (!ext043Query.readAll(ext043Request, 2, 10000, ext043MassDeleter)) {
     }
 
-    ExpressionFactory expressionEXT044 = database.getExpressionFactory("EXT044")
-    //expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
+    //DELETE EXT044 Records for previous calendar
+    ExpressionFactory ext044Expression = database.getExpressionFactory("EXT044")
     if (!isMainAssortment)
-      expressionEXT044 = expressionEXT044.ne("EXCDNN", previousCalendar)
+      ext044Expression = ext044Expression.ne("EXCDNN", previousCalendar)
     if (isMainAssortment)
-      expressionEXT044 = expressionEXT044.ne("EXCDNN", inCalendar).and(expressionEXT044.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT044 = database.table("EXT044").index("00").matching(expressionEXT044).build()
-    DBContainer EXT044 = query_EXT044.getContainer()
-    EXT044.set("EXCONO", currentCompany)
-    EXT044.set("EXCUNO", inCustomer)
-    if (!query_EXT044.readAllLock(EXT044, 2, updateCallBack_EXT044)) {
+      ext044Expression = ext044Expression.ne("EXCDNN", inCalendar).and(ext044Expression.ne("EXCDNN", previousCalendar))
+    DBAction ext044Query = database.table("EXT044").index("00").matching(ext044Expression).build()
+    DBContainer ext044Request = ext044Query.getContainer()
+    ext044Request.set("EXCONO", currentCompany)
+    ext044Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext044MassDeleter = { DBContainer ext044Result ->
+      // Delete ext041
+      Closure<?> ext044Updater = { LockedResult ext044lockedResult ->
+        ext044lockedResult.delete()
+      }
+      ext044Query.readLock(ext044Result, ext044Updater)
+    }
+    if (!ext044Query.readAll(ext044Request, 2, 10000, ext044MassDeleter)) {
     }
 
-    ExpressionFactory expressionEXT045 = database.getExpressionFactory("EXT045")
+    //DELETE EXT045 Records for previous calendar
+    ExpressionFactory ext045Expression = database.getExpressionFactory("EXT045")
     if (!isMainAssortment)
-      expressionEXT045 = expressionEXT045.ne("EXCDNN", previousCalendar)
+      ext045Expression = ext045Expression.ne("EXCDNN", previousCalendar)
     if (isMainAssortment)
-      expressionEXT045 = expressionEXT045.ne("EXCDNN", inCalendar).and(expressionEXT045.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT045 = database.table("EXT045").index("00").matching(expressionEXT045).build()
-    DBContainer EXT045 = query_EXT045.getContainer()
-    EXT045.set("EXCONO", currentCompany)
-    EXT045.set("EXCUNO", inCustomer)
-    if (!query_EXT045.readAllLock(EXT045, 2, updateCallBack_EXT045)) {
+      ext045Expression = ext045Expression.ne("EXCDNN", inCalendar).and(ext045Expression.ne("EXCDNN", previousCalendar))
+    DBAction ext045Query = database.table("EXT045").index("00").matching(ext045Expression).build()
+    DBContainer ext045Request = ext045Query.getContainer()
+    ext045Request.set("EXCONO", currentCompany)
+    ext045Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext045MassDeleter = { DBContainer ext045Result ->
+      // Delete ext041
+      Closure<?> ext045Updater = { LockedResult ext045lockedResult ->
+        ext045lockedResult.delete()
+      }
+      ext045Query.readLock(ext045Result, ext045Updater)
+    }
+    if (!ext045Query.readAll(ext045Request, 2, 10000, ext045MassDeleter)) {
     }
 
-    ExpressionFactory expressionEXT046 = database.getExpressionFactory("EXT046")
-    //expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))//D°20240503 FLEBARS
-    //A°20240503 FLEBARS START
+    //DELETE EXT046 Records for previous calendar
+    ExpressionFactory ext046Expression = database.getExpressionFactory("EXT046")
     if (!isMainAssortment)
-      expressionEXT046 = expressionEXT046.ne("EXCDNN", previousCalendar)
+      ext046Expression = ext046Expression.ne("EXCDNN", previousCalendar)
     if (isMainAssortment)
-      expressionEXT046 = expressionEXT046.ne("EXCDNN", inCalendar).and(expressionEXT046.ne("EXCDNN", previousCalendar))
-    //A°20240503 FLEBARS END
-    DBAction query_EXT046 = database.table("EXT046").index("00").matching(expressionEXT046).build()
-    DBContainer EXT046 = query_EXT046.getContainer()
-    EXT046.set("EXCONO", currentCompany)
-    EXT046.set("EXCUNO", inCustomer)
-    if (!query_EXT046.readAllLock(EXT046, 2, updateCallBack_EXT046)) {
+      ext046Expression = ext046Expression.ne("EXCDNN", inCalendar).and(ext046Expression.ne("EXCDNN", previousCalendar))
+    DBAction ext046Query = database.table("EXT046").index("00").matching(ext046Expression).build()
+    DBContainer ext046Request = ext046Query.getContainer()
+    ext046Request.set("EXCONO", currentCompany)
+    ext046Request.set("EXCUNO", inCustomer)
+
+    Closure<?> ext046MassDeleter = { DBContainer ext046Result ->
+      // Delete ext041
+      Closure<?> ext046Updater = { LockedResult ext046lockedResult ->
+        ext046lockedResult.delete()
+      }
+      ext046Query.readLock(ext046Result, ext046Updater)
+    }
+    if (!ext046Query.readAll(ext046Request, 2, 10000, ext046MassDeleter)) {
     }
   }
-  // Delete EXT040
-  Closure<?> updateCallBack_EXT040 = { LockedResult ext040lockedResult ->
-    ext040lockedResult.delete()
-  }
-  // Delete EXT041
-  Closure<?> updateCallBack_EXT041 = { LockedResult ext041lockedResult ->
-    ext041lockedResult.delete()
-  }
-  // Delete EXT042
-  Closure<?> updateCallBack_EXT042 = { LockedResult ext042LockedResult ->
-    ext042LockedResult.delete()
-  }
-  // Delete EXT043
-  Closure<?> updateCallBack_EXT043 = { LockedResult ext043LockedResult ->
-    ext043LockedResult.delete()
-  }
-  // Delete EXT044
-  Closure<?> updateCallBack_EXT044 = { LockedResult ext044LockedResult ->
-    ext044LockedResult.delete()
-  }
-  // Delete EXT045
-  Closure<?> updateCallBack_EXT045 = { LockedResult ext045LockedResult ->
-    ext045LockedResult.delete()
-  }
-  // Delete EXT046
-  Closure<?> updateCallBack_EXT046 = { LockedResult ext046LockedResult ->
-    ext046LockedResult.delete()
-  }
+
   // Get first parameter
   private String getFirstParameter() {
     rawDataLength = rawData.length()
@@ -1832,27 +2034,25 @@ public class EXT040 extends ExtendM3Batch {
     DBAction query = database.table("EXTJOB").index("00").build()
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
-    if (!query.readAllLock(EXTJOB, 1, updateCallBack_EXTJOB)) {
+    // Delete EXTJOB
+    Closure<?> updateCallBack_EXTJOB = { LockedResult lockedResult ->
+      lockedResult.delete()
     }
-  }
-  // Delete EXTJOB
-  Closure<?> updateCallBack_EXTJOB = { LockedResult lockedResult ->
-    lockedResult.delete()
+    if (!query.readLock(EXTJOB, updateCallBack_EXTJOB)) {//todo check readll
+    }
   }
   // Log message
-  void logMessage(String header, String line) {
+  void writeInFile(String header, String line) {
     textFiles.open("FileImport/CadencierClient")
-
-    //if (logFileName.endsWith("docNumber.xml"))
     if (header.trim() != "") {
-      log(header + "\r\n")
+      writeFile(header + "\r\n")
     }
     if (line.trim() != "") {
-      log(line)
+      writeFile(line)
     }
   }
   // Log
-  void log(String message) {
+  void writeFile(String message) {
     IN60 = true
     //message = LocalDateTime.now().toString() + ";" + message
     Closure<?> consumer = { PrintWriter printWriter ->
@@ -1874,5 +2074,90 @@ public class EXT040 extends ExtendM3Batch {
     } else {
     }
     return Optional.empty()
+  }
+  /**
+   * Initialize log management
+   */
+  private void initializeLogManagement() {
+    logfile = program.getProgramName() + "." + "batch" + "." + jobNumber + ".log"
+    logmessages = new LinkedList<String>()
+    loglevel = getCRS881("", "EXTENC", "1", "ExtendM3", "I", program.getProgramName(), "LOGLEVEL", "", "")
+    if (!LOGLEVELS.contains(loglevel)) {
+      String message = "Niveau de log incorrect ${loglevel}"
+      loglevel = "ERROR"
+      logMessage("ERROR", message)
+    }
+  }
+
+  /**
+   * Add Log message in list
+   * @param level
+   * @param message
+   */
+  private void logMessage(String level, String message) {
+    int lvl = LOGLEVELS.indexOf(level)
+    int lvg = LOGLEVELS.indexOf(loglevel)
+    if (lvl >= lvg) {
+      message = LocalDateTime.now().toString() + ": ${level} ${message}"
+      logmessages.add(message)
+    }
+  }
+
+  /**
+   * Write Log messages in File
+   */
+  private void logMessages() {
+    if (logmessages.isEmpty()) {
+      return
+    }
+    textFiles.open("log")
+    String message = String.join("\r\n", logmessages)
+    Closure<?> consumer = { PrintWriter printWriter ->
+      printWriter.println(message)
+    }
+    textFiles.write(logfile, "UTF-8", true, consumer)
+  }
+
+  /**
+   * Get the value in CRS881/CRS882
+   * @parameter division
+   * @parameter mstd
+   * @parameter mvrs
+   * @parameter bmsg
+   * @parameter ibob
+   * @parameter elmp
+   * @parameter elmd
+   * @parameter elmc
+   * @parameter mbmc
+   * @return
+   */
+  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
+    String mvxd = ""
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
+    DBContainer requestMbmtrn = queryMbmtrn.getContainer()
+    requestMbmtrn.set("TRTRQF", "0")
+    requestMbmtrn.set("TRMSTD", mstd)
+    requestMbmtrn.set("TRMVRS", mvrs)
+    requestMbmtrn.set("TRBMSG", bmsg)
+    requestMbmtrn.set("TRIBOB", ibob)
+    requestMbmtrn.set("TRELMP", elmp)
+    requestMbmtrn.set("TRELMD", elmd)
+    requestMbmtrn.set("TRELMC", elmc)
+    requestMbmtrn.set("TRMBMC", mbmc)
+    if (queryMbmtrn.read(requestMbmtrn)) {
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBContainer requestMbmtrd = queryMbmtrd.getContainer()
+      requestMbmtrd.set("TDCONO", currentCompany)
+      requestMbmtrd.set("TDDIVI", division)
+      requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
+      // Retrieve MBTRND
+      Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
+        mvxd = resultMbmtrd.get("TDMVXD") as String
+        mvxd = mvxd.trim()
+      }
+      if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {
+      }
+      return mvxd
+    }
   }
 }

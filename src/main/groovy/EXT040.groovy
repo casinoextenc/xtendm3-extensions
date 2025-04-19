@@ -174,6 +174,8 @@ public class EXT040 extends ExtendM3Batch {
   private boolean isMainAssortment = false
   private String mainAssortment
   private boolean isReedition = false
+  private Map<String, String> mithryMap
+
 
   public EXT040(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -588,6 +590,13 @@ public class EXT040 extends ExtendM3Batch {
    * @return
    */
   private String getMithryDescription(int level, String hie0) {
+    if (mithryMap == null) {
+      mithryMap = new LinkedHashMap<String, String>()
+    }
+
+    if (mithryMap.containsKey(hie0)) {
+      return mithryMap.get(level + "_" + hie0)
+    }
     DBAction mithryQuery = database.table("MITHRY").index("00").selection(
       "HITX40"
     )
@@ -597,7 +606,9 @@ public class EXT040 extends ExtendM3Batch {
     mithryRequest.set("HIHLVL", level)
     mithryRequest.set("HIHIE0", hie0)
     if (mithryQuery.read(mithryRequest)) {
-      return mithryRequest.get("HITX40") as String
+      String tx40 = mithryRequest.get("HITX40") as String
+      mithryMap.put(level + "_" + hie0, tx40)
+      return tx40
     }
     return ""
   }
@@ -2133,7 +2144,7 @@ public class EXT040 extends ExtendM3Batch {
    */
   private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
     String mvxd = ""
-    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR", "TDTX15").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
     requestMbmtrn.set("TRTRQF", "0")
     requestMbmtrn.set("TRMSTD", mstd)
@@ -2145,14 +2156,14 @@ public class EXT040 extends ExtendM3Batch {
     requestMbmtrn.set("TRELMC", elmc)
     requestMbmtrn.set("TRMBMC", mbmc)
     if (queryMbmtrn.read(requestMbmtrn)) {
-      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX15").build()
       DBContainer requestMbmtrd = queryMbmtrd.getContainer()
       requestMbmtrd.set("TDCONO", currentCompany)
       requestMbmtrd.set("TDDIVI", division)
       requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
       // Retrieve MBTRND
       Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
-        mvxd = resultMbmtrd.get("TDMVXD") as String
+        mvxd = resultMbmtrd.get("TDTX15") as String
         mvxd = mvxd.trim()
       }
       if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {

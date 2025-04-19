@@ -374,7 +374,7 @@ public class EXT020 extends ExtendM3Batch {
    */
   private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
     String mvxd = ""
-    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR", "TDTX15").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
     requestMbmtrn.set("TRTRQF", "0")
     requestMbmtrn.set("TRMSTD", mstd)
@@ -393,7 +393,7 @@ public class EXT020 extends ExtendM3Batch {
       requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
       // Retrieve MBTRND
       Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
-        mvxd = resultMbmtrd.get("TDMVXD") as String
+        mvxd = resultMbmtrd.get("TDTX15") as String
         mvxd = mvxd.trim()
         logger.debug("in read log in closure level mvxd = " + mvxd)
       }

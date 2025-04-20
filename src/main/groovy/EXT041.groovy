@@ -837,7 +837,7 @@ public class EXT041 extends ExtendM3Batch {
    */
   private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
     String mvxd = ""
-    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR", "TDTX15").build()
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
     requestMbmtrn.set("TRTRQF", "0")
     requestMbmtrn.set("TRMSTD", mstd)

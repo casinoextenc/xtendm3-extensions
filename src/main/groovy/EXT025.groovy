@@ -56,12 +56,6 @@ public class EXT025 extends ExtendM3Batch {
     //log management
     initializeLogManagement()
 
-    if (true){
-      logMessage("ERROR", " Test")
-      logMessages()
-      return
-    }
-
     if (batch.getReferenceId().isPresent()) {
       referenceId = batch.getReferenceId()
       Optional<String> data = getJobData(batch.getReferenceId().get())

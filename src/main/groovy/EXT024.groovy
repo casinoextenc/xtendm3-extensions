@@ -64,7 +64,6 @@ public class EXT024 extends ExtendM3Batch {
     //log management
     initializeLogManagement()
 
-
     if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())
       performActualJob(data)
@@ -156,7 +155,7 @@ public class EXT024 extends ExtendM3Batch {
     DBAction queryOascus = database.table("OASCUS")
       .index("10")
       .selection(
-        "OCASCD"
+        "OCASCD", "OCFDAT"
       )
       .build()
     DBContainer requestOascus = queryOascus.getContainer()
@@ -164,6 +163,7 @@ public class EXT024 extends ExtendM3Batch {
     requestOascus.set("OCCUNO", cuno)
     Closure<?> oascusReader = { DBContainer recordOascus ->
       String ascd = recordOascus.get("OCASCD")
+      String fdat = recordOascus.get("OCFDAT") as String
       // Check selection header
       DBAction queryCsytab = database.table("CSYTAB")
         .index("00")
@@ -179,10 +179,14 @@ public class EXT024 extends ExtendM3Batch {
         String rAscd = resultCsytab.get("CTSTKY") as String
         String rTx15 = resultCsytab.get("CTTX15") as String
         String rTx40 = resultCsytab.get("CTTX40")
+        logMessage("DEBUG", "start suppression assortiment ${rAscd} ${rTx40} ${rTx15} ${cuno} ${fdat}")
         // Delete selected items in the assortment
         executeCRS105MIDltAssmHead(rAscd.trim())
         // Create Assortment
         executeCRS105MIAddAssmHead(rAscd.trim(),rTx40.trim(),rTx15.trim())
+        // Create Assortment
+        executeCRS105MIAddAssmCust(rAscd.trim(),cuno,fdat.trim())
+        logMessage("DEBUG", "end suppression assortiment ${rAscd} ${rTx40} ${rTx15} ${cuno} ${fdat}")
       }
       queryCsytab.readAll(requestCsytab, 4, 1,outDataCsytab)
       count++
@@ -220,11 +224,6 @@ public class EXT024 extends ExtendM3Batch {
       executeOIS017MIDelPriceList(prrf,
         oprichRecord.get("OJFVDT") as String)
 
-      executeOIS017MIAddPriceList(prrf,
-        oprichRecord.get("OJFVDT") as String,
-        oprichRecord.get("OJLVDT") as String,
-        oprichRecord.get("OJTX40") as String,
-        oprichRecord.get("OJTX15") as String)
       count++
     }
     oprichQuery.readAll(oprichRequest, 4, 10000, oprichReader)
@@ -306,9 +305,8 @@ public class EXT024 extends ExtendM3Batch {
     Map<String, String> parameters = ["ASCD": pAscd]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        String header = "MSG"
         String message = "Failed CRS105MI.DltAssmHead: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
@@ -325,16 +323,31 @@ public class EXT024 extends ExtendM3Batch {
     ]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        String header = "MSG"
         String message = "Failed CRS105MI.AddAssmHead: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
     }
     miCaller.call("CRS105MI", "AddAssmHead", parameters, handler)
   }
-
+  // Execute CRS105MI AddAssmHead
+  private executeCRS105MIAddAssmCust(String pAscd, String pCuno, String pFdat) {
+    Map<String, String> parameters = [
+      "ASCD": pAscd,
+      "CUNO": pCuno,
+      "FDAT": pFdat
+    ]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        String message = "Failed CRS105MI.AddAssmCust: " + response.errorMessage
+        logMessage("ERROR", message)
+        return
+      } else {
+      }
+    }
+    miCaller.call("CRS105MI", "AddAssmCust", parameters, handler)
+  }
   /**
    * Execute OIS017MI DelPriceList
    * @param prrf
@@ -349,49 +362,13 @@ public class EXT024 extends ExtendM3Batch {
     ]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        String header = "MSG"
         String message = "Failed OIS017MI.DelPriceList: " + response.errorMessage
-        logMessage(header, message)
+        logMessage("ERROR", message)
         return
       } else {
       }
     }
     miCaller.call("OIS017MI", "DelPriceList", parameters, handler)
-  }
-
-  /**
-   * Execute OIS017MI AddPriceList
-   * @param prrf
-   * @param fvdt
-   * @param lvdt
-   * @param tx40
-   * @param tx15
-   */
-  private void executeOIS017MIAddPriceList(String prrf, String fvdt, String lvdt, String tx40, String tx15) {
-    Map<String, String> parameters = [
-      "PRRF": prrf,
-      "CUNO": cuno,
-      "CUCD": cucd,
-      "FVDT": fvdt,
-      "LVDT": lvdt,
-      "TX40": tx40,
-      "TX15": tx15,
-      "SCMU": "1",
-      "SCSC": "0",
-      "BNCD": "2",
-      "CRTP": "1",
-      "PRAC": "2"
-    ]
-    Closure<?> handler = { Map<String, String> response ->
-      if (response.error != null) {
-        String header = "MSG"
-        String message = "Failed OIS017MI.AddPriceList: " + response.errorMessage
-        logMessage(header, message)
-        return
-      } else {
-      }
-    }
-    miCaller.call("OIS017MI", "AddPriceList", parameters, handler)
   }
 
   // Get job data

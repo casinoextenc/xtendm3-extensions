@@ -54,6 +54,7 @@ public class EXT025 extends ExtendM3Batch {
     //log management
     initializeLogManagement()
 
+
     if (batch.getReferenceId().isPresent()) {
       referenceId = batch.getReferenceId()
       Optional<String> data = getJobData(batch.getReferenceId().get())
@@ -213,7 +214,7 @@ public class EXT025 extends ExtendM3Batch {
    */
   private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
     String mvxd = ""
-    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR", "TDTX15").build()
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
     requestMbmtrn.set("TRTRQF", "0")
     requestMbmtrn.set("TRMSTD", mstd)
@@ -225,7 +226,7 @@ public class EXT025 extends ExtendM3Batch {
     requestMbmtrn.set("TRELMC", elmc)
     requestMbmtrn.set("TRMBMC", mbmc)
     if (queryMbmtrn.read(requestMbmtrn)) {
-      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX15").build()
       DBContainer requestMbmtrd = queryMbmtrd.getContainer()
       requestMbmtrd.set("TDCONO", currentCompany)
       requestMbmtrd.set("TDDIVI", division)

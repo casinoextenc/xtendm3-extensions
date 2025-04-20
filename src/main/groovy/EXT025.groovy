@@ -47,6 +47,8 @@ public class EXT025 extends ExtendM3Batch {
   }
 
   public void main() {
+    currentCompany = (Integer) program.getLDAZD().CONO
+
     // Get job number
     LocalDateTime timeOfCreation = LocalDateTime.now()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
@@ -54,6 +56,11 @@ public class EXT025 extends ExtendM3Batch {
     //log management
     initializeLogManagement()
 
+    if (true){
+      logMessage("ERROR", " Test")
+      logMessages()
+      return
+    }
 
     if (batch.getReferenceId().isPresent()) {
       referenceId = batch.getReferenceId()
@@ -90,8 +97,7 @@ public class EXT025 extends ExtendM3Batch {
     logMessage("INFO", "Start job EXT025")
     rawData = data.get()
     svcuno = ""
-    currentCompany = (Integer) program.getLDAZD().CONO
-    currentDivision = program.getLDAZD().DIVI
+
     LocalDateTime timeOfCreation = LocalDateTime.now()
 
     //Read EXT010

@@ -4,12 +4,13 @@ import java.time.format.DateTimeFormatter
 
 /**
  * Name : EXT020
- * COMX01 Gestion des assortiments clients
+ * COMX01 Lancemment en masse de la synchro assortiments
  * Description :
  *  Select last records in EXT010 then for each customer call batch EXT022
  * Date         Changed By   Description
  * 20240118     YYOU         COMX01 - Submit calc EXT022
  * 20240919     PBEAUDOUIN   COMX01 - Create OASCUS and EXT020 -EXT021 if not exist
+ * 20250419     FLEBARS      Controles et mise en conformité
  */
 
 public class EXT020 extends ExtendM3Batch {
@@ -55,9 +56,7 @@ public class EXT020 extends ExtendM3Batch {
   }
 
   public void main() {
-    // Get job number
     currentCompany = (Integer) program.getLDAZD().CONO
-
     LocalDateTime timeOfCreation = LocalDateTime.now()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
 
@@ -72,21 +71,9 @@ public class EXT020 extends ExtendM3Batch {
     } else {
       logMessage("ERROR", "No job data found")
     }
+    // Write log messages in file
     logMessages()
   }
-
-  // Get job data
-  private Optional<String> getJobData(String referenceId) {
-    DBAction extjobQuery = database.table("EXTJOB").index("00").selection("EXDATA").build()
-    DBContainer extjobRequest = extjobQuery.createContainer()
-    extjobRequest.set("EXRFID", referenceId)
-    if (extjobQuery.read(extjobRequest)) {
-      return Optional.of(extjobRequest.getString("EXDATA"))
-    } else {
-    }
-    return Optional.empty()
-  }
-
   /**
    * @param data
    * @return
@@ -172,8 +159,8 @@ public class EXT020 extends ExtendM3Batch {
       if (!oascusQuery.readAll(oascusRequest, 2, 500, oascusReader)) {
         //Creation assortiment principal
         ascd = cuno + "0"
+        logMessage("INFO", "Create assortiment et launch EXT022 for ASCD:${ascd} CUNO:${cuno} FDAT:${todaydat}")
         addCompletAssort()
-        logMessage("INFO", "launch EXT022 for ASCD:${ascd} CUNO:${cuno} FDAT:${todaydat}")
         executeEXT820MISubmitBatch(currentCompany as String, "EXT022", ascd, cuno, todaydat, "", "2", "", "", "")//todo reactiver
       }
       svcuno = cuno.trim()
@@ -288,6 +275,18 @@ public class EXT020 extends ExtendM3Batch {
     miCaller.call("EXT021MI", "AddAssortHist", parameters, handler)
   }
 
+  //Batch Logic
+  // Get job data
+  private Optional<String> getJobData(String referenceId) {
+    DBAction extjobQuery = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBContainer extjobRequest = extjobQuery.createContainer()
+    extjobRequest.set("EXRFID", referenceId)
+    if (extjobQuery.read(extjobRequest)) {
+      return Optional.of(extjobRequest.getString("EXDATA"))
+    } else {
+    }
+    return Optional.empty()
+  }
   /** Get first parameter
    * @return
    */
@@ -360,7 +359,7 @@ public class EXT020 extends ExtendM3Batch {
   }
 
   /**
-   * Get the value in CRS881/CRS882
+   * Get tx15 the value in CRS881/CRS882
    * @param division
    * @param mstd
    * @param mvrs
@@ -374,7 +373,7 @@ public class EXT020 extends ExtendM3Batch {
    */
   private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
     String mvxd = ""
-    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR", "TDTX15").build()
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
     requestMbmtrn.set("TRTRQF", "0")
     requestMbmtrn.set("TRMSTD", mstd)
@@ -386,7 +385,7 @@ public class EXT020 extends ExtendM3Batch {
     requestMbmtrn.set("TRELMC", elmc)
     requestMbmtrn.set("TRMBMC", mbmc)
     if (queryMbmtrn.read(requestMbmtrn)) {
-      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX15").build()
       DBContainer requestMbmtrd = queryMbmtrd.getContainer()
       requestMbmtrd.set("TDCONO", currentCompany)
       requestMbmtrd.set("TDDIVI", division)

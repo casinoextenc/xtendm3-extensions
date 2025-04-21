@@ -163,6 +163,7 @@ public class EXT040 extends ExtendM3Batch {
   private String lhcd
   private String docnumber
   private String modl
+  private String cfc1
   private String deliveryMethodName
   private String temperature
   private double sumCNQT
@@ -305,28 +306,32 @@ public class EXT040 extends ExtendM3Batch {
     deliveryMethodName = ""
     pltb = ""
     lhcd = ""
-    DBAction query = database.table("OCUSMA").index("00").selection("OKCUNM", "OKPLTB", "OKLHCD", "OKMODL").build()
-    DBContainer OCUSMA = query.getContainer()
-    OCUSMA.set("OKCONO", currentCompany)
-    OCUSMA.set("OKCUNO", inCustomer)
-    if (query.read(OCUSMA)) {
-      customerName = OCUSMA.get("OKCUNM")
-      pltb = OCUSMA.get("OKPLTB")
-      lhcd = OCUSMA.get("OKLHCD")
-      modl = OCUSMA.get("OKMODL")
+    DBAction ocusmaQuery = database.table("OCUSMA").index("00")
+      .selection("OKCUNM", "OKPLTB", "OKLHCD", "OKMODL", "OKCFC1").build()
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUNO", inCustomer)
+    if (ocusmaQuery.read(ocusmaRequest)) {
+      customerName = ocusmaRequest.get("OKCUNM")
+      pltb = ocusmaRequest.get("OKPLTB")
+      lhcd = ocusmaRequest.get("OKLHCD")
+      modl = ocusmaRequest.get("OKMODL")
+      cfc1 = ocusmaRequest.get("OKCFC1")
+      cfc1 = cfc1.trim()
+
       if (modl.trim() != "") {
-        DBAction query_CSYTAB = database.table("CSYTAB").index("00").selection("CTTX15").build()
-        DBContainer CSYTAB = query_CSYTAB.getContainer()
-        CSYTAB.set("CTCONO", currentCompany)
-        CSYTAB.set("CTSTCO", "MODL")
-        CSYTAB.set("CTSTKY", modl.trim())
+        DBAction csytabQuery = database.table("CSYTAB").index("00").selection("CTTX15").build()
+        DBContainer csytabRequest = csytabQuery.getContainer()
+        csytabRequest.set("CTCONO", currentCompany)
+        csytabRequest.set("CTSTCO", "MODL")
+        csytabRequest.set("CTSTKY", modl.trim())
         if (lhcd.trim() == "FR") {
-          CSYTAB.set("CTLNCD", "FR")
+          csytabRequest.set("CTLNCD", "FR")
         } else {
-          CSYTAB.set("CTLNCD", "GB")
+          csytabRequest.set("CTLNCD", "GB")
         }
-        if (query_CSYTAB.read(CSYTAB)) {
-          deliveryMethodName = CSYTAB.get("CTTX15")
+        if (csytabQuery.read(csytabRequest)) {
+          deliveryMethodName = csytabRequest.get("CTTX15")
         }
       }
     }
@@ -1329,11 +1334,41 @@ public class EXT040 extends ExtendM3Batch {
   }
 
   public void createControlFilesFtp() {
+    String server  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
+    String inpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "Path", "", "", "TDTX40")
+    String outpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "OutPutPath", "", "", "TDTX40")
+
+
     //logFileName = fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier-docNumber.xml"
     //docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
     docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier"
-    header = "<?xml version='1.0' encoding='UTF-8' standalone='no'?><LoaddocumentNumber xmlns='http://schema.infor.com/InforOAGIS/2' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' releaseID='9.2' versionID='2.14.6' xsi:schemaLocation='http://schema.infor.com/InforOAGIS/2 http://schema.infor.com/InforOAGIS/BODs/LoaddocumentNumber.xsd'><ApplicationArea><Sender><LogicalID>casino.com</LogicalID><ConfirmationCode>OnError</ConfirmationCode></Sender><CreationDateTime>2023-04-04</CreationDateTime></ApplicationArea><DataArea><Load><TenantID>CASINO_TST</TenantID><AccountingEntityID>100_</AccountingEntityID><ActionCriteria><ActionExpression actionCode='' expressionLanguage=''/></ActionCriteria></Load><documentNumber><DocumentType>CADENCIER</DocumentType><DocumentNumber>${docnumber}.txt</DocumentNumber><DocumentPath>/FileImport/CadencierClient/${docnumber}.txt</DocumentPath></documentNumber></DataArea></LoaddocumentNumber>"
+    header = "<?xml version='1.0' encoding='UTF-8' standalone='no'?>"
+    header += "<LoaddocumentNumber xmlns='http://schema.infor.com/InforOAGIS/2' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' releaseID='9.2' versionID='2.14.6' xsi:schemaLocation='http://schema.infor.com/InforOAGIS/2 http://schema.infor.com/InforOAGIS/BODs/LoaddocumentNumber.xsd'>"
+    header += "<ApplicationArea>"
+    header += "<Sender>"
+    header += "<LogicalID>casino.com</LogicalID>"
+    header += "<ConfirmationCode>OnError</ConfirmationCode>"
+    header += "</Sender>"
+    header += "<CreationDateTime>2023-04-04</CreationDateTime>"
+    header += "</ApplicationArea>"
+    header += "<DataArea>"
+    header += "<Load>"
+    header += "<TenantID>CASINO_TST</TenantID>"
+    header += "<AccountingEntityID>100_</AccountingEntityID>"
+    header += "<ActionCriteria>"
+    header += "<ActionExpression actionCode='' expressionLanguage=''/>"
+    header += "</ActionCriteria>"
+    header += "</Load>"
+    header += "<documentNumber>"
+    header += "<DocumentType>CADENCIER</DocumentType>"
+    header += "<DocumentNumber>${docnumber}.txt</DocumentNumber>"
+    header += "<CFC1>${cfc1}</CFC1>"
+    header += "<DocumentPath>//${server}/${inpath}/${docnumber}.txt</DocumentPath>"
+    header += "<DocumentPath>//${server}/${outpath}</DocumentPath>"
+    header += "</documentNumber>"
+    header += "</DataArea>"
+    header += "</LoaddocumentNumber>"
     writeInFile(header, "")
   }
 
@@ -2092,7 +2127,7 @@ public class EXT040 extends ExtendM3Batch {
   private void initializeLogManagement() {
     logfile = program.getProgramName() + "." + "batch" + "." + jobNumber + ".log"
     logmessages = new LinkedList<String>()
-    loglevel = getCRS881("", "EXTENC", "1", "ExtendM3", "I", program.getProgramName(), "LOGLEVEL", "", "")
+    loglevel = getCRS881("", "EXTENC", "1", "ExtendM3", "I", program.getProgramName(), "LOGLEVEL", "", "", "TDTX15")
     if (!LOGLEVELS.contains(loglevel)) {
       String message = "Niveau de log incorrect ${loglevel}"
       loglevel = "ERROR"
@@ -2142,7 +2177,7 @@ public class EXT040 extends ExtendM3Batch {
    * @parameter mbmc
    * @return
    */
-  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
+  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc, String field) {
     String mvxd = ""
     DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
@@ -2156,14 +2191,16 @@ public class EXT040 extends ExtendM3Batch {
     requestMbmtrn.set("TRELMC", elmc)
     requestMbmtrn.set("TRMBMC", mbmc)
     if (queryMbmtrn.read(requestMbmtrn)) {
-      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX15").build()
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00")
+        .selection("TDMVXD", "TDTX15", "TDTX40")
+        .build()
       DBContainer requestMbmtrd = queryMbmtrd.getContainer()
       requestMbmtrd.set("TDCONO", currentCompany)
       requestMbmtrd.set("TDDIVI", division)
       requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
       // Retrieve MBTRND
       Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
-        mvxd = resultMbmtrd.get("TDTX15") as String
+        mvxd = resultMbmtrd.get(field) as String
         mvxd = mvxd.trim()
       }
       if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {

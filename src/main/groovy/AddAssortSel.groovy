@@ -6,7 +6,8 @@
  * Description : The AddAssortSel transaction adds records to the EXT042 table.
  * Date         Changed By   Description
  * 20230317     ARENARD      COMX02 - Cadencier
- * 20240305     FLEBARS       Controle OASITN
+ * 20240305     FLEBARS      Controle OASITN
+ * 20250416     ARENARD      The code has been checked
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -41,21 +42,16 @@ public class AddAssortSel extends ExtendM3Transaction {
 
     // Check customer
     if(mi.in.get("CUNO") != null){
-      DBAction OCUSMAquery = database.table("OCUSMA").index("00").build()
-      DBContainer OCUSMA = OCUSMAquery.getContainer()
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").build()
+      DBContainer OCUSMA = ocusmaQuery.getContainer()
       OCUSMA.set("OKCONO",currentCompany)
       OCUSMA.set("OKCUNO",mi.in.get("CUNO"))
-      if (!OCUSMAquery.read(OCUSMA)) {
+      if (!ocusmaQuery.read(OCUSMA)) {
         mi.error("Code Client " + mi.in.get("CUNO") + " n'existe pas")
         return
       }
     }else{
       mi.error("Code Client est obligatoire")
-      return
-    }
-
-    if (mi.in.get("CUNO") == "97290"){
-      mi.error("CUNO A LA CON")
       return
     }
 
@@ -67,12 +63,12 @@ public class AddAssortSel extends ExtendM3Transaction {
 
     // Check assortment
     if(mi.in.get("ASCD") != null){
-      DBAction CSYTABquery = database.table("CSYTAB").index("00").build()
-      DBContainer CSYTAB = CSYTABquery.getContainer()
+      DBAction csytabQuery = database.table("CSYTAB").index("00").build()
+      DBContainer CSYTAB = csytabQuery.getContainer()
       CSYTAB.set("CTCONO",currentCompany)
       CSYTAB.set("CTSTCO",  "ASCD")
       CSYTAB.set("CTSTKY", mi.in.get("ASCD"))
-      if (!CSYTABquery.read(CSYTAB)) {
+      if (!csytabQuery.read(CSYTAB)) {
         mi.error("Code Assortiment  " + mi.in.get("ASCD") + " n'existe pas")
         return
       }
@@ -81,16 +77,16 @@ public class AddAssortSel extends ExtendM3Transaction {
       return
     }
 
-    DBAction OASITN_query = database.table("OASITN").index("00").build()
-    DBContainer OASITN_container = OASITN_query.getContainer()
-    OASITN_container.set("OICONO",currentCompany)
-    OASITN_container.set("OIASCD",  mi.in.get("ASCD"))
+    DBAction oasitnQuery = database.table("OASITN").index("00").build()
+    DBContainer oasitnContainer = oasitnQuery.getContainer()
+    oasitnContainer.set("OICONO",currentCompany)
+    oasitnContainer.set("OIASCD",  mi.in.get("ASCD"))
 
-    Closure<?> OASITN_reader = { DBContainer container ->
+    Closure<?> oasitnReader = { DBContainer container ->
       //Use found record(s) as intended
     }
 
-    if (!OASITN_query.readAll(OASITN_container, 2, 1, OASITN_reader)) {
+    if (!oasitnQuery.readAll(oasitnContainer, 2, 1, oasitnReader)) {
       mi.error("Aucun article pour l'assortiment  " + mi.in.get("ASCD"))
       return
     }
@@ -99,10 +95,6 @@ public class AddAssortSel extends ExtendM3Transaction {
     fltx = (int)(mi.in.get("FLTX") != null ? mi.in.get("FLTX") : 0)
     flcs = (int)(mi.in.get("FLCS") != null ? mi.in.get("FLCS") : 0)
     flxl = (int)(mi.in.get("FLXL") != null ? mi.in.get("FLXL") : 0)
-    //if ((fltx+flcs+flxl) ==0) {
-    //    mi.error("Au moins un type de sortie doit être selectionné")
-    //   return
-    //}
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXT042").index("00").build()

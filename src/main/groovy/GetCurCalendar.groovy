@@ -6,6 +6,7 @@
  * Description : The GetCurCalendar transaction retrieve actually calendar for one customer.
  * Date         Changed By   Description
  * 20240124     YVOYOU       COMX02 - Cadencier
+ * 20250416     ARENARD      The code has been checked
  */
 import java.time.LocalDateTime
 import java.time.LocalDate
@@ -42,11 +43,11 @@ public class GetCurCalendar extends ExtendM3Transaction {
 
     // Check customer
     if(mi.in.get("CUNO") != null){
-      DBAction OCUSMAquery = database.table("OCUSMA").index("00").build()
-      DBContainer OCUSMA = OCUSMAquery.getContainer()
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").build()
+      DBContainer OCUSMA = ocusmaQuery.getContainer()
       OCUSMA.set("OKCONO",currentCompany)
       OCUSMA.set("OKCUNO",mi.in.get("CUNO"))
-      if (!OCUSMAquery.read(OCUSMA)) {
+      if (!ocusmaQuery.read(OCUSMA)) {
         mi.error("Code Client " + mi.in.get("CUNO") + " n'existe pas")
         return
       }
@@ -54,15 +55,15 @@ public class GetCurCalendar extends ExtendM3Transaction {
       mi.error("Code Client est obligatoire")
       return
     }
-    previousCalendar = "";
+    previousCalendar = ""
     logger.debug("CONO = " + currentCompany)
     logger.debug("CUNO = " + mi.in.get("CUNO"))
     DBAction query = database.table("EXT042").index("00").selection("EXCDNN", "EXRGDT").reverse().build()
     DBContainer EXT042 = query.getContainer()
     EXT042.set("EXCONO", currentCompany)
     EXT042.set("EXCUNO", mi.in.get("CUNO"))
-    if(!query.readAll(EXT042, 2, 1, outData_EXT042)){}
-    
+    if(!query.readAll(EXT042, 2, 1, outDataExt042)){}
+
     if(previousCalendar.trim() == "") {
       mi.error("Pas de cadencier existant – Veuillez faire éditer")
       return
@@ -80,9 +81,12 @@ public class GetCurCalendar extends ExtendM3Transaction {
     mi.outData.put("CDNN", previousCalendar)
     mi.write()
   }
-  
-  // Retrieve EXT042
-  Closure<?> outData_EXT042 = { DBContainer EXT042 ->
+
+  /**
+   * This closure is used to get the data from EXT042
+   * @param EXT042
+   */
+  Closure<?> outDataExt042 = { DBContainer EXT042 ->
     logger.debug("found EXT042 : " + EXT042.get("EXCDNN"))
     previousCalendar = EXT042.get("EXCDNN")
     creationDate = EXT042.get("EXRGDT")

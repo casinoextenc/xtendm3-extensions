@@ -23,6 +23,7 @@ public class UpdAssortItems extends ExtendM3Transaction {
   private String fdat
   private String itno
   private boolean exclu
+  private Integer nbMaxRecord = 10000
 
   public UpdAssortItems(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility, MICallerAPI miCaller) {
     this.mi = mi
@@ -78,7 +79,7 @@ public class UpdAssortItems extends ExtendM3Transaction {
     DBContainer oasitnRequest = oasitnQuery.getContainer()
     oasitnRequest.set("OICONO", currentCompany)
     oasitnRequest.set("OIASCD", ascd)
-    if (!oasitnQuery.readAll(oasitnRequest, 2, 10000, oasitnReader)) {
+    if (!oasitnQuery.readAll(oasitnRequest, 2, nbMaxRecord, oasitnReader)) {
     }
 
     // Add of selected items that are not in the assortment
@@ -88,7 +89,7 @@ public class UpdAssortItems extends ExtendM3Transaction {
     ext022Request.set("EXASCD", ascd)
     ext022Request.set("EXCUNO", cuno)
     ext022Request.set("EXFDAT", fdat as Integer)
-    if (!ext022Query.readAll(ext022Request, 4, 10000, ext022Reader)) {
+    if (!ext022Query.readAll(ext022Request, 4, nbMaxRecord, ext022Reader)) {
     }
   }
 
@@ -192,5 +193,4 @@ public class UpdAssortItems extends ExtendM3Transaction {
     }
     return true
   }
-
 }

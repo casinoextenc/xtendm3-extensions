@@ -6,6 +6,7 @@
  * Description : The AddIntEmalSel transaction adds records to the EXT044 table.
  * Date         Changed By   Description
  * 20230317     ARENARD      COMX02 - Cadencier
+ * 20250416     ARENARD      The code has been checked
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -37,11 +38,11 @@ public class AddIntEmalSel extends ExtendM3Transaction {
 
     // Check customer
     if(mi.in.get("CUNO") != null){
-      DBAction OCUSMAquery = database.table("OCUSMA").index("00").build()
-      DBContainer OCUSMA = OCUSMAquery.getContainer()
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").build()
+      DBContainer OCUSMA = ocusmaQuery.getContainer()
       OCUSMA.set("OKCONO",currentCompany)
       OCUSMA.set("OKCUNO",mi.in.get("CUNO"))
-      if (!OCUSMAquery.read(OCUSMA)) {
+      if (!ocusmaQuery.read(OCUSMA)) {
         mi.error("Code Client " + mi.in.get("CUNO") + " n'existe pas")
         return
       }
@@ -55,7 +56,7 @@ public class AddIntEmalSel extends ExtendM3Transaction {
       mi.error("Code cadencier est obligatoire")
       return
     }
-    
+
     // Check email
     if(mi.in.get("EMAL") == null){
       mi.error("Adresse mail est obligatoire")

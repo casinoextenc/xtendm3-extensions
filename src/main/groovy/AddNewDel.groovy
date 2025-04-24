@@ -724,11 +724,17 @@ public class AddNewDel extends ExtendM3Transaction {
    *
    */
   public void blopunblopIndex(String index, int blop) {
+    /*
+      We have to update MHDISH reocrd in order to lock the delivery
+      then to have ourt new delivery lines on a new delivery heazd
+      it works like interractive program MWS410 option 51 & 52
+      Support Case  : 17334686
+      EHR           : #98882
+    */
     logger.debug("blopunblopIndex dlix:${index} blop:${blop}")
     if (index == 0 || !(blop == 0 || blop == 1)) {
       return
     }
-
 
     DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX", "OQBLOP").build()
     DBContainer MHDISH = query_MHDISH.getContainer()
@@ -881,18 +887,16 @@ public class AddNewDel extends ExtendM3Transaction {
     if (OOLINE_RORC.trim() == "2") {
       executePPS200MIUpdLine(OOLINE_RORN, "" + OOLINE_RORL, "" + OOLINE_RORX, "3", OOLINE_ORNO, "" + OOLINE_PONR, "" + OOLINE_POSX)
     }
-    String theDLIX = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
-    blockRelativeIndexes(dlix, theDLIX)
     //Create new co line
     if (EXT057_ALQT > 0) {
+      String theDLIX = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
+      blockRelativeIndexes(dlix, theDLIX)
       NEW_PONR = 0
       NEW_POSX = 0
       logger.debug("calc new line orqa ")
-      //new_orqa = convertQty(OOLINE_ITNO, OOLINE_ALUN, EXT057_ALQT, 0)
-      //logger.debug("calc new line orqa:${new_orqa}")
       executeOIS100MIAddOrderLine(OOLINE_ORNO, OOLINE_ITNO, EXT057_ALQT as String, 'UVC', "0", OOLINE_WHLO, OOLINE_DWDZ, OOLINE_DWHZ, OOLINE_ADID, OOLINE_PIDE, OOLINE_DIP4, OOLINE_DWDT, OOLINE_PLDT, OOLINE_SAPR)
+      unblockingIndexes()
     }
-    unblockingIndexes()
 
     //realoc
     double qte_original = OOLINE_ORQT

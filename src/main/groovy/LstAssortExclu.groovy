@@ -2,7 +2,7 @@
  * This extension is used by Mashup
  * Name : EXT025MI.LstAssortExclu
  * COMX01 Gestion des assortiments clients
- * Description : The LstAssortExclu transaction get records to the EXT025 table.
+ * Description : The LstAssortExclu transaction list records to the EXT025 table.
  * Date         Changed By   Description
  * 20240206     YVOYOU     COMX01 - Assortment
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
@@ -13,6 +13,7 @@ public class LstAssortExclu extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final UtilityAPI utility
+  private Integer nbMaxRecord = 10000
 
   public LstAssortExclu(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -58,12 +59,13 @@ public class LstAssortExclu extends ExtendM3Transaction {
     DBAction ext025Query = database.table("EXT025").index("00").matching(ext025Expression).selection("EXCONO", "EXITNO", "EXCUNO", "EXFDAT", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
     DBContainer ext025Request = ext025Query.getContainer()
     ext025Request.setInt("EXCONO", currentCompany)
-    if (!ext025Query.readAll(ext025Request, 1, 10000, ext025Reader)) {
+    if (!ext025Query.readAll(ext025Request, 1, nbMaxRecord, ext025Reader)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
 
+  // Write outData
   Closure<?> ext025Reader = { DBContainer ext025Result ->
     String cono = ext025Result.get("EXCONO")
     String cuno = ext025Result.get("EXCUNO")

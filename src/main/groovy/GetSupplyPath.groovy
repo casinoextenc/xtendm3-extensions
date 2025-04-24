@@ -28,6 +28,7 @@ import java.time.format.DateTimeFormatter
  * 20221115     FLEBARS       Creation EXT-CMD02
  * 20240616     FLEBARS       Chemin d appro interactif
  * 20250331     FLEBARS       Evolution type de flux 10
+ * 20250415     ARENARD       The code has been checked
  */
 public class GetSupplyPath extends ExtendM3Transaction {
   private final MIAPI mi
@@ -123,8 +124,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
       return
     }
 
-    String order_fltp = getOrderTypeFlow(ortp)
-    if (order_fltp == null || order_fltp == "") {
+    String orderFltp = getOrderTypeFlow(ortp)
+    if (orderFltp == null || orderFltp == "") {
       mi.error("Type d'ordre non trouvé")
       return
     }
@@ -141,8 +142,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
     String itno = null
 
     //IF ORDER FLTP = 20
-    if ("20".equals(order_fltp)) {
-      Map<String, String> dtaFindItem = findItem(cuno, popn, order_fltp, alun)
+    if ("20".equals(orderFltp)) {
+      Map<String, String> dtaFindItem = findItem(cuno, popn, orderFltp, alun)
       if (this.errorMessage != "") {
         mi.error(this.errorMessage)
         return
@@ -150,7 +151,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       if (dtaFindItem != null) {
         found = true
         itno = dtaFindItem["ITNO"].toString()
-        addResponse(1, order_fltp, itno, fwhl, 1, (String) dtaFindItem["SUNO"], orqa, "", "", (String) dtaFindItem["HIE2"], (String) dtaFindItem["ASGD"])
+        addResponse(1, orderFltp, itno, fwhl, 1, (String) dtaFindItem["SUNO"], orqa, "", "", (String) dtaFindItem["HIE2"], (String) dtaFindItem["ASGD"])
       }
     } else {
       //ELSE ORDER FLTP != 20
@@ -158,24 +159,24 @@ public class GetSupplyPath extends ExtendM3Transaction {
       //  10 warehouse flow type
       //  40 direct supplier flow type
       //  30 warehouse supplier flow type
-      String active_fltp = ""
+      String activeFltp = ""
       for (int step = 0; step < 3; step++) {
         if (!found) {
           switch (step) {
             case 0:
-              active_fltp = "10"
+              activeFltp = "10"
               break
             case 1:
-              active_fltp = "40"
+              activeFltp = "40"
               break
             case 2:
-              active_fltp = "30"
+              activeFltp = "30"
               break
             default:
               break
           }
 
-          Map<String, String> dtaFindItem = findItem(cuno, popn, active_fltp, alun)
+          Map<String, String> dtaFindItem = findItem(cuno, popn, activeFltp, alun)
           if (this.errorMessage != "") {
             mi.error(this.errorMessage)
             return
@@ -202,7 +203,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
             //Depending flow type
             //10 warehouse flow type
-            if ("10".equals(active_fltp)) {
+            if ("10".equals(activeFltp)) {
               Map<String, String> mitbalData = getItemDataFromMitbal(fwhl, itno)
               if (mitbalData != null) {
                 String cpcd = mitbalData["CPCD"] as String
@@ -211,56 +212,56 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 logger.debug("tomu:${tomu} orqa:${orqa}")
                 if (tomu != 0) {//controle mutliples TOMU = 0
                   if (tomu >= 0) {
-                    double rounded_orqa = orqa
+                    double roundedOrqa = orqa
                     Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
                     if (dtaRoundQty != null) {
-                      rounded_orqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+                      roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
                     }
-                    logger.debug("tomu:${tomu} rounded_orqa:${rounded_orqa}")
-                    if (rounded_orqa % tomu != 0)
+                    logger.debug("tomu:${tomu} roundedOrqa:${roundedOrqa}")
+                    if (roundedOrqa % tomu != 0)
                       checkQty = false
                   }
                 }
 
                 if (cpcd == "100" && checkQty) {
                   found = true
-                  addResponse(1, active_fltp, itno, fwhl, 0, "", orqa, "", "", hie2, asgd)
+                  addResponse(1, activeFltp, itno, fwhl, 0, "", orqa, "", "", hie2, asgd)
                 } else if (cpcd != "100") {
-                  addResponse(0, active_fltp, itno, fwhl, 0, "", orqa, "cpcd non correspondant", "", hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "cpcd non correspondant", "", hie2, asgd)
                 } else {
-                  addResponse(0, active_fltp, itno, fwhl, 0, "", orqa, "qté non divisible par multiple dépôt ${tomu}", "", hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "qté non divisible par multiple dépôt ${tomu}", "", hie2, asgd)
                 }
               } else {
-                addResponse(0, active_fltp, itno, fwhl, 0, "", orqa, "n'existe pas dans le dépôt", "", hie2, asgd)
+                addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "n'existe pas dans le dépôt", "", hie2, asgd)
               }
-            } else if ("40".equals(active_fltp)) {
+            } else if ("40".equals(activeFltp)) {
               //40 direct supplier flow type
               Map<String, String> dtaMITVEN = getItemDataFromMitven(suld, itno)
               if (dtaMITVEN != null) {
                 String stat = dtaMITVEN["ISRS"].toString()
                 String rem1 = ""
-                double rounded_orqa = orqa
+                double roundedOrqa = orqa
                 double loqt = Double.parseDouble(dtaMITVEN["LOQT"].toString())
                 Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
                 if (dtaRoundQty != null) {
-                  rounded_orqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+                  roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
                   rem1 = (String) dtaRoundQty["REMK"]
                 }
-                if ("20".equals(stat) && rounded_orqa >= loqt) {
+                if ("20".equals(stat) && roundedOrqa >= loqt) {
                   found = true
-                  addResponse(1, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "", rem1, hie2, asgd)
+                  addResponse(1, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "", rem1, hie2, asgd)
                 } else if (!"20".equals(stat)) {
-                  addResponse(0, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "article fournisseur non actif", rem1, hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "article fournisseur non actif", rem1, hie2, asgd)
                 } else if (orqa < loqt) {
-                  addResponse(0, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "qté commandé ${orqa} dépasse mini commande ${loqt}", rem1, hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "qté commandé ${orqa} dépasse mini commande ${loqt}", rem1, hie2, asgd)
                 }
               } else {
-                addResponse(0, active_fltp, itno, fwhl, 1, suld, orqa, "article fournisseur non trouvé", "", hie2, asgd)
+                addResponse(0, activeFltp, itno, fwhl, 1, suld, orqa, "article fournisseur non trouvé", "", hie2, asgd)
               }
-            } else if ("30".equals(active_fltp)) {
+            } else if ("30".equals(activeFltp)) {
               //30 warehouse supplier flow type
               found = true
-              addResponse(1, active_fltp, itno, fwhl, 1, sule, orqa, "", "", hie2, asgd)
+              addResponse(1, activeFltp, itno, fwhl, 1, sule, orqa, "", "", hie2, asgd)
             }
           }
         }
@@ -275,77 +276,77 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
 
       if (dtaRITN != null) {
-        String r_itno = dtaRITN["RITN"]
-        String r_hie2 = dtaRITN["HIE2"]
+        String rItno = dtaRITN["RITN"]
+        String rHie2 = dtaRITN["HIE2"]
         Map<String, String> dtaCUGEX1 = getItemDataFromCugex1Mitmas(itno)
         if (dtaCUGEX1 == null) {
           return
         }
-        String r_fltp = dtaCUGEX1["FLTP"]
-        String r_whlo = fwhl
-        int r_ltyp = 0
-        String r_suno = ""
-        String r_asgd = ""
-        double r_orqa = orqa
-        String r_remk = ""
-        if ("10".equals(r_fltp)) {
-          r_ltyp = 0
-          r_suno = ""
-          r_remk = "remplace article:${itno}"
-        } else if ("20".equals(r_fltp)) {
-          r_ltyp = 1
-          r_suno = dtaRITN["SUNO"]
-          r_remk = "remplace article:${itno}"
-        } else if ("30".equals(r_fltp)) {
+        String rFltp = dtaCUGEX1["FLTP"]
+        String rWhlo = fwhl
+        int rLtyp = 0
+        String rSuno = ""
+        String rAsgd = ""
+        double rOrqa = orqa
+        String rRemk = ""
+        if ("10".equals(rFltp)) {
+          rLtyp = 0
+          rSuno = ""
+          rRemk = "remplace article:${itno}"
+        } else if ("20".equals(rFltp)) {
+          rLtyp = 1
+          rSuno = dtaRITN["SUNO"]
+          rRemk = "remplace article:${itno}"
+        } else if ("30".equals(rFltp)) {
           Map<String, String> dtaEXT010 = getItemDataFromExt010(cuno, itno)
           if (dtaEXT010 != null) {
-            r_suno = dtaEXT010["SULE"]
-            r_asgd = dtaEXT010["ASGD"]
+            rSuno = dtaEXT010["SULE"]
+            rAsgd = dtaEXT010["ASGD"]
           }
-          r_ltyp = 1
-          r_remk = "remplace article:${itno}"
-        } else if ("40".equals(r_fltp)) {
+          rLtyp = 1
+          rRemk = "remplace article:${itno}"
+        } else if ("40".equals(rFltp)) {
           Map<String, String> dtaEXT010 = getItemDataFromExt010(cuno, itno)
           if (dtaEXT010 != null) {
-            r_suno = dtaEXT010["SULD"]
+            rSuno = dtaEXT010["SULD"]
           }
-          r_ltyp = 1
-          r_remk = "remplace article:${itno}"
+          rLtyp = 1
+          rRemk = "remplace article:${itno}"
         }
 
         //Update flag on last response
-        int last_index = responses.size() - 1
-        Map<String, String> lastResponse = responses.get(last_index)
+        int lastIndex = responses.size() - 1
+        Map<String, String> lastResponse = responses.get(lastIndex)
         lastResponse["FLAG"] = "" + 0
         lastResponse["REMK"] = "Remplacé par " + itno
-        responses.set(last_index, lastResponse)
+        responses.set(lastIndex, lastResponse)
 
 
         //Round
-        Map<String, String> dtaRoundQty = roundQty(r_itno, r_hie2, orqa, flg1)
-        double rounded_orqa = orqa
-        String rnd_remk = ""
+        Map<String, String> dtaRoundQty = roundQty(rItno, rHie2, orqa, flg1)
+        double roundedOrqa = orqa
+        String rndRemk = ""
 
         if (dtaRoundQty != null) {
-          rounded_orqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
-          rnd_remk = (String) dtaRoundQty["REMK"]
+          roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+          rndRemk = (String) dtaRoundQty["REMK"]
         }
-        addResponse(1, r_fltp, r_itno, r_whlo, r_ltyp, r_suno, rounded_orqa, r_remk, rnd_remk, r_hie2, r_asgd)
+        addResponse(1, rFltp, rItno, rWhlo, rLtyp, rSuno, roundedOrqa, rRemk, rndRemk, rHie2, rAsgd)
       } else {
         //Round Qty for last response
-        int last_index = responses.size() - 1
-        Map<String, String> lastResponse = responses.get(last_index)
+        int lastIndex = responses.size() - 1
+        Map<String, String> lastResponse = responses.get(lastIndex)
         if ("1".equals((String) lastResponse["FLAG"]) && !"40".equals((String) lastResponse["FLTP"])) {
           logger.debug("lastResponse:${lastResponse}")
-          double t_orqa = Double.parseDouble((String) lastResponse["ORQA"])
-          String t_itno = (String) lastResponse["ITNO"]
-          String t_hie2 = (String) lastResponse["HIE2"]
+          double tOrqa = Double.parseDouble((String) lastResponse["ORQA"])
+          String tItno = (String) lastResponse["ITNO"]
+          String tHie2 = (String) lastResponse["HIE2"]
           //todo c'est la
 
-          Map<String, String> dtaRoundQty = roundQty(t_itno, t_hie2, t_orqa, flg1)
+          Map<String, String> dtaRoundQty = roundQty(tItno, tHie2, tOrqa, flg1)
           lastResponse["ORQA"] = (String) dtaRoundQty["ORQA"]
           lastResponse["REMK"] = (String) lastResponse["REMK"] + " " + (String) dtaRoundQty["REMK"]
-          responses.set(last_index, lastResponse)
+          responses.set(lastIndex, lastResponse)
         }
       }
     }
@@ -371,8 +372,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
     } else if (responses.size() > 0) {
       // input flag = 0 and responses
       //send last response
-      int last_index = responses.size() - 1
-      Map<String, String> response = responses.get(last_index)
+      int lastIndex = responses.size() - 1
+      Map<String, String> response = responses.get(lastIndex)
       String ff = response["FLAG"] as String
       if ("1".equals(ff.trim())) {
         mi.outData.put("FLAG", (String) response["FLAG"])
@@ -447,7 +448,11 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "DCCD": ""
     ]
 
-    //Database access
+    /**
+     * Define database access
+     * MITPOP20
+     * MPCONO, MPALWT, MPALWQ, MPPOPN, MPE0PA, MPVFDT, MPITNO, MPSEA1
+     */
     DBAction mitpopQuery = database.table("MITPOP").index("20").selection(
       "MPCONO",
       "MPALWT",
@@ -466,7 +471,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
     mitpopRequest.set("MPALWQ", "")
     mitpopRequest.set("MPPOPN", popn)
 
-    //loop on MITPOP00 records
+    /**
+     * Loop on MITPOP20
+     * MPCONO, MPALWT, MPALWQ, MPPOPN, MPE0PA, MPVFDT, MPITNO, MPSEA1
+     */
     Closure<?> mitpopReader = { DBContainer mitpopResult ->
       if (!found) {
         String itno = mitpopResult.getString("MPITNO").trim()
@@ -991,22 +999,22 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get generic rounding paramaters
    * in CUGEX1.OFREEF k01 MITMAS k02 FR
    * @return null if not found else structured object fields
-   *     UPA_SUP,
-   *     UPA_INF,
-   *     UDP_SUP,
-   *     UDP_INF,
-   *     UCO_SUP,
-   *     UCO_INF
+   *     upaSup,
+   *     upaInf,
+   *     udpSup,
+   *     udpInf,
+   *     ucoSup,
+   *     ucoInf
    */
   private Map<String, String> getGlobalRoundingParameters() {
     //Define return object structure
     Map<String, String> responseObject = [
-      "UPA_SUP": "",
-      "UPA_INF": "",
-      "UDP_SUP": "",
-      "UDP_INF": "",
-      "UCO_SUP": "",
-      "UCO_INF": ""
+      "upaSup": "",
+      "upaInf": "",
+      "udpSup": "",
+      "udpInf": "",
+      "ucoSup": "",
+      "ucoInf": ""
     ]
     DBAction cugex1Query = database.table("CUGEX1").index("00").selection(
       "F1CONO",
@@ -1034,12 +1042,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
     cugex1Request.set("F1PK02", "FR")
 
     if (cugex1Query.read(cugex1Request)) {
-      responseObject["UPA_SUP"] = cugex1Request.get("F1N296").toString()
-      responseObject["UPA_INF"] = cugex1Request.get("F1N596").toString()
-      responseObject["UDP_SUP"] = cugex1Request.get("F1N396").toString()
-      responseObject["UDP_INF"] = cugex1Request.get("F1N696").toString()
-      responseObject["UCO_SUP"] = cugex1Request.get("F1N496").toString()
-      responseObject["UCO_INF"] = cugex1Request.get("F1N796").toString()
+      responseObject["upaSup"] = cugex1Request.get("F1N296").toString()
+      responseObject["upaInf"] = cugex1Request.get("F1N596").toString()
+      responseObject["udpSup"] = cugex1Request.get("F1N396").toString()
+      responseObject["udpInf"] = cugex1Request.get("F1N696").toString()
+      responseObject["ucoSup"] = cugex1Request.get("F1N496").toString()
+      responseObject["ucoInf"] = cugex1Request.get("F1N796").toString()
     }
     return responseObject
   }
@@ -1049,20 +1057,20 @@ public class GetSupplyPath extends ExtendM3Transaction {
    *  CUGEX1.MITHRY k01=2, k02=mitmas.hie2
    *  MITAUN
    * @param itno Item
-   * @return null if not found else structured object fields STAT, HIE2, UPA_SUP, UPA_INF, UDP_SUP, UDP_INF, UCO_SUP, UCO_INF, COF_UPA, COF_UDP, COF_UCO
+   * @return null if not found else structured object fields STAT, HIE2, upaSup, upaInf, udpSup, udpInf, ucoSup, ucoInf, cofUpa, cofUdp, cofUco
    */
   private Map<String, String> getItemRoundingParameter(String itno, String hie2) {
     //Map<String, String>ine return object structure
     Map<String, String> responseObject = [
-      "UPA_SUP": "",
-      "UPA_INF": "",
-      "UDP_SUP": "",
-      "UDP_INF": "",
-      "UCO_SUP": "",
-      "UCO_INF": "",
-      "COF_UPA": "",
-      "COF_UDP": "",
-      "COF_UCO": ""
+      "upaSup": "",
+      "upaInf": "",
+      "udpSup": "",
+      "udpInf": "",
+      "ucoSup": "",
+      "ucoInf": "",
+      "cofUpa": "",
+      "cofUdp": "",
+      "cofUco": ""
     ]
     DBAction cugex1Query = database.table("CUGEX1").index("00").selection(
       "F1CONO",
@@ -1090,12 +1098,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
     cugex1Request.set("F1PK02", hie2)
 
     if (cugex1Query.read(cugex1Request)) {
-      responseObject["UPA_SUP"] = cugex1Request.get("F1N296").toString()
-      responseObject["UPA_INF"] = cugex1Request.get("F1N596").toString()
-      responseObject["UDP_SUP"] = cugex1Request.get("F1N396").toString()
-      responseObject["UDP_INF"] = cugex1Request.get("F1N696").toString()
-      responseObject["UCO_SUP"] = cugex1Request.get("F1N496").toString()
-      responseObject["UCO_INF"] = cugex1Request.get("F1N796").toString()
+      responseObject["upaSup"] = cugex1Request.get("F1N296").toString()
+      responseObject["upaInf"] = cugex1Request.get("F1N596").toString()
+      responseObject["udpSup"] = cugex1Request.get("F1N396").toString()
+      responseObject["udpInf"] = cugex1Request.get("F1N696").toString()
+      responseObject["ucoSup"] = cugex1Request.get("F1N496").toString()
+      responseObject["ucoInf"] = cugex1Request.get("F1N796").toString()
     }
 
     DBAction mitaunQuery = database.table("MITAUN").index("00").selection(
@@ -1120,20 +1128,24 @@ public class GetSupplyPath extends ExtendM3Transaction {
       cofa = "2".equals(dmcf) ? 1 / cofa : cofa
       cofa = new BigDecimal(Double.toString(cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
       if ("UPA".equals(alun)) {
-        responseObject["COF_UPA"] = "" + cofa
+        responseObject["cofUpa"] = "" + cofa
       } else if ("UDP".equals(alun)) {
-        responseObject["COF_UDP"] = "" + cofa
+        responseObject["cofUdp"] = "" + cofa
       } else if ("UCO".equals(alun)) {
-        responseObject["COF_UCO"] = "" + cofa
+        responseObject["cofUco"] = "" + cofa
       }
     }
     mitaunQuery.readAll(mitaunRequest, 3, 100, mitaunReader)
     return responseObject
   }
+
   /**
-   *
-   *
-   *
+   * Round quantity
+   * @param itno Item
+   * @param hie2 HIE2
+   * @param orqa Order quantity
+   * @param flg1 Flag for rounding
+   * @return null if not found else structured object fields ORQA, REMK
    */
   private Map<String, String> roundQty(String itno, String hie2, double orqa, int flg1) {
     //Define return object structure
@@ -1162,83 +1174,83 @@ public class GetSupplyPath extends ExtendM3Transaction {
     double outqty = 0d
     String remk = ""
 
-    double gen_upa_sup = 0
-    double gen_upa_inf = 0
-    double gen_udp_sup = 0
-    double gen_udp_inf = 0
-    double gen_uco_sup = 0
-    double gen_uco_inf = 0
+    double genUpaSup = 0
+    double genUpaInf = 0
+    double genUdpSup = 0
+    double genUdpInf = 0
+    double genUcoSup = 0
+    double genUcoInf = 0
 
-    double rayon_upa_sup = 0
-    double rayon_upa_inf = 0
-    double rayon_udp_sup = 0
-    double rayon_udp_inf = 0
-    double rayon_uco_sup = 0
-    double rayon_uco_inf = 0
+    double rayonUpaSup = 0
+    double rayonUpaInf = 0
+    double rayonUdpSup = 0
+    double rayonUdpInf = 0
+    double rayonUcoSup = 0
+    double rayonUcoInf = 0
 
-    double cof_upa = 0
-    double cof_udp = 0
-    double cof_uco = 0
+    double cofUpa = 0
+    double cofUdp = 0
+    double cofUco = 0
 
 
     try {
-      gen_upa_sup = Double.parseDouble(globalRoundingParametersData["UPA_SUP"].toString())
+      genUpaSup = Double.parseDouble(globalRoundingParametersData["upaSup"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      gen_upa_inf = Double.parseDouble(globalRoundingParametersData["UPA_INF"].toString())
+      genUpaInf = Double.parseDouble(globalRoundingParametersData["upaInf"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      gen_udp_sup = Double.parseDouble(globalRoundingParametersData["UDP_SUP"].toString())
+      genUdpSup = Double.parseDouble(globalRoundingParametersData["udpSup"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      gen_udp_inf = Double.parseDouble(globalRoundingParametersData["UDP_INF"].toString())
+      genUdpInf = Double.parseDouble(globalRoundingParametersData["udpInf"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      gen_uco_sup = Double.parseDouble(globalRoundingParametersData["UCO_SUP"].toString())
+      genUcoSup = Double.parseDouble(globalRoundingParametersData["ucoSup"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      gen_uco_inf = Double.parseDouble(globalRoundingParametersData["UCO_INF"].toString())
+      genUcoInf = Double.parseDouble(globalRoundingParametersData["ucoInf"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      rayon_upa_sup = Double.parseDouble(dtaItemRoudingParameters["UPA_SUP"].toString())
+      rayonUpaSup = Double.parseDouble(dtaItemRoudingParameters["upaSup"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      rayon_upa_inf = Double.parseDouble(dtaItemRoudingParameters["UPA_INF"].toString())
+      rayonUpaInf = Double.parseDouble(dtaItemRoudingParameters["upaInf"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      rayon_udp_sup = Double.parseDouble(dtaItemRoudingParameters["UDP_SUP"].toString())
+      rayonUdpSup = Double.parseDouble(dtaItemRoudingParameters["udpSup"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      rayon_udp_inf = Double.parseDouble(dtaItemRoudingParameters["UDP_INF"].toString())
+      rayonUdpInf = Double.parseDouble(dtaItemRoudingParameters["udpInf"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      rayon_uco_sup = Double.parseDouble(dtaItemRoudingParameters["UCO_SUP"].toString())
+      rayonUcoSup = Double.parseDouble(dtaItemRoudingParameters["ucoSup"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      rayon_uco_inf = Double.parseDouble(dtaItemRoudingParameters["UCO_INF"].toString())
+      rayonUcoInf = Double.parseDouble(dtaItemRoudingParameters["ucoInf"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      cof_upa = Double.parseDouble(dtaItemRoudingParameters["COF_UPA"].toString())
+      cofUpa = Double.parseDouble(dtaItemRoudingParameters["cofUpa"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      cof_udp = Double.parseDouble(dtaItemRoudingParameters["COF_UDP"].toString())
+      cofUdp = Double.parseDouble(dtaItemRoudingParameters["cofUdp"].toString())
     } catch (NumberFormatException e) {
     }
     try {
-      cof_uco = Double.parseDouble(dtaItemRoudingParameters["COF_UCO"].toString())
+      cofUco = Double.parseDouble(dtaItemRoudingParameters["cofUco"].toString())
     } catch (NumberFormatException e) {
     }
 
@@ -1246,44 +1258,44 @@ public class GetSupplyPath extends ExtendM3Transaction {
     // 6 steps to check rounding rules
     for (int step = 0; step < 6; step++) {
       if (!roundingRuleFound) {
-        double lim_sup = 0
-        double lim_inf = 0
+        double limSup = 0
+        double limInf = 0
         double cofa = 0
         switch (step) {
           case 0:
-            lim_sup = rayon_upa_sup
-            lim_inf = rayon_upa_inf
-            cofa = cof_upa
+            limSup = rayonUpaSup
+            limInf = rayonUpaInf
+            cofa = cofUpa
             remk = "rayon palette "
             break
           case 1:
-            lim_sup = rayon_udp_sup
-            lim_inf = rayon_udp_inf
-            cofa = cof_udp
+            limSup = rayonUdpSup
+            limInf = rayonUdpInf
+            cofa = cofUdp
             remk = "rayon 1/2 palette "
             break
           case 2:
-            lim_sup = rayon_uco_sup
-            lim_inf = rayon_uco_inf
-            cofa = cof_uco
+            limSup = rayonUcoSup
+            limInf = rayonUcoInf
+            cofa = cofUco
             remk = "rayon couche "
             break
           case 3:
-            lim_sup = gen_upa_sup
-            lim_inf = gen_upa_inf
-            cofa = cof_upa
+            limSup = genUpaSup
+            limInf = genUpaInf
+            cofa = cofUpa
             remk = "global palette "
             break
           case 4:
-            lim_sup = gen_udp_sup
-            lim_inf = gen_udp_inf
-            cofa = cof_udp
+            limSup = genUdpSup
+            limInf = genUdpInf
+            cofa = cofUdp
             remk = "global 1/2 palette "
             break
           case 5:
-            lim_sup = gen_uco_sup
-            lim_inf = gen_uco_inf
-            cofa = cof_uco
+            limSup = genUcoSup
+            limInf = genUcoInf
+            cofa = cofUco
             remk = "global couche "
             break
           default:
@@ -1291,32 +1303,32 @@ public class GetSupplyPath extends ExtendM3Transaction {
         }
 
         //Calcul
-        if ((lim_sup > 0 || lim_inf > 0) && cofa > 0) {
+        if ((limSup > 0 || limInf > 0) && cofa > 0) {
 
           if (step == 2 || step == 5) { //Si on est sur step 2 ou 5 on sort même si la regle ne s'applique pas
             roundingRuleFound = true
           }
 
-          int nb_un = (int) (orqa / cofa)//Nb unit
-          double reste = new BigDecimal(Double.toString(orqa - (nb_un * cofa))).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          int nbUn = (int) (orqa / cofa)//Nb unit
+          double reste = new BigDecimal(Double.toString(orqa - (nbUn * cofa))).setScale(6, RoundingMode.HALF_UP).doubleValue()
           double preste = new BigDecimal(Double.toString(reste / cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double lim_qty_sup = new BigDecimal(Double.toString(cofa * lim_sup / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double lim_qty_inf = new BigDecimal(Double.toString(cofa * lim_inf / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double limQtySup = new BigDecimal(Double.toString(cofa * limSup / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double limQtyInf = new BigDecimal(Double.toString(cofa * limInf / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
 
-          if (preste >= lim_sup && reste != 0) { //Cas sup
+          if (preste >= limSup && reste != 0) { //Cas sup
             rounded = true
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
-            outqty = new BigDecimal(Double.toString((nb_un + 1) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-            remk += " > " + (lim_sup * 100) + "%"
-          } else if (preste < lim_inf && reste != 0) { //Cas inf
+            outqty = new BigDecimal(Double.toString((nbUn + 1) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+            remk += " > " + (limSup * 100) + "%"
+          } else if (preste < limInf && reste != 0) { //Cas inf
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
             rounded = true
-            outqty = new BigDecimal(Double.toString((nb_un) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-            remk += " < " + (lim_inf * 100) + "%"
+            outqty = new BigDecimal(Double.toString((nbUn) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+            remk += " < " + (limInf * 100) + "%"
           } else if (reste == 0) {
             rounded = true
             outqty = orqa

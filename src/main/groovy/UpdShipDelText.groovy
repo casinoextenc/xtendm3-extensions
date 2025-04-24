@@ -1,4 +1,3 @@
-
 /**
  * README
  * This extension is used by Mashup
@@ -48,18 +47,18 @@ public class UpdShipDelText extends ExtendM3Transaction {
     String kfld = (mi.in.get("KFLD") != null ? (String)mi.in.get("KFLD") : "")
     String file = (mi.in.get("FILE") != null ? (String)mi.in.get("FILE") : "")
 
-    long kfld_file = kfld as long
+    long kfldFile = kfld as long
 
     if(!"DCONSI00".equalsIgnoreCase(file.trim()) && !"MHDISH00".equalsIgnoreCase(file.trim())) {
       mi.error("paramètre file doit être DCONSI00 ou MHDISH00")
     }
 
     if(file.trim() == "DCONSI00") {
-      DBAction query_DCONSI = database.table("DCONSI").index("00").selection("DACONO", "DACONN", "DATXID").build()
-      DBContainer DCONSI = query_DCONSI.getContainer()
+      DBAction queryDconsi = database.table("DCONSI").index("00").selection("DACONO", "DACONN", "DATXID").build()
+      DBContainer DCONSI = queryDconsi.getContainer()
       DCONSI.set("DACONO", currentCompany)
-      DCONSI.set("DACONN", kfld_file)
-      if(query_DCONSI.read(DCONSI)){
+      DCONSI.set("DACONN", kfldFile)
+      if(queryDconsi.read(DCONSI)){
         Closure<?> updateDCONSI = { LockedResult lockedResultDCONSI ->
           lockedResultDCONSI.set("DATXID", txid)
           lockedResultDCONSI.set("DALMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -67,16 +66,16 @@ public class UpdShipDelText extends ExtendM3Transaction {
           lockedResultDCONSI.set("DACHID", program.getUser())
           lockedResultDCONSI.update()
         }
-        query_DCONSI.readLock(DCONSI, updateDCONSI)
+        queryDconsi.readLock(DCONSI, updateDCONSI)
       }
     }
 
     if(file.trim() == "MHDISH00") {
-      DBAction query_EXT410 = database.table("EXT410").index("00").selection("EXCONO", "EXDLIX").build()
-      DBContainer EXT410 = query_EXT410.getContainer()
+      DBAction queryExt410 = database.table("EXT410").index("00").selection("EXCONO", "EXDLIX").build()
+      DBContainer EXT410 = queryExt410.getContainer()
       EXT410.set("EXCONO", currentCompany)
-      EXT410.set("EXDLIX",  kfld_file)
-      if(query_EXT410.read(EXT410)){
+      EXT410.set("EXDLIX",  kfldFile)
+      if(queryExt410.read(EXT410)){
         Closure<?> updateEXT410 = { LockedResult lockedResultEXT410 ->
           lockedResultEXT410.set("EXTXID", txid)
           lockedResultEXT410.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -84,7 +83,7 @@ public class UpdShipDelText extends ExtendM3Transaction {
           lockedResultEXT410.set("EXCHID", program.getUser())
           lockedResultEXT410.update()
         }
-        query_EXT410.readLock(EXT410, updateEXT410)
+        queryExt410.readLock(EXT410, updateEXT410)
       }
     }
   }

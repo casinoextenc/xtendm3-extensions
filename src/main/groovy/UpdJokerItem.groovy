@@ -1,11 +1,11 @@
 /**
  * README
  * This extension is used by Mashup
- * 
+ *
  * Name : EXT050MI.UpdJokerItem
  * Description : Update Joker item
  * Date         Changed By   Description
- * 20210125     SEAR         QUAX01 - Constraints matrix 
+ * 20210125     SEAR         QUAX01 - Constraints matrix
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -21,20 +21,21 @@ public class UpdJokerItem extends ExtendM3Transaction {
   private final MICallerAPI miCaller
   private final UtilityAPI utility
 
-  private String bjno_input
-  private String itno_input
-  private double zquv_input
-  private double zpqa_input
-  private double MITAUN_cofa
+  private String bjnoInput
+  private String itnoInput
+  private double zquvInput
+  private double zpqaInput
+  private double mitaunCofa
   private int dmcf
-  private String MITMAS_puun
+  private String mitmasPuun
   private double palQuantity
   private double totQuantity
   private double totWeight
   private double totVolume
-  private double MITMAS_Weight
-  private double MITMAS_Volume
+  private double mitmasWeight
+  private double mitmasVolume
   private int currentCompany
+  private Integer nbMaxRecord = 10000
 
   public UpdJokerItem(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -53,39 +54,39 @@ public class UpdJokerItem extends ExtendM3Transaction {
       currentCompany = mi.in.get("CONO")
     }
 
-    bjno_input = (mi.in.get("BJNO") != null ? (String)mi.in.get("BJNO") : "")
-    itno_input = (mi.in.get("ITNO") != null ? (String)mi.in.get("ITNO") : "")
-    zquv_input = (double) (mi.in.get("ZQUV") != null ? mi.in.get("ZQUV") : 0)
-    zpqa_input = (double) (mi.in.get("ZPQA") != null ? mi.in.get("ZPQA") : 0)
+    bjnoInput = (mi.in.get("BJNO") != null ? (String)mi.in.get("BJNO") : "")
+    itnoInput = (mi.in.get("ITNO") != null ? (String)mi.in.get("ITNO") : "")
+    zquvInput = (double) (mi.in.get("ZQUV") != null ? mi.in.get("ZQUV") : 0)
+    zpqaInput = (double) (mi.in.get("ZPQA") != null ? mi.in.get("ZPQA") : 0)
 
     //Check if record exists in Constraint Type Table (EXT055)
     DBAction query = database.table("EXT055").index("00").build()
     // list out data
     DBAction ListqueryEXT055 = database.table("EXT055").index("00").selection("EXBJNO").build()
     DBContainer ListContainerEXT055 = ListqueryEXT055.getContainer()
-    ListContainerEXT055.set("EXBJNO", bjno_input)
+    ListContainerEXT055.set("EXBJNO", bjnoInput)
     //Record exists
-    if (!ListqueryEXT055.readAll(ListContainerEXT055, 1, existData)){
-      mi.error("Numéro de job " + bjno_input + " n'existe pas dans la table EXT055")
+    if (!ListqueryEXT055.readAll(ListContainerEXT055, 1, nbMaxRecord, existData)){
+      mi.error("Numéro de job " + bjnoInput + " n'existe pas dans la table EXT055")
     }
 
     //Check if Item exist
-    MITMAS_puun = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMPUUN","MMVOL3","MMGRWE","MMSUNO").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
+    mitmasPuun = ""
+    DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMPUUN","MMVOL3","MMGRWE","MMSUNO").build()
+    DBContainer MITMAS = queryMitmas.getContainer()
     MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", itno_input)
-    if(!query_MITMAS.read(MITMAS)){
-      mi.error("Code article " + itno_input + " n'existe pas")
+    MITMAS.set("MMITNO", itnoInput)
+    if(!queryMitmas.read(MITMAS)){
+      mi.error("Code article " + itnoInput + " n'existe pas")
     } else {
-      MITMAS_puun = MITMAS.get("MMPUUN")
-      MITMAS_Volume = MITMAS.getDouble("MMVOL3")
-      MITMAS_Weight = MITMAS.getDouble("MMGRWE")
+      mitmasPuun = MITMAS.get("MMPUUN")
+      mitmasVolume = MITMAS.getDouble("MMVOL3")
+      mitmasWeight = MITMAS.getDouble("MMGRWE")
     }
 
     DBAction queryEXT055 = database.table("EXT055")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXBJNO",
         "EXCONO",
         "EXITNO",
@@ -101,61 +102,64 @@ public class UpdJokerItem extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer containerEXT055 = queryEXT055.getContainer()
-    containerEXT055.set("EXBJNO", bjno_input)
+    containerEXT055.set("EXBJNO", bjnoInput)
     containerEXT055.set("EXCONO", currentCompany)
-    containerEXT055.set("EXITNO", itno_input)
+    containerEXT055.set("EXITNO", itnoInput)
     if(!queryEXT055.readLock(containerEXT055, updateCallBack)){
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
 
+  /**
+   * Update EXT055
+   */
   Closure<?> updateCallBack = { LockedResult lockedResultEXT055 ->
     LocalDateTime timeOfCreation = LocalDateTime.now()
     int changeNumber = lockedResultEXT055.get("EXCHNO")
 
     DBAction queryMITAUN00 = database.table("MITAUN").index("00").selection(
-        "MUCONO",
-        "MUITNO",
-        "MUAUTP",
-        "MUALUN",
-        "MUCOFA",
-        "MUDMCF"
-        ).build()
+      "MUCONO",
+      "MUITNO",
+      "MUAUTP",
+      "MUALUN",
+      "MUCOFA",
+      "MUDMCF"
+    ).build()
 
     totWeight = 0
     totVolume = 0
-    palQuantity = zpqa_input
+    palQuantity = zpqaInput
     totQuantity = 0
     DBContainer containerMITAUN = queryMITAUN00.getContainer()
     containerMITAUN.set("MUCONO", currentCompany)
-    containerMITAUN.set("MUITNO", itno_input)
+    containerMITAUN.set("MUITNO", itnoInput)
     containerMITAUN.set("MUAUTP", 1)
-    containerMITAUN.set("MUALUN", MITMAS_puun)
+    containerMITAUN.set("MUALUN", mitmasPuun)
     if (queryMITAUN00.read(containerMITAUN)) {
-        MITAUN_cofa = containerMITAUN.getDouble("MUCOFA")
-        dmcf = containerMITAUN.getInt("MUDMCF")
+      mitaunCofa = containerMITAUN.getDouble("MUCOFA")
+      dmcf = containerMITAUN.getInt("MUDMCF")
       if (dmcf == 1) {
-        palQuantity = zpqa_input * MITAUN_cofa
+        palQuantity = zpqaInput * mitaunCofa
       } else {
-        palQuantity = zpqa_input / MITAUN_cofa
+        palQuantity = zpqaInput / mitaunCofa
       }
     }
 
-    totQuantity = palQuantity + zpqa_input
-    totWeight = totQuantity * MITMAS_Weight
-    totVolume = totQuantity * MITMAS_Volume
+    totQuantity = palQuantity + zpqaInput
+    totWeight = totQuantity * mitmasWeight
+    totVolume = totQuantity * mitmasVolume
     logger.debug("totQuantity : " + totQuantity)
     logger.debug("totWeight : " + totWeight)
     logger.debug("totVolume : " + totVolume)
-    logger.debug("MITAUN_cofa : " + MITAUN_cofa)
+    logger.debug("mitaunCofa : " + mitaunCofa)
     logger.debug("dmcf : " + dmcf)
 
-    lockedResultEXT055.set("EXZQUV", zquv_input)
+    lockedResultEXT055.set("EXZQUV", zquvInput)
     lockedResultEXT055.set("EXZPQA", palQuantity)
     lockedResultEXT055.set("EXGRWE", totWeight)
     lockedResultEXT055.set("EXVOL3", totVolume)
@@ -165,6 +169,9 @@ public class UpdJokerItem extends ExtendM3Transaction {
     lockedResultEXT055.update()
   }
 
+  /**
+   * Get EXT055 data
+   */
   Closure<?> existData = { DBContainer containerEXT055 ->
     return
   }

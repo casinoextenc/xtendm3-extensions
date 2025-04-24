@@ -1,12 +1,17 @@
-/**
- * README
- * This extension is used by MEC
- *
- * Name : EXT099MI.GetPOLineSIGMA6
- * Description : INT-LOG1203 find MPLINE by POPN and CUNO
- * Date         Changed By    Description
- * 20230822     FLEBARS       LOG1203 Creation
- */
+/****************************************************************************************
+ Extension Name: EXT099MI.GetPOLineSIGMA6
+ Type: ExtendM3Transaction
+ Script Author: FLEBARS
+ Date: 2023-08-22
+ Description:
+ * Find MPLINE by POPN and CUNO
+
+ Revision History:
+ Name         Date         Version   Description of Changes
+ FLEBARS      2023-08-22   1.0       REF001 - Reference data interfaces Creation
+ ARENARD      2025-04-22   1.1       Code has been checked
+ ******************************************************************************************/
+
 public class GetPOLineSIGMA6 extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
@@ -18,6 +23,7 @@ public class GetPOLineSIGMA6 extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
+  private Integer nbMaxRecord = 10000
 
   public GetPOLineSIGMA6(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -37,20 +43,20 @@ public class GetPOLineSIGMA6 extends ExtendM3Transaction {
     String suno = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
     String dlqt = (String)(mi.in.get("DLQT") != null ? mi.in.get("DLQT") : "")
 
-    ExpressionFactory MPLINE_expression = database.getExpressionFactory("MPLINE")
-    MPLINE_expression = MPLINE_expression.like("IBITNO", popn + "%")
-    MPLINE_expression = MPLINE_expression.and(MPLINE_expression.gt("IBPUSL", "15"))
-    MPLINE_expression = MPLINE_expression.and(MPLINE_expression.lt("IBPUSL", "40"))
+    ExpressionFactory mplineExpression = database.getExpressionFactory("MPLINE")
+    mplineExpression = mplineExpression.like("IBITNO", popn + "%")
+    mplineExpression = mplineExpression.and(mplineExpression.gt("IBPUSL", "15"))
+    mplineExpression = mplineExpression.and(mplineExpression.lt("IBPUSL", "40"))
     if (cuno.length() == 0) {
-      MPLINE_expression = MPLINE_expression.and(MPLINE_expression.eq("IBRORC", "0"))
+      mplineExpression = mplineExpression.and(mplineExpression.eq("IBRORC", "0"))
     } else {
-      MPLINE_expression = MPLINE_expression.and(MPLINE_expression.eq("IBRORC", "3"))
+      mplineExpression = mplineExpression.and(mplineExpression.eq("IBRORC", "3"))
     }
 
 
-    DBAction MPLINE_query = database.table("MPLINE")
-        .matching(MPLINE_expression)
-        .selection(
+    DBAction mplineQuery = database.table("MPLINE")
+      .matching(mplineExpression)
+      .selection(
         "IBPUNO"
         ,"IBPNLI"
         ,"IBPNLS"
@@ -62,32 +68,32 @@ public class GetPOLineSIGMA6 extends ExtendM3Transaction {
         ,"IBRORL"
         ,"IBRORX"
         ,"IBORQA"
-        )
-        .index("00").build()
-    DBContainer MPLINE_request = MPLINE_query.getContainer()
-    MPLINE_request.set("IBCONO", currentCompany)
-    MPLINE_request.set("IBPUNO", puno)
+      )
+      .index("00").build()
+    DBContainer mplineRequest = mplineQuery.getContainer()
+    mplineRequest.set("IBCONO", currentCompany)
+    mplineRequest.set("IBPUNO", puno)
 
     boolean rt = (cuno.length() == 0)
-    Closure<?> MPLINE_reader = { DBContainer MPLINE_result ->
-      logger.debug("MPLINE_result ")
-      
+    Closure<?> mplineReader = { DBContainer mplineResult ->
+      logger.debug("mplineResult ")
+
       if (!rt) {
-        String orno = MPLINE_result.get("IBRORN") as String
+        String orno = mplineResult.get("IBRORN") as String
         rt = (cuno.equals(getCustomerFromOrder(orno)))
       }
-      logger.debug("MPLINE_result ${rt}")
+      logger.debug("mplineResult ${rt}")
       if (rt) {
-        mi.outData.put("PUNO",  MPLINE_result.get("IBPUNO") as String)
-        mi.outData.put("PNLI",  MPLINE_result.get("IBPNLI") as String)
-        mi.outData.put("PNLS",  MPLINE_result.get("IBPNLS") as String)
-        mi.outData.put("ITNO",  MPLINE_result.get("IBITNO") as String)
-        mi.outData.put("ORQA",  MPLINE_result.get("IBORQA") as String)
+        mi.outData.put("PUNO",  mplineResult.get("IBPUNO") as String)
+        mi.outData.put("PNLI",  mplineResult.get("IBPNLI") as String)
+        mi.outData.put("PNLS",  mplineResult.get("IBPNLS") as String)
+        mi.outData.put("ITNO",  mplineResult.get("IBITNO") as String)
+        mi.outData.put("ORQA",  mplineResult.get("IBORQA") as String)
         mi.write()
       }
     }
 
-    if (!MPLINE_query.readAll(MPLINE_request, 2, MPLINE_reader)) {
+    if (!mplineQuery.readAll(mplineRequest, 2, nbMaxRecord, mplineReader)) {
     }
     if (!rt) {
       mi.error("Ligne d'ordre d'achat oA:${puno} sigma6:${popn} client:${cuno} n'existe pas")
@@ -96,20 +102,20 @@ public class GetPOLineSIGMA6 extends ExtendM3Transaction {
   }
 
   /**
-   * 
+   *
    * @param orno
    * @return customer number for order
    */
   public String getCustomerFromOrder(String orno) {
     //Check if record exists
     DBAction queryOOHEAD = database.table("OOHEAD")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "OACONO"
         ,"OAORNO"
         ,"OACUNO"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer containerOOHEAD = queryOOHEAD.getContainer()
     containerOOHEAD.set("OACONO", currentCompany)

@@ -25,7 +25,7 @@ public class UpdOrAddCugex extends ExtendM3Transaction {
   String pk01 = ''
   String pk02 = ''
   String pk03 = ''
-  String iN196 = '' //A° 20220222     CDUV 
+  String iN196 = '' //A° 20220222     CDUV
 
   public UpdOrAddCugex(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility, MICallerAPI miCaller) {
     this.mi = mi
@@ -48,12 +48,6 @@ public class UpdOrAddCugex extends ExtendM3Transaction {
     if (mi.in.get("PK01") != null) {
       pk01 = mi.in.get("PK01")
     }
-    /*if(mi.in.get("PK02") != null){
-      pk02 = mi.in.get("PK02")
-    }
-    if(mi.in.get("PK03") != null){
-      pk03 = mi.in.get("PK03")
-    }*/
     DBAction query = database.table("CUGEX1").index("00").selection('F1FILE', 'F1PK01', 'F1PK02', 'F1PK03', 'F1A030',
       'F1A121', 'F1A130', 'F1A230', 'F1A330', 'F1A430', 'F1A530',
       'F1A630', 'F1A730', 'F1A830', 'F1A930', 'F1N096', 'F1N196', 'F1N396').build()

@@ -97,7 +97,7 @@ public class EXT050 extends ExtendM3Batch {
 
     logger.debug("Début" + program.getProgramName())
     //logger.debug("referenceId = " + batch.getReferenceId().get())
-    if(batch.getReferenceId().isPresent()){
+    if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())
       //logger.debug("data = " + data)
       performActualJob(data)
@@ -107,11 +107,11 @@ public class EXT050 extends ExtendM3Batch {
     }
   }
   // Get job data
-  private Optional<String> getJobData(String referenceId){
+  private Optional<String> getJobData(String referenceId) {
     DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
     DBContainer container = query.createContainer()
     container.set("EXRFID", referenceId)
-    if (query.read(container)){
+    if (query.read(container)) {
       logger.debug("EXDATA = " + container.getString("EXDATA"))
       return Optional.of(container.getString("EXDATA"))
     } else {
@@ -120,8 +120,8 @@ public class EXT050 extends ExtendM3Batch {
     return Optional.empty()
   }
   // Perform actual job
-  private performActualJob(Optional<String> data){
-    if(!data.isPresent()){
+  private performActualJob(Optional<String> data) {
+    if (!data.isPresent()) {
       logger.debug("Job reference Id ${batch.getReferenceId().get()} is passed but data was not found")
       return
     }
@@ -130,7 +130,7 @@ public class EXT050 extends ExtendM3Batch {
     String inBJNO = getFirstParameter()
     String inZTRT = getNextParameter()
 
-    currentCompany = (Integer)program.getLDAZD().CONO
+    currentCompany = (Integer) program.getLDAZD().CONO
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
@@ -178,7 +178,7 @@ public class EXT050 extends ExtendM3Batch {
     deleteEXTJOB()
   }
   // Get first parameter
-  private String getFirstParameter(){
+  private String getFirstParameter() {
     logger.debug("rawData = " + rawData)
     rawDataLength = rawData.length()
     beginIndex = 0
@@ -189,7 +189,7 @@ public class EXT050 extends ExtendM3Batch {
     return parameter
   }
   // Get next parameter
-  private String getNextParameter(){
+  private String getNextParameter() {
     beginIndex = endIndex + 1
     endIndex = rawDataLength - rawData.indexOf(";") - 1
     rawData = rawData.substring(beginIndex, rawDataLength)
@@ -202,12 +202,12 @@ public class EXT050 extends ExtendM3Batch {
     return parameter
   }
   // Delete records related to the current job from EXTJOB table
-  public void deleteEXTJOB(){
+  public void deleteEXTJOB() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXTJOB").index("00").build()
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
-    if(!query.readAllLock(EXTJOB, 1, updatecallbackExtjob)){
+    if (!query.readAllLock(EXTJOB, 1, updatecallbackExtjob)) {
     }
   }
   // Delete EXTJOB
@@ -218,7 +218,7 @@ public class EXT050 extends ExtendM3Batch {
   void logMessage(String header, String message) {
     textFiles.open("FileImport")
     logFileName = "MSG_" + program.getProgramName() + "." + "batch" + "." + jobNumber + ".csv"
-    if(!textFiles.exists(logFileName)) {
+    if (!textFiles.exists(logFileName)) {
       log(header)
       log(message)
     }
@@ -308,7 +308,6 @@ public class EXT050 extends ExtendM3Batch {
     String orno = ""
     String ponr = ""
     String posx = ""
-
 
 
     // Read MITALO and add order lines into EXT057
@@ -637,7 +636,6 @@ public class EXT050 extends ExtendM3Batch {
     String alun = EXT057.get("EXALUN")
 
 
-
     if (getoolineData(ridn, ridl, ridx)) {
       logger.debug("closure outdataExt057Linetransfer : DLIX=${dlix}, TLIX=${tlix} RIDN=${ridn} RIDL=${ridl} RIDX=${ridx}")
       if (alqt != 0)
@@ -952,67 +950,6 @@ public class EXT050 extends ExtendM3Batch {
 
       // Remove link from purchase order line
       executePPS200MIUpdLine(oolineRorn, "" + oolineRorl, "" + oolineRorx, "0", "0", "0", "0")
-
-      // We have to Restitute MITPLO and MITALO values after deallocation
-      // See Case 17509839 and KB 2301902 issues in MMS080 and MMS120
-      for (def mitplo in mitplos) {
-        mitploQuery = database.table("MITPLO").index("00").build()
-        mitploRequest = mitploQuery.getContainer()
-        mitploRequest.set("MOCONO", currentCompany)
-        mitploRequest.set("MOWHLO", mitplo["MOWHLO"] as String)
-        mitploRequest.set("MOITNO", mitplo["MOITNO"] as String)
-        mitploRequest.set("MOPLDT", mitplo["MOPLDT"] as int)
-        mitploRequest.set("MOTIHM", mitplo["MOTIHM"] as int)
-        mitploRequest.set("MOORCA", mitplo["MOORCA"] as String)
-        mitploRequest.set("MORIDN", mitplo["MORIDN"] as String)
-        mitploRequest.set("MORIDL", mitplo["MORIDL"] as int)
-        mitploRequest.set("MORIDX", mitplo["MORIDX"] as int)
-        mitploRequest.set("MORIDI", mitplo["MORIDI"] as long)
-        mitploRequest.set("MOSTAT", mitplo["MOSTAT"] as String)
-
-        Closure<?> mitploUpdater = { LockedResult mitploLockedresult ->
-          LocalDateTime timeOfCreation = LocalDateTime.now()
-          int changeNumber = mitploLockedresult.get("MOCHNO") as Integer
-          mitploLockedresult.set("MOALQT", mitplo["MOALQT"] as double)
-          mitploLockedresult.setInt("MOLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-          mitploLockedresult.setInt("MOCHNO", changeNumber + 1)
-          mitploLockedresult.set("MOCHID", program.getUser())
-          mitploLockedresult.update()
-          logger.debug("MITPLO UPDATED")
-        }
-        mitploQuery.readLock(mitploRequest, mitploUpdater)
-      }
-      for (def mitalo in mitalos) {
-        mitaloQuery = database.table("MITALO").index("00").build()
-        mitaloRequest = mitaloQuery.getContainer()
-        mitaloRequest.set("MQCONO", currentCompany)
-        mitaloRequest.set("MQWHLO", mitalo["MQWHLO"] as String)
-        mitaloRequest.set("MQITNO", mitalo["MQITNO"] as String)
-        mitaloRequest.set("MQWHSL", mitalo["MQWHSL"] as String)
-        mitaloRequest.set("MQBANO", mitalo["MQBANO"] as String)
-        mitaloRequest.set("MQCAMU", mitalo["MQCAMU"] as String)
-        mitaloRequest.set("MQTTYP", mitalo["MQTTYP"] as int)
-        mitaloRequest.set("MQRIDN", mitalo["MQRIDN"] as String)
-        mitaloRequest.set("MQRIDO", mitalo["MQRIDO"] as int)
-        mitaloRequest.set("MQRIDL", mitalo["MQRIDL"] as int)
-        mitaloRequest.set("MQRIDX", mitalo["MQRIDX"] as int)
-        mitaloRequest.set("MQRIDI", mitalo["MQRIDI"] as long)
-        mitaloRequest.set("MQPLSX", mitalo["MQPLSX"] as int)
-        mitaloRequest.set("MQSOFT", mitalo["MQSOFT"] as int)
-
-
-        Closure<?> mitaloUpdater = { LockedResult mitaloLockedresult ->
-          LocalDateTime timeOfCreation = LocalDateTime.now()
-          int changeNumber = mitaloLockedresult.get("MQCHNO") as Integer
-          mitaloLockedresult.set("MQALQT", mitalo["MQALQT"] as double)
-          mitaloLockedresult.setInt("MQLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-          mitaloLockedresult.setInt("MQCHNO", changeNumber + 1)
-          mitaloLockedresult.set("MQCHID", program.getUser())
-          mitaloLockedresult.update()
-          logger.debug("MITALO UPDATED")
-        }
-        mitaloQuery.readLock(mitaloRequest, mitaloUpdater)
-      }
     }
 
     //deallocation
@@ -1073,7 +1010,7 @@ public class EXT050 extends ExtendM3Batch {
           qteOldLine -= alqt
           mitaloAlqt -= alqt
         }
-        if (qteNewLine > 0 &&  (cams.contains(mitaloCamu) || cams.trim() == "")) {
+        if (qteNewLine > 0 && (cams.contains(mitaloCamu) || cams.trim() == "")) {
           alqt = qteNewLine <= mitaloAlqt ? qteNewLine : mitaloAlqt
           logger.debug("affectation newline itno:${mitaloItno} bano:${mitaloBano} camu:${mitaloCamu} qteOldLine:${qteOldLine} qteNewLine:${qteNewLine} cams:${cams}")
           if (alqt > 0) {
@@ -1316,7 +1253,7 @@ public class EXT050 extends ExtendM3Batch {
       mitmasUnms = unms
     }
 
-    if (alun == "UVC"){
+    if (alun == "UVC") {
       returnValue["ITNO"] = mitmasItno
       returnValue["UNMS"] = mitmasUnms
       returnValue["ALUN"] = mitmasUnms

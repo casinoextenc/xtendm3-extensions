@@ -1,15 +1,18 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT030
- * Description : Generates quality report
- * Date         Changed By   Description
- * 20231220     SEAR         QUA04 Editions qualité
- * 20250108     YJANNIN      QUA04 Editions qualité
- * 20250130     YJANNIN      QUA04 Controle code pour validation Infor
- */
+/****************************************************************************************
+ Extension Name: EXT030
+ Type: ExtendM3Batch
+ Script Author: SEAR
+ Date: 2023-12-20
+ Description:
+ * Generates quality report
 
+ Revision History:
+ Name        Date          Version  Description of Changes
+ SEAR        2023-12-20    1.0      QUA04 Editions qualité
+ YJANNIN     2025-01-08    1.1      QUA04 Editions qualité
+ YJANNIN     2025-01-30    1.2      QUA04 Controle code pour validation Infor
+ ARENARD     2025-04-22    1.3      Code has been checked
+ ******************************************************************************************/
 
 import java.math.RoundingMode
 import java.time.LocalDateTime
@@ -35,6 +38,7 @@ public class EXT030 extends ExtendM3Batch {
   private String orderNumber
   private String deliveryIndex
   private String shipment
+  private String bjno
   private String reference
   private String search
   private Integer currentDate
@@ -169,7 +173,12 @@ public class EXT030 extends ExtendM3Batch {
     }
   }
 
-  // Perform actual job
+  /**
+   * This method is called to perform the actual job.
+   * It processes the data and generates the report.
+   *
+   * @param data The data to process.
+   */
   private performActualJob(Optional<String> data) {
     if (!data.isPresent()) {
       return
@@ -195,7 +204,7 @@ public class EXT030 extends ExtendM3Batch {
 
     server = getCRS881("","EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "")
     path = getCRS881("","EXTENC", "1", "ExtendM3", "I", "RapportQualite", "Path", "", "")
-    share = "${server}\\${path}\\"
+    share = "\\\\${server}\\${path}\\"
     logger.debug("#PB share = "+share)
 
     commentaire = getNextParameter()
@@ -203,8 +212,8 @@ public class EXT030 extends ExtendM3Batch {
 
     commentaire = commentaire.replaceAll('\n', '&#10')
     commentaire2 = commentaire2.replaceAll('\n', '&#10')
-    commentaire = commentaire.replaceAll('\r', '&#10')
-    commentaire2 = commentaire2.replaceAll('\r', '&#10')
+
+    bjno = getNextParameter()
 
     zcod1 = ""
     zcod2 = ""
@@ -235,134 +244,34 @@ public class EXT030 extends ExtendM3Batch {
 
     clearVarLine()
 
-    // retrouver les informations de ligne d'annexe
     if (orderNumber.trim() != "" && orderNumber != null) {
+      logger.debug("Reveived orderNumber: ${orderNumber}")
       transactionNumber = orderNumber
-      ExpressionFactory expressionEXT037 = database.getExpressionFactory("EXT037")
-      expressionEXT037 = expressionEXT037.eq("EXADS1", "ANNE")
-      DBAction ext037QueryOrno = database.table("EXT037")
-        .index("20")
-        .matching(expressionEXT037)
-        .selection("EXORNO"
-          , "EXPONR"
-          , "EXPOSX"
-          , "EXDLIX"
-          , "EXWHLO"
-          , "EXBANO"
-          , "EXCAMU"
-          , "EXZCLI"
-          , "EXORST"
-          , "EXSTAT"
-          , "EXCONN"
-          , "EXUCA4"
-          , "EXCUNO"
-          , "EXITNO"
-          , "EXZAGR"
-          , "EXZNAG"
-          , "EXORQT"
-          , "EXZQCO"
-          , "EXZTGR"
-          , "EXZTNW"
-          , "EXZCID"
-          , "EXZCOD"
-          , "EXZCTY"
-          , "EXDOID"
-          , "EXADS1")
-        .build()
-
-      DBContainer ext037RequestOrno = ext037QueryOrno.getContainer()
-      ext037RequestOrno.set("EXCONO", currentCompany)
-      ext037RequestOrno.set("EXDLIX", 0)
-      ext037RequestOrno.set("EXORNO", orderNumber)
-      if (!ext037QueryOrno.readAll(ext037RequestOrno, 3, nbMaxRecord, ext037Reader)) {
-      }
-
     }
-
     if (deliveryIndex.trim() != "" && deliveryIndex != null) {
+      logger.debug("Reveived deliveryIndex: ${deliveryIndex}")
       transactionNumber = deliveryIndex
-      ExpressionFactory expressionEXT037 = database.getExpressionFactory("EXT037")
-      expressionEXT037 = expressionEXT037.eq("EXADS1", "ANNE")
-      DBAction ext037QueryDLIX = database.table("EXT037")
-        .index("20")
-        .matching(expressionEXT037)
-        .selection("EXORNO"
-          , "EXPONR"
-          , "EXPOSX"
-          , "EXDLIX"
-          , "EXWHLO"
-          , "EXBANO"
-          , "EXCAMU"
-          , "EXZCLI"
-          , "EXORST"
-          , "EXSTAT"
-          , "EXCONN"
-          , "EXUCA4"
-          , "EXCUNO"
-          , "EXITNO"
-          , "EXZAGR"
-          , "EXZNAG"
-          , "EXORQT"
-          , "EXZQCO"
-          , "EXZTGR"
-          , "EXZTNW"
-          , "EXZCID"
-          , "EXZCOD"
-          , "EXZCTY"
-          , "EXDOID"
-          , "EXADS1")
-        .build()
-
-      DBContainer ext037RequestDLIX = ext037QueryDLIX.getContainer()
-      ext037RequestDLIX.set("EXCONO", currentCompany)
-      ext037RequestDLIX.set("EXDLIX", deliveryIndex as long)
-      if (!ext037QueryDLIX.readAll(ext037RequestDLIX, 2, nbMaxRecord, ext037Reader)) {
-      }
-
     }
-
     if (shipment.trim() != "" && shipment != null) {
+      logger.debug("Reveived shipment: ${shipment}")
       transactionNumber = shipment
-      ExpressionFactory expressionEXT037 = database.getExpressionFactory("EXT037")
-      expressionEXT037 = expressionEXT037.eq("EXADS1", "ANNE")
-      DBAction ext037QueryShipment = database.table("EXT037")
-        .index("10")
-        .matching(expressionEXT037)
-        .selection("EXORNO"
-          , "EXPONR"
-          , "EXPOSX"
-          , "EXDLIX"
-          , "EXWHLO"
-          , "EXBANO"
-          , "EXCAMU"
-          , "EXZCLI"
-          , "EXORST"
-          , "EXSTAT"
-          , "EXCONN"
-          , "EXUCA4"
-          , "EXCUNO"
-          , "EXITNO"
-          , "EXZAGR"
-          , "EXZNAG"
-          , "EXORQT"
-          , "EXZQCO"
-          , "EXZTGR"
-          , "EXZTNW"
-          , "EXZCID"
-          , "EXZCOD"
-          , "EXZCTY"
-          , "EXDOID"
-          , "EXADS1")
-        .build()
-
-      DBContainer ext037RequestShipment= ext037QueryShipment.getContainer()
-      ext037RequestShipment.set("EXCONO", currentCompany)
-      ext037RequestShipment.set("EXCONN", shipment as long)
-      if (!ext037QueryShipment.readAll(ext037RequestShipment, 2, nbMaxRecord, ext037Reader)) {
-      }
-
     }
 
+    Long longBjno = Long.parseLong(bjno)
+    logger.debug("longBjno = ${longBjno}")
+
+    //check lines to print in EXT038
+    DBAction ext038query = database.table("EXT038").index("00").selection("EXORNO","EXPONR","EXPOSX","EXDLIX","EXCONN","EXITNO","EXBANO","EXZCID","EXZCOD","EXZCLI","EXCUNO").build()
+    DBContainer ext038container = ext038query.getContainer()
+    ext038container.set("EXCONO",currentCompany)
+    ext038container.set("EXBJNO",longBjno)
+    if(ext038query.readAll(ext038container,2,nbMaxRecord, ext038Reader )){
+      logger.debug("Out of EXT038 closure")
+    }else{
+      logger.debug("In else of EXT038 closure")
+    }
+
+    logger.debug("User is ${program.getUser()}")
 
     // retrouver le mail du user
     MailLine = ""
@@ -435,8 +344,6 @@ public class EXT030 extends ExtendM3Batch {
         headCountry.trim() + ";" +
         commentaire.trim() + " " + commentaire2.trim()
 
-      //String titleHead = headOrderNumber + "_" + headDoid.trim() + "_" + headUca4.trim() + "_" + headDlix.trim() + "_" + jobNumber
-      //String titleHead = headOrderNumber + "_" + headDoid.trim() + "_" + jobNumber
       String titleHead = transactionNumber + "_" + headDoid.trim() + "_" + jobNumber
 
       logger.debug("title Head :${titleHead}")
@@ -535,8 +442,6 @@ public class EXT030 extends ExtendM3Batch {
           lineCsno.trim() + ";" +
           lineTrqtCOL.trim() + ";" +
           lineTrqt.trim() + ";" +
-          //   String.valueOf(dLineTotGrwe).toString().trim() + ";" +
-          //   String.valueOf(dLineTotNewe).toString().trim() + ";" +
           String.format("%.3f", dLineTotGrwe).toString().trim() + ";" +
           String.format("%.3f", dLineTotNewe).toString().trim() + ";" +
           lineOrigine
@@ -594,10 +499,6 @@ public class EXT030 extends ExtendM3Batch {
       totBrut = totBrut + dLineTotGrwe
       totNet = totNet + dLineTotNewe
 
-      //String title = lineOrderNumber + "_" + lineDoid.trim() + "_" + lineZcod.trim() + "_" + lineUca4.trim() + "_" + lineDlix.trim() + "_" + jobNumber
-      //String endTitle = lineOrderNumber + "_" + lineDoid.trim() + "_" + lineUca4.trim() + "_" + lineDlix.trim() + "_" + jobNumber
-      //String title = lineOrderNumber + "_" + lineDoid.trim() + "_" + lineZcod.trim() + "_" + jobNumber
-      //String endTitle = lineOrderNumber + "_" + lineDoid.trim() + "_" + lineZcod.trim() + "_" + jobNumber
       String title = transactionNumber + "_" + lineDoid.trim() + "_" + jobNumber + "_" + lineZcod.trim()
       String endTitle = transactionNumber + "_" + lineDoid.trim() + "_" + jobNumber + "_" + lineZcod.trim()
 
@@ -690,10 +591,97 @@ public class EXT030 extends ExtendM3Batch {
     deleteEXTJOB()
   }
 
+  /**
+   * This method is called to clear the variables used for the lines.
+   */
+  Closure<?> ext038Reader = { DBContainer ext038Result ->
+    String ext038Orno = ext038Result.get("EXORNO").toString().trim()
 
+    logger.debug("In EXT038 closure, found ORNO : ${ext038Orno}" )
+
+    int ext038Ponr = (Integer)ext038Result.get("EXPONR")
+    int ext038Posx = (Integer)ext038Result.get("EXPOSX")
+    Long ext038Dlix = (Long)ext038Result.get("EXDLIX")
+    int ext038Conn = (Integer)ext038Result.get("EXCONN")
+    String ext038Itno = ext038Result.get("EXITNO").toString().trim()
+    String ext038Bano = ext038Result.get("EXBANO").toString().trim()
+    Long ext038Zcid = (Long)ext038Result.get("EXZCID")
+    String ext038Zcod = ext038Result.get("EXZCOD").toString().trim()
+    int ext038Zcli = (Integer)ext038Result.get("EXZCLI")
+    String ext038Cuno = ext038Result.get("EXCUNO").toString().trim()
+
+    logger.debug("EXT037 Expr. = DLIX:${ext038Dlix}, CONN:${ext038Conn.toString()},ITNO:${ext038Itno},BANO:${ext038Bano},ZCID:${ext038Zcid.toString()},ZCOD:${ext038Zcod},ZCLI:${ext038Zcli.toString()},CUNO:${ext038Cuno}")
+
+
+    ExpressionFactory expressionEXT037 = database.getExpressionFactory("EXT037")
+    expressionEXT037 = expressionEXT037.eq("EXADS1", "ANNE")
+    if(!ext038Dlix.toString().equals("0")){
+      expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXDLIX", ext038Dlix.toString()))
+    }
+    if(!ext038Conn.toString().equals("0")){
+      expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXCONN", ext038Conn.toString()))
+    }
+    expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXITNO", ext038Itno))
+    expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXBANO", ext038Bano))
+    expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXZCID", ext038Zcid.toString()))
+    expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXZCOD", ext038Zcod))
+    //expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXZCLI", ext038Zcli.toString()))
+    expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXCUNO", ext038Cuno))
+    DBAction ext037QueryOrno = database.table("EXT037")
+      .index("00")
+      .matching(expressionEXT037)
+      .selection("EXORNO"
+        , "EXPONR"
+        , "EXPOSX"
+        , "EXDLIX"
+        , "EXWHLO"
+        , "EXBANO"
+        , "EXCAMU"
+        , "EXZCLI"
+        , "EXORST"
+        , "EXSTAT"
+        , "EXCONN"
+        , "EXUCA4"
+        , "EXCUNO"
+        , "EXITNO"
+        , "EXZAGR"
+        , "EXZNAG"
+        , "EXORQT"
+        , "EXZQCO"
+        , "EXZTGR"
+        , "EXZTNW"
+        , "EXZCID"
+        , "EXZCOD"
+        , "EXZCTY"
+        , "EXDOID"
+        , "EXADS1")
+      .build()
+
+    DBContainer ext037RequestOrno = ext037QueryOrno.getContainer()
+    ext037RequestOrno.set("EXCONO", currentCompany)
+    ext037RequestOrno.set("EXORNO", ext038Orno)
+    ext037RequestOrno.set("EXPONR", ext038Ponr)
+    ext037RequestOrno.set("EXPOSX", ext038Posx)
+    //ext037RequestOrno.set("EXDLIX", ext038Dlix)
+    if (ext037QueryOrno.readAll(ext037RequestOrno, 4,nbMaxRecord, ext037Reader)) {
+      logger.debug("In !ext037QueryOrno.readAll out of closure")
+    }else{
+      logger.debug("In else of !ext037QueryOrno.readAll")
+    }
+  }
+
+/**
+ * This method is called to read the EXT037 table.
+ * It retrieves the data from the EXT037 table based on the given parameters.
+ *
+ * @param ext037Result The result of the EXT037 query.
+ */
   Closure<?> ext037Reader = { DBContainer ext037Result ->
+    logger.debug("in EXT037 closure")
+
     dlix = ext037Result.get("EXDLIX") as long
     orno = ext037Result.get("EXORNO")
+    logger.debug("in EXT037 closure, found a record with ORNO = ${orno}")
     ponr = ext037Result.get("EXPONR") as Integer
     posx = ext037Result.get("EXPOSX") as Integer
     whlo = ext037Result.get("EXWHLO")
@@ -719,6 +707,8 @@ public class EXT030 extends ExtendM3Batch {
     zcty = ext037Result.get("EXZCTY")
     doid = ext037Result.get("EXDOID")
     ads1 = ext037Result.get("EXADS1")
+
+    logger.debug("Found record in EXT038 and EXT037, DLIX = ${dlix}, CONN = ${conn}, ORNO = ${orno}, PONR = ${ponr}")
 
     trqt = orqt
 
@@ -911,9 +901,8 @@ public class EXT030 extends ExtendM3Batch {
       headerMap.put(key, value)
     }
 
-    String sPonr = String.format("%05d", ponr);
-    String sPosx = String.format("%05d", posx);
-    //String keyLine = orno.trim() + "#" + doid.trim() + "#" + uca4.trim() + "#" + String.valueOf(dlix).trim() + "#" + zcod.trim() + "#" + sPonr.trim() + "#" + sPosx.trim() + "#" + cuno.trim() + "#" + itno.trim()
+    String sPonr = String.format("%05d", ponr)
+    String sPosx = String.format("%05d", posx)
     String keyLine = transactionNumber.trim() + "#" + doid.trim() + "#" + zcod.trim() + "#" + orno.trim() + "#" + sPonr.trim() + "#" + sPosx.trim() + "#" + String.valueOf(dlix).trim() + "#" + whlo.trim() + "#" + bano.trim() + "#" + camu.trim()
     if (!linesMap.containsKey(keyLine)) {
       String value = orno
@@ -955,6 +944,10 @@ public class EXT030 extends ExtendM3Batch {
     }
   }
 
+  /**
+   * This method is called to clear the variables used for the lines.
+   * It resets all the variables to their initial state.
+   */
   public void clearVarLine() {
     // clear var lines
     ponr = 0
@@ -1001,7 +994,13 @@ public class EXT030 extends ExtendM3Batch {
   }
 
 
-  // Get EAN
+  /**
+   * This method is called to get the EAN13 code for a given item number (ITNO).
+   * It queries the MITPOP table to retrieve the EAN13 code.
+   *
+   * @param ITNO The item number for which to retrieve the EAN13 code.
+   * @return The EAN13 code for the specified item number.
+   */
   public String getEAN(String ITNO) {
     String EAN13 = ""
     //init query on MITPOP
@@ -1024,7 +1023,13 @@ public class EXT030 extends ExtendM3Batch {
     return EAN13
   }
 
-  // Get SIGMA6
+  /**
+   * This method is called to get the SIGMA6 code for a given item number (ITNO).
+   * It queries the MITPOP table to retrieve the SIGMA6 code.
+   *
+   * @param ITNO The item number for which to retrieve the SIGMA6 code.
+   * @return The SIGMA6 code for the specified item number.
+   */
   public String getSIGMA6(String ITNO) {
     String SIGMA6 = ""
     ExpressionFactory expressionMITPOP = database.getExpressionFactory("MITPOP")
@@ -1045,19 +1050,38 @@ public class EXT030 extends ExtendM3Batch {
     return SIGMA6
   }
 
-  // get Country
+  /**
+   * This method is called to get the country code for a given customer and country.
+   *
+   * @param constant The constant used to identify the SIRET code.
+   * @param key The key used to identify the SIRET code.
+   * @return The SIRET code for the specified item number.
+   */
   public String getCountry(String codeClient, String country) {
     lncd = getcustomerLang(codeClient)
     return getDescriptionCSYTAB("CSCD", lncd, country)
   }
 
-  // get transport mode
+  /**
+   * This method is called to get the country code for a given customer and country.
+   *
+   * @param constant The constant used to identify the SIRET code.
+   * @param key The key used to identify the SIRET code.
+   * @return The SIRET code for the specified item number.
+   */
   public String getOrigine(String codeClient, String country) {
     lncd = getcustomerLang(codeClient)
     return getDescriptionCSYTAB("CSCD", lncd, country)
   }
 
-  // get parm CSYTAB
+  /**
+   * This method is called to get the description from the CSYTAB table.
+   * It queries the CIDMAS table to retrieve the SIRET code.
+   *
+   * @param constant The constant used to identify the SIRET code.
+   * @param key The key used to identify the SIRET code.
+   * @return The SIRET code for the specified item number.
+   */
   public String getDescriptionCSYTAB(String constant, String lang, String key) {
     String CTPARM = ""
     DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
@@ -1090,7 +1114,12 @@ public class EXT030 extends ExtendM3Batch {
     return CTPARM
   }
 
-  // get Item informations
+  /**
+   * This method is called to get the item information for a given item number (ITNO).
+   * It queries the MITMAS table to retrieve the item information.
+   *
+   * @param ITNO The item number for which to retrieve the item information.
+   */
   public void getItemInfos(String ITNO) {
     itds = ""
     grweItem = 1
@@ -1116,7 +1145,13 @@ public class EXT030 extends ExtendM3Batch {
     }
   }
 
-  // get customer lang
+  /**
+   * This method is called to get the customer language for a given customer.
+   * It queries the OCUSMA table to retrieve the customer language.
+   *
+   * @param customer The customer for which to retrieve the language.
+   * @return The customer language for the specified customer.
+   */
   public String getcustomerLang(String customer) {
     String customerLang = ""
     DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection("OKLHCD").build()
@@ -1129,7 +1164,13 @@ public class EXT030 extends ExtendM3Batch {
     return customerLang
   }
 
-  // get customer lang
+  /**
+   * This method is called to get the customer name for a given customer.
+   * It queries the OCUSMA table to retrieve the customer name.
+   *
+   * @param customer The customer for which to retrieve the name.
+   * @return The customer name for the specified customer.
+   */
   public String getcustomerName(String customer) {
     String customerName = ""
     DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection("OKCUNM").build()
@@ -1142,7 +1183,14 @@ public class EXT030 extends ExtendM3Batch {
     return customerName
   }
 
-  // get Item coef
+  /**
+   * This method is called to get the item coefficient for a given item number (ITNO) and ALUN.
+   * It queries the MITAUN table to retrieve the item coefficient.
+   *
+   * @param ITNO The item number for which to retrieve the item coefficient.
+   * @param ALUN The ALUN for which to retrieve the item coefficient.
+   * @return The item coefficient for the specified item number and ALUN.
+   */
   private Double getItemCoef(String ITNO, String ALUN) {
 
     double cofa = 1
@@ -1160,8 +1208,7 @@ public class EXT030 extends ExtendM3Batch {
   }
 
   /**
-   * Get Siret from CUGEX1
-   * @param suno || prod
+   * Get manufacturing date from CUGEX1
    */
   private int getManufacturingDate(String FILE, String PK01, String PK02) {
     //Define return object structure
@@ -1194,7 +1241,7 @@ public class EXT030 extends ExtendM3Batch {
   }
 
   /**
-   * Get mail user
+   * Get mail user from CEMAIL
    */
   private void getMailUser() {
     //Define return object structure
@@ -1275,7 +1322,12 @@ public class EXT030 extends ExtendM3Batch {
     return manufacturingDate
   }
 
-  // Write header file
+  /**
+   * This method is called to write the header file for the report.
+   * It creates a file with the specified title and writes the header information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeRapportHeaderFile(String title) {
     logFileName = title + "-" + "Header" + "-" + "rapport.txt"
     header = "Num commande" + ";" +
@@ -1298,7 +1350,12 @@ public class EXT030 extends ExtendM3Batch {
     headLines = ""
   }
 
-  // Write  Lines file
+  /**
+   * This method is called to write the lines file for the report.
+   * It creates a file with the specified title and writes the line information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeRapportLibLineFileANNEXE1(String title) {
     logFileName = title + "-" + "Lines" + "-" + "rapport.txt"
     header = "Code Produit" + ";" + "EAN" + ";" + "Designation Produit" + ";" + "Code Douane" + ";" + "Nombre Colis" + ";" + "Nombre UVC" + ";" + "Poids Brut" + ";" + "Poids Net"
@@ -1307,7 +1364,12 @@ public class EXT030 extends ExtendM3Batch {
 
   }
 
-  // Write  Lines file
+  /**
+   * This method is called to write the lines file for the report.
+   * It creates a file with the specified title and writes the line information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeRapportLibLineFileANNEXE2(String title) {
     logFileName = title + "-" + "Lines" + "-" + "rapport.txt"
     header = "Code Produit" + ";" + "EAN" + ";" + "Designation Produit" + ";" + "Agrément" + ";" + "SIRET" + ";" + "Fabricant" + ";" + "Adresse Fabricant" + ";" + "Code Douane" + ";" + "Nombre Colis" + ";" + "Nombre UVC" + ";" + "Poids Brut" + ";" + "Poids Net" + ";" + "Origine"
@@ -1315,7 +1377,12 @@ public class EXT030 extends ExtendM3Batch {
     detailLines2 = ""
   }
 
-  // Write  Lines file
+  /**
+   * This method is called to write the lines file for the report.
+   * It creates a file with the specified title and writes the line information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeRapportLibLineFileANNEXE3(String title) {
     logFileName = title + "-" + "Lines" + "-" + "rapport.txt"
     header = "Code Produit" + ";" + "EAN" + ";" + "Designation Produit" + ";" + "Agrément" + ";" + "SIRET" + ";" + "Fabricant" + ";" + "Adresse Fabricant" + ";" + "Nombre Colis" + ";" + "Nombre UVC" + ";" + "Poids Brut" + ";" + "Poids Net" + ";" + "Code Douane" + ";" + "N° de lot" + ";" + "DLC" + ";" + "Origine"
@@ -1323,7 +1390,12 @@ public class EXT030 extends ExtendM3Batch {
     detailLines3 = ""
   }
 
-  // Write  Lines file
+  /**
+   * This method is called to write the lines file for the report.
+   * It creates a file with the specified title and writes the line information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeRapportLibLineFileANNEXE4(String title) {
     logFileName = title + "-" + "Lines" + "-" + "rapport.txt"
     header = "Code Produit" + ";" + "EAN" + ";" + "Designation Produit" + ";" + "Agrément" + ";" + "SIRET" + ";" + "Fabricant" + ";" + "Adresse Fabricant" + ";" + "Nombre Colis" + ";" + "Nombre UVC" + ";" + "Poids Brut" + ";" + "Poids Net" + ";" + "Code Douane" + ";" + "N° de lot" + ";" + "Date de fabrication" + ";" + "DLC" + ";" + "Origine"
@@ -1331,28 +1403,49 @@ public class EXT030 extends ExtendM3Batch {
     detailLines4 = ""
   }
 
-  // Write total Lines file
+  /**
+   * This method is called to write the total line file for the report.
+   * It creates a file with the specified title and writes the total line information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeRapportTotalLineFile(String title) {
     logFileName = title + "-" + "TotalLines" + "-" + "rapport.txt"
     header = "Total Colis" + ";" + "Total UVC" + ";" + "Total poids brut" + ";" + "Total poids net"
     logMessage(header, totalLine)
   }
 
-  // Write the mail file
+  /**
+   * This method is called to write the mail file for the report.
+   * It creates a file with the specified title and writes the mail information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeMailFile(String title) {
     logFileName = title + "-" + "MailFile.txt"
     header = "Adresses Mail"
     logMessage(header, MailLines)
   }
 
-  // Write the file indicating the end of processing
+  /**
+   * This method is called to write the end file for the report.
+   * It creates a file with the specified title and writes the end information to it.
+   *
+   * @param title The title of the report.
+   */
   public void writeEndFile(String title) {
     logFileName = title + "-" + "docNumber.xml"
     docnumber = title
     header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>EDITIONQUALITE</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>${share}</DocumentPath>  <DocumentSearch>${search}</DocumentSearch><JobNumber>${jobNumber}</JobNumber>  </Document>"
     logMessage(header, "")
   }
-  // Log message
+  /**
+   * This method is called to write a message to the log file.
+   * It appends the message to the log file with the specified header and line information.
+   *
+   * @param header The header information for the log message.
+   * @param line The line information for the log message.
+   */
   void logMessage(String header, String line) {
     //if (!logFileName.endsWith("docNumber.xml"))
     if (header.trim() != "") {
@@ -1363,7 +1456,13 @@ public class EXT030 extends ExtendM3Batch {
     }
   }
 
-  // Log
+  /**
+   * This method is called to write a message to the log file.
+   * It appends the message to the log file with the specified header and line information.
+   *
+   * @param header The header information for the log message.
+   * @param line The line information for the log message.
+   */
   void log(String message) {
     IN60 = true
     Closure<?> consumer = { PrintWriter printWriter ->
@@ -1379,7 +1478,12 @@ public class EXT030 extends ExtendM3Batch {
       textFiles.write(logFileName, "UTF-8", true, consumer)
     }
   }
-  // Get first parameter
+  /**
+   * This method is called to get the first parameter from the raw data.
+   * It extracts the first parameter from the raw data string.
+   *
+   * @return The first parameter extracted from the raw data.
+   */
   private String getFirstParameter() {
     rawDataLength = rawData.length()
     beginIndex = 0
@@ -1389,7 +1493,12 @@ public class EXT030 extends ExtendM3Batch {
     return parameter
   }
 
-  // Get next parameter
+  /**
+   * This method is called to get the next parameter from the raw data.
+   * It extracts the next parameter from the raw data string.
+   *
+   * @return The next parameter extracted from the raw data.
+   */
   private String getNextParameter() {
     beginIndex = endIndex + 1
     endIndex = rawDataLength - rawData.indexOf(";") - 1
@@ -1402,21 +1511,36 @@ public class EXT030 extends ExtendM3Batch {
     return parameter
   }
 
-  // Delete records related to the current job from EXTJOB table
+  /**
+   * This method is called to delete the EXTJOB record.
+   * It deletes the EXTJOB record from the database based on the reference ID.
+   */
   public void deleteEXTJOB() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXTJOB").index("00").build()
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
-    if (!query.readAllLock(EXTJOB, 1, updateCallBackEXTJOB)) {
+    if (!query.readLock(EXTJOB, updatecallbackExtjob)) {
     }
   }
 
-  // Delete EXTJOB
-  Closure<?> updateCallBackEXTJOB = { LockedResult lockedResult ->
+  /**
+   * This method is called to delete the EXTJOB record.
+   * It deletes the EXTJOB record in the database based on the reference ID.
+   *
+   * @param referenceId The reference ID of the EXTJOB record to delete.
+   */
+  Closure<?> updatecallbackExtjob = { LockedResult lockedResult ->
     lockedResult.delete()
   }
 
+  /**
+   * This method is called to get the job data from the EXTJOB table.
+   * It retrieves the job data based on the reference ID.
+   *
+   * @param referenceId The reference ID of the EXTJOB record to retrieve.
+   * @return An Optional containing the job data if found, otherwise an empty Optional.
+   */
   private Optional<String> getJobData(String referenceId) {
     DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
     DBContainer container = query.createContainer()
@@ -1428,6 +1552,21 @@ public class EXT030 extends ExtendM3Batch {
     return Optional.empty()
   }
 
+  /**
+   * This method is called to get the CR881 value from the MBMTRN table.
+   * It retrieves the CR881 value based on the provided parameters.
+   *
+   * @param division The division to filter the query.
+   * @param mstd The MSTD value to filter the query.
+   * @param mvrs The MVRS value to filter the query.
+   * @param bmsg The BMSG value to filter the query.
+   * @param ibob The IBOB value to filter the query.
+   * @param elmp The ELMP value to filter the query.
+   * @param elmd The ELMD value to filter the query.
+   * @param elmc The ELMC value to filter the query.
+   * @param mbmc The MBMC value to filter the query.
+   * @return The CR881 value if found, otherwise null.
+   */
   private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
     String mvxd = ""
     DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
@@ -1443,7 +1582,7 @@ public class EXT030 extends ExtendM3Batch {
     requestMbmtrn.set("TRMBMC", mbmc)
 
     if (queryMbmtrn.read(requestMbmtrn)) {
-      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX40").build()
       DBContainer requestMbmtrd = queryMbmtrd.getContainer()
       logger.debug("#PB CurrentCompany in mbmtrd  {$currentCompany}")
       requestMbmtrd.set("TDCONO", currentCompany)
@@ -1451,7 +1590,7 @@ public class EXT030 extends ExtendM3Batch {
       requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
       // Retrieve MBTRND
       Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
-        mvxd = resultMbmtrd.get("TDMVXD") as String
+        mvxd = resultMbmtrd.get("TDTX40") as String
         mvxd = mvxd.trim()
         logger.debug("#pb mvxd in closure "+mvxd)
       }

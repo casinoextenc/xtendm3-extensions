@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20231129     SEAR         CMD08 - Rapport d'intégration de demande
  * 20240521     PBEAUDOUIN   Si pas trouvé dans alors lecture
+ * 20250410     ARENARD      Extension has been fixed
  */
 import java.math.RoundingMode
 import java.time.DateTimeException
@@ -56,8 +57,8 @@ public class EXT013 extends ExtendM3Batch {
   private String totline
   private String totlines
   private String lines
-  private String MailLine
-  private String MailLines
+  private String mailLine
+  private String mailLines
   private int countLines
   private String docnumber
   private boolean isConfOrder
@@ -88,7 +89,6 @@ public class EXT013 extends ExtendM3Batch {
   private String cucd
   private Integer conn
   private Long dlix
-  private Integer ordt
   private Integer totLignesRecues
   private Integer totLignesintegrees
   private Integer totLignesRejeteesBloquantes
@@ -98,13 +98,13 @@ public class EXT013 extends ExtendM3Batch {
   private String librayon
   private Integer totligneRayon
   private Integer totSsligneError
-  private double VolTot
+  private double volTot
   private Integer totCol
   private Integer totEquivPal
   private double totBrut
   private double totNet
   private double totVal
-  private double VolTotRej
+  private double volTotRej
   private Integer totColRej
   private Integer totEquivPalRej
   private double totBrutRej
@@ -123,7 +123,6 @@ public class EXT013 extends ExtendM3Batch {
   private String itds
   private String rscd
   private String rsc1
-  private double cofa
   private double grweItem
   private double neweItem
   private double vol3Item
@@ -162,12 +161,14 @@ public class EXT013 extends ExtendM3Batch {
     if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())
       performActualJob(data)
-    } else {
-      // No job data found
     }
 
   }
-  // Perform actual job
+  /**
+   * Perform the actual job
+   * @param jobNumber
+   * @return
+   */
   private performActualJob(Optional<String> data) {
     if (!data.isPresent()) {
       return
@@ -217,8 +218,8 @@ public class EXT013 extends ExtendM3Batch {
     tedl = ""
     orderExist = true
     // retrouver le mail du user
-    MailLine = ""
-    MailLines = ""
+    mailLine = ""
+    mailLines = ""
     getMailUser()
 
     // open directory
@@ -282,7 +283,6 @@ public class EXT013 extends ExtendM3Batch {
       OXCNTR.set("EVORNR", inOrderNumber)
       if (!queryOXCNTR.readAll(OXCNTR, 2, 1, outdataOxcntr)) {
         orderExist = false
-      } else {
       }
     }
     logger.debug("found : ${found} - inOrderNumber : ${inOrderNumber} confOrderNumber : ${confOrderNumber}")
@@ -444,20 +444,20 @@ public class EXT013 extends ExtendM3Batch {
     totIntegres = totIntegres += totIntegre
 
     // récap totaux rejetés
-    double dVolTotRej = new BigDecimal(VolTotRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    double dVolTotRej = new BigDecimal(volTotRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sVolTotRej = String.format("%.3f", dVolTotRej)
     double dTotBrutRej = new BigDecimal(totBrutRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sTotBrutRej = String.format("%.3f", dTotBrutRej)
     double dTotNetRej = new BigDecimal(totNetRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sTotNetRej = String.format("%.3f", dTotNetRej)
     double dTotValRej = new BigDecimal(totValRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    String sTotValRej = String.format("%.3f", dTotValRej);
-    Integer dtotEquivPalRej = totEquivPalRej
+    String sTotValRej = String.format("%.3f", dTotValRej)
+    Integer dTotEquivPalRej = totEquivPalRej
     totRejete = "Volume total;" + sVolTotRej
     totRejetes = totRejetes += totRejete + "\r\n"
     totRejete = "Total Colis;" + totColRej
     totRejetes = totRejetes += totRejete + "\r\n"
-    totRejete = "Total Palette reconstituée;" + dtotEquivPalRej
+    totRejete = "Total Palette reconstituée;" + dTotEquivPalRej
     totRejetes = totRejetes += totRejete + "\r\n"
     totRejete = "Total poids brut;" + sTotBrutRej
     totRejetes = totRejetes += totRejete + "\r\n"
@@ -504,7 +504,9 @@ public class EXT013 extends ExtendM3Batch {
   }
 
 
-  // Write date from order head
+  /**
+   * Get lines data
+   */
   public void getLinesData() {
     logger.debug("getLinesData")
     // clear var lines
@@ -547,13 +549,13 @@ public class EXT013 extends ExtendM3Batch {
 
     totligneRayon = 0
     totSsligneError = 0
-    VolTot = 0
+    volTot = 0
     totCol = 0
     totEquivPal = 0
     totBrut = 0
     totNet = 0
     totVal = 0
-    VolTotRej = 0
+    volTotRej = 0
     totColRej = 0
     totEquivPalRej = 0
     totBrutRej = 0
@@ -704,7 +706,7 @@ public class EXT013 extends ExtendM3Batch {
         double netLine = orqt * neweItem
         totBrutRej = totBrutRej + 0
         totNetRej = totNetRej + 0
-        VolTotRej = VolTotRej + 0
+        volTotRej = volTotRej + 0
       } else {
         double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_UP).doubleValue()
         String svaleur = String.format("%.3f", valeur)
@@ -765,7 +767,9 @@ public class EXT013 extends ExtendM3Batch {
 
   }
 
-  // Write date from order head
+  /**
+   * Get header data
+   */
   public void getHeadData() {
 
     typeAppro = ""
@@ -825,7 +829,7 @@ public class EXT013 extends ExtendM3Batch {
 
     //DRADTR informations
     ccud = ""
-    DBAction queryDRADTR = database.table("DRADTR").index("00").selection("DRCCUD").build()
+    DBAction queryDRADTR = database.table("DRADTR").index("00").selection("DRFWNO").build()
     DBContainer DRADTR = queryDRADTR.getContainer()
     DRADTR.set("DRCONO", currentCompany)
     DRADTR.set("DRCONN", conn)
@@ -839,25 +843,37 @@ public class EXT013 extends ExtendM3Batch {
     datePosit = ccud
     incoterm = tedl + " " + getIncoterm(cuno, tedl)
   }
-  // get transport mode
+  /**
+   * Get transport mode
+   * @param codeClient
+   */
   public String getTransport(String codeClient, String TransportMode) {
     lncd = getcustomerLang(codeClient)
     return getTextCSYTAB("MODL", lncd, TransportMode)
   }
 
-  // get incoterm
+  /**
+   * Get Incoterm
+   * @param codeClient
+   */
   public String getIncoterm(String codeClient, String Incoterm) {
     lncd = getcustomerLang(codeClient)
     return getDescriptionCSYTAB("TEDL", lncd, Incoterm)
   }
 
-  // get transport mode
+  /**
+   * Get error description
+   * @param codeClient
+   */
   public String getErrorDescription(String codeClient, String errorCode) {
     lncd = getcustomerLang(codeClient)
     return getDescriptionCSYTAB("RSCD", lncd, errorCode)
   }
 
-  // Get EAN
+  /**
+   * Get EAN
+   * @param itno
+   */
   public String getEAN(String ITNO) {
     String EAN13 = ""
     //init query on MITPOP
@@ -870,7 +886,9 @@ public class EXT013 extends ExtendM3Batch {
     containerMITPOP.set("MPALWQ", "")
     containerMITPOP.set("MPITNO", ITNO)
 
-    //loop on MITPOP records
+    /**
+     * Read MITPOP records
+     */
     Closure<?> readMITPOP = { DBContainer resultMITPOP ->
       EAN13 = resultMITPOP.getString("MPPOPN").trim()
     }
@@ -879,7 +897,10 @@ public class EXT013 extends ExtendM3Batch {
     return EAN13
   }
 
-  // Retrieve Error List
+  /**
+   * Retrieve error
+   * @param itno
+   */
   public String retrieveError(String ORNO, Integer PONR, Integer POSX) {
     int saveMSCD = 0
     int mscd = 0
@@ -975,7 +996,10 @@ public class EXT013 extends ExtendM3Batch {
     return TX40
   }
 
-  // get Item coef
+  /**
+   * Get Item Coefficient
+   * @param itno
+   */
   private Double getItemCoef(String ITNO, String ALUN) {
 
     double cofa = 1
@@ -992,7 +1016,10 @@ public class EXT013 extends ExtendM3Batch {
     return cofa
   }
 
-  // get texte 15 CSYTAB
+  /**
+   * Get text CSYTAB
+   * @param codeClient
+   */
   public String getTextCSYTAB(String constant, String lang, String key) {
     String TX15 = ""
     DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTTX15").build()
@@ -1017,7 +1044,10 @@ public class EXT013 extends ExtendM3Batch {
     return TX15
   }
 
-  // get parm CSYTAB
+  /**
+   * Get description CSYTAB
+   * @param codeClient
+   */
   public String getDescriptionCSYTAB(String constant, String lang, String key) {
     String CTPARM = ""
     DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
@@ -1051,7 +1081,10 @@ public class EXT013 extends ExtendM3Batch {
     return CTPARM
   }
 
-  // get Item informations
+  /**
+   * Get Item informations
+   * @param itno
+   */
   public void getItemInfos(String ITNO) {
     itds = ""
     grweItem = 0
@@ -1077,7 +1110,10 @@ public class EXT013 extends ExtendM3Batch {
 
   }
 
-  // get Item informations
+  /**
+   * Get Item level information
+   * @param itno
+   */
   public void getLevelItemInfo(String HIE2) {
     librayon = ""
     DBAction queryMITHRY = database.table("MITHRY").index("00").selection("HITX40").build()
@@ -1091,7 +1127,10 @@ public class EXT013 extends ExtendM3Batch {
 
   }
 
-  // get Item PCB
+  /**
+   * Get Item PCB
+   * @param itno
+   */
   public double getItemPCB(String ITNO) {
     double ItemPCB = 0
     DBAction queryMPACIT = database.table("MPACIT").index("00").selection("ECD1QT").build()
@@ -1110,7 +1149,10 @@ public class EXT013 extends ExtendM3Batch {
     return ItemPCB
   }
 
-  // get customer lang
+  /**
+   * Get customer language
+   * @param customer
+   */
   public String getcustomerLang(String customer) {
     String customerLang = ""
     DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection("OKLHCD").build()
@@ -1123,7 +1165,15 @@ public class EXT013 extends ExtendM3Batch {
     return customerLang
   }
 
-  // Execute OIS320MI GetPriceLine
+  /**
+   * Execute OIS320MI GetPriceLine
+   * @param CUNO
+   * @param ITNO
+   * @param ORDT
+   * @param ALUN
+   * @param ORQA
+   * @param ORTP
+   */
   private executeOIS320MIGetPriceLine(String CUNO, String ITNO, String ORDT, String ALUN, double ORQA, String ORTP) {
     Map<String, String> parameters = [
       "CUNO": CUNO,
@@ -1144,7 +1194,11 @@ public class EXT013 extends ExtendM3Batch {
     miCaller.call("OIS320MI", "GetPriceLine", parameters, handler)
   }
 
-  // Execute CRS610MI GetBasicData
+  /**
+   * Execute CRS610MI GetBasicData
+   * @param CONO
+   * @param CUNO
+   */
   private executecrs610MIGetBasicData(String CONO, String CUNO) {
     Map<String, String> parameters = [
       "CONO": CONO,
@@ -1158,9 +1212,9 @@ public class EXT013 extends ExtendM3Batch {
     miCaller.call("CRS610MI", "GetBasicData", parameters, handler)
   }
 
-  /* Get mail user
-  */
-
+  /**
+   * Get mail user
+   */
   private void getMailUser() {
     //Define return object structure
     DBAction queryCEMAIL = database.table("CEMAIL").index("00").selection("CBEMAL").build()
@@ -1170,77 +1224,117 @@ public class EXT013 extends ExtendM3Batch {
     containerCEMAIL.set("CBEMKY", program.getUser())
 
     Closure<?> readCEMAIL = { DBContainer resultCEMAIL ->
-      MailLines = resultCEMAIL.getString("CBEMAL").trim()
+      mailLines = resultCEMAIL.getString("CBEMAL").trim()
     }
     queryCEMAIL.readAll(containerCEMAIL, 3, nbMaxRecord, readCEMAIL)
     logger.debug("user : " + program.getUser())
 
   }
 
-  // Write bloking Lines file
+  /**
+   * Write bloking line file
+   * @param header
+   * @param message
+   */
   public void writeBlokingAnomalyLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "BlokingLines" + "-" + "rapport.txt"
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, bloclines)
   }
 
-  // Write non bloking Lines file
+  /**
+   * Write non bloking Lines file
+   * @param header
+   * @param message
+   */
   public void writeNonBlokingAnomalyLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "NonBlokingLines" + "-" + "rapport.txt"
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, nonBloclines)
   }
 
-  // Write Replaced Lines file
+  /**
+   * Write replaced Lines file
+   * @param header
+   * @param message
+   */
   public void writeReplacedLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "ReplacedLine" + "-" + "rapport.txt"
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, replacedBloclines)
   }
 
-  // Write Rounded Lines file
+  /**
+   * Write rounded Lines file
+   * @param header
+   * @param message
+   */
   public void writeRoundedLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RoundedLine" + "-" + "rapport.txt"
     header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté fichier" + ";" + "Quantité commandée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "taux arrondi %"
     logMessage(header, roundedlines)
   }
 
-  // Write Rayon Lines file
+  /**
+   * Write rayon Lines file
+   * @param header
+   * @param message
+   */
   public void writeRayonLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RayonLine" + "-" + "rapport.txt"
     header = "Rayon" + ";" + "Libellé Rayon" + ";" + "Nb de Lignes"
     logMessage(header, rayonlines)
   }
 
-  // Write total Lines file
+  /**
+   * Write sous total Lines file
+   * @param header
+   * @param message
+   */
   public void writeTotlinesFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "totlines" + "-" + "rapport.txt"
     header = "Sous total lignes par type d'erreur" + ";" + "Nb de Lignes"
     logMessage(header, totlines)
   }
 
-  // Write sous total Lines file
+  /**
+   * Write sous total Lines file
+   * @param header
+   * @param message
+   */
   public void writeSsTotlinesFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "ssTotlines" + "-" + "rapport.txt"
     header = "Code Erreur" + ";" + "Libellé Erreur" + ";" + "Nb de Lignes"
     logMessage(header, ssTotlines)
   }
 
-  // Write total integre file
+  /**
+   * Write total lines file
+   * @param header
+   * @param message
+   */
   public void writeTotIntegreFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "TotIntegre" + "-" + "rapport.txt"
     header = "Total Integré" + ";" + "valeur"
     logMessage(header, totIntegres)
   }
 
-  // Write total integre file
+  /**
+   * Write total reject file
+   * @param header
+   * @param message
+   */
   public void writeTotRejeteFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "TotRejete" + "-" + "rapport.txt"
     header = "Total Rejeté" + ";" + "valeur"
     logMessage(header, totRejetes)
   }
 
-  // Write header file
+  /**
+   * Write rapport header file
+   * @param header
+   * @param message
+   */
   public void writeRapportHeaderFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "Header" + "-" + "rapport.txt"
     header = "N° Magasin" + ";" + "Mode de transport" + ";" + "N° Demande" + ";" + "N° commande" + ";" + "Date Intégration" + ";" + "Code Fournisseur" + ";" + "Date Pos" + ";" + "Rotation" + ";" + "Type d'approvisionnement" + ";" + "Température" + ";" + "N° Transitaire" + ";" + "Incoterm" + ";" + "Nom Client"
@@ -1256,14 +1350,22 @@ public class EXT013 extends ExtendM3Batch {
     logMessage("", lines)
   }
 
-  // Write the file indicating the end of processing
+  /**
+   * Write mail file
+   * @param header
+   * @param message
+   */
   public void writeMailFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "MailFile.txt"
     header = "Adresses Mail"
-    logMessage(header, MailLines)
+    logMessage(header, mailLines)
   }
 
-  // Write the file indicating the end of processing
+  /**
+   * Write end file
+   * @param header
+   * @param message
+   */
   public void writeEndFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "docNumber.xml"
     docnumber = fileJobNumber + "-" + confOrderNumber
@@ -1272,7 +1374,11 @@ public class EXT013 extends ExtendM3Batch {
     logMessage(header, "")
   }
 
-  // Log message
+  /**
+   * Write log message
+   * @param header
+   * @param message
+   */
   void logMessage(String header, String line) {
 
     if (logFileName.endsWith("docNumber.xml"))
@@ -1286,10 +1392,12 @@ public class EXT013 extends ExtendM3Batch {
     }
   }
 
-  // Log
+  /**
+   * Write log
+   * @param message
+   */
   void log(String message) {
     IN60 = true
-    //message = LocalDateTime.now().toString() + ";" + message
     Closure<?> consumer = { PrintWriter printWriter ->
       printWriter.println(message)
     }
@@ -1299,7 +1407,9 @@ public class EXT013 extends ExtendM3Batch {
       textFiles.write(logFileName, "UTF-8", true, consumer)
     }
   }
-  // Get first parameter
+  /**
+   * Get first parameter
+   */
   private String getFirstParameter() {
     rawDataLength = rawData.length()
     beginIndex = 0
@@ -1308,7 +1418,11 @@ public class EXT013 extends ExtendM3Batch {
     String parameter = rawData.substring(beginIndex, endIndex)
     return parameter
   }
-  // Convert Date YYYYMMDD to dd/MM/yyyy
+  /**
+   * Convert date from yyyyMMdd to dd/MM/yyyy
+   * @param inputDate
+   * @return
+   */
   public String convertDate(String inputDate) {
     DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
     DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -1320,7 +1434,9 @@ public class EXT013 extends ExtendM3Batch {
     }
 
   }
-  // Get next parameter
+  /**
+   * Get next parameter
+   */
   private String getNextParameter() {
     beginIndex = endIndex + 1
     endIndex = rawDataLength - rawData.indexOf(";") - 1
@@ -1333,22 +1449,31 @@ public class EXT013 extends ExtendM3Batch {
     return parameter
   }
 
-  // Delete records related to the current job from EXTJOB table
+  /**
+   * Delete the job data from EXTJOB table
+   * @param referenceId
+   */
   public void deleteEXTJOB() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXTJOB").index("00").build()
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
-    if (!query.readAllLock(EXTJOB, 1, updatecallbackExtjob)) {
+    if (!query.readLock(EXTJOB, updatecallbackExtjob)) {
     }
   }
 
-  // Delete EXTJOB
+  /**
+   * Callback to delete the job data from EXTJOB table
+   * @param lockedResult
+   */
   Closure<?> updatecallbackExtjob = { LockedResult lockedResult ->
     lockedResult.delete()
   }
 
-  // Get the job data from EXTJOB table
+  /**
+   * Get the job data from EXTJOB table
+   * @param referenceId
+   */
   private Optional<String> getJobData(String referenceId) {
     DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
     DBContainer container = query.createContainer()

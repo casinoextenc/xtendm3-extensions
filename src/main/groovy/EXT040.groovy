@@ -4,15 +4,16 @@
  *
  * Name : EXT040
  * Description : Generates the calendar file and associated files
- * Date         Changed By   Description
- * 20230309     RENARN       COMX02 - Cadencier
- * 20231122     RENARN       New columns added. Columns heading rectified
- * 20240327     PATBEA       Correction Key to read table CCUCON. CCEMRE missing
- * 20240402     PATBEA       Execute EXT041 (ECOM_PROD_STO File) when assortiment is complet
- * 20240412     YVOYOU       Addition of delete EXT045,EXT046 and no line in calendar if sapr < pupr
- * 20240419     FLEBARS     Chemin fichier dans docnumber à rendre dynamique **ATTENTION NE PAS FAIRE VALIDER**
- * 20240524     FLEBARS     Alcool et controle prix
- * 20240806     FLEBARS     Evolution 20, 52, 56
+ * Date         Changed By  Version      Description
+ * 20230309     RENARN      1.0            COMX02 - Cadencier
+ * 20231122     RENARN      1.0            New columns added. Columns heading rectified
+ * 20240327     PATBEA      1.0            Correction Key to read table CCUCON. CCEMRE missing
+ * 20240402     PATBEA      1.0            Execute EXT041 (ECOM_PROD_STO File) when assortiment is complet
+ * 20240412     YVOYOU      1.0            Addition of delete EXT045,EXT046 and no line in calendar if sapr < pupr
+ * 20240419     FLEBARS     1.0             Chemin fichier dans docnumber à rendre dynamique **ATTENTION NE PAS FAIRE VALIDER**
+ * 20240524     FLEBARS     1.0             Alcool et controle prix
+ * 20240806     FLEBARS     1.0             Evolution 20, 52, 56
+ * 20250424     FLEBARS     1.1             Changement IDM + SFTP
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -1342,7 +1343,7 @@ public class EXT040 extends ExtendM3Batch {
     //logFileName = fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier-docNumber.xml"
     //docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
-    docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier"
+    docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
     header = "<?xml version='1.0' encoding='UTF-8' standalone='no'?>"
     header += "<LoaddocumentNumber xmlns='http://schema.infor.com/InforOAGIS/2' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' releaseID='9.2' versionID='2.14.6' xsi:schemaLocation='http://schema.infor.com/InforOAGIS/2 http://schema.infor.com/InforOAGIS/BODs/LoaddocumentNumber.xsd'>"
     header += "<ApplicationArea>"
@@ -1362,10 +1363,10 @@ public class EXT040 extends ExtendM3Batch {
     header += "</Load>"
     header += "<documentNumber>"
     header += "<DocumentType>CADENCIER</DocumentType>"
-    header += "<DocumentNumber>${docnumber}.txt</DocumentNumber>"
+    header += "<DocumentNumber>${docnumber}</DocumentNumber>"
     header += "<CFC1>${cfc1}</CFC1>"
-    header += "<DocumentPath>//${server}/${inpath}/${docnumber}.txt</DocumentPath>"
-    header += "<DocumentPath>//${server}/${outpath}</DocumentPath>"
+    header += "<DocumentPath>\\\\${server}\\${inpath}</DocumentPath>"
+    header += "<DocumentOutPath>\\\\${server}\\${outpath}</DocumentOutPath>"
     header += "</documentNumber>"
     header += "</DataArea>"
     header += "</LoaddocumentNumber>"

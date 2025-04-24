@@ -6,6 +6,7 @@
  * Description : The RtvNextCalendar transaction retrieve next calendar code for one customer.
  * Date         Changed By   Description
  * 20230317     ARENARD      COMX02 - Cadencier
+ * 20250416     ARENARD      The code has been checked
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -44,11 +45,11 @@ public class RtvNextCalendar extends ExtendM3Transaction {
 
     // Check customer
     if(mi.in.get("CUNO") != null){
-      DBAction OCUSMAquery = database.table("OCUSMA").index("00").build()
-      DBContainer OCUSMA = OCUSMAquery.getContainer()
+      DBAction queryOcusma = database.table("OCUSMA").index("00").build()
+      DBContainer OCUSMA = queryOcusma.getContainer()
       OCUSMA.set("OKCONO",currentCompany)
       OCUSMA.set("OKCUNO",mi.in.get("CUNO"))
-      if (!OCUSMAquery.read(OCUSMA)) {
+      if (!queryOcusma.read(OCUSMA)) {
         mi.error("Code Client " + mi.in.get("CUNO") + " n'existe pas")
         return
       }
@@ -63,18 +64,21 @@ public class RtvNextCalendar extends ExtendM3Transaction {
     mi.outData.put("CDNN", currentCalendar)
     mi.write()
   }
-  // Retrieve previous calendar name
+  /**
+   * Retrieve previous calendar name
+   * @return
+   */
   private void retrievePreviousCalendar () {
     previousCalendar = ""
     previousCalendarYearWeek = ""
     previousCalendarSuffix = ""
     previousCalendarNextSuffix = ""
-    //logger.debug("currentCompany = " + currentCompany)
+    logger.debug("currentCompany = " + currentCompany)
     DBAction query = database.table("EXT042").index("00").selection("EXCDNN").reverse().build()
     DBContainer EXT042 = query.getContainer()
     EXT042.set("EXCONO", currentCompany)
     EXT042.set("EXCUNO", mi.in.get("CUNO"))
-    if(!query.readAll(EXT042, 2, 1, outData_EXT042)){}
+    if(!query.readAll(EXT042, 2, 1, outDataExt042)){}
     if(previousCalendar.trim() != "") {
       previousCalendarYearWeek = previousCalendar.substring(0,6)
 
@@ -86,19 +90,25 @@ public class RtvNextCalendar extends ExtendM3Transaction {
       }
       sfx += 1
 
-      previousCalendarNextSuffix = String.format("%03d", sfx);
+      previousCalendarNextSuffix = String.format("%03d", sfx)
     }
-    //logger.debug("previousCalendar = " + previousCalendar)
-    //logger.debug("previousCalendarYearWeek = " + previousCalendarYearWeek)
-    //logger.debug("previousCalendarSuffix = " + previousCalendarSuffix)
-    //logger.debug("previousCalendarNextSuffix = " + previousCalendarNextSuffix)
+    logger.debug("previousCalendar = " + previousCalendar)
+    logger.debug("previousCalendarYearWeek = " + previousCalendarYearWeek)
+    logger.debug("previousCalendarSuffix = " + previousCalendarSuffix)
+    logger.debug("previousCalendarNextSuffix = " + previousCalendarNextSuffix)
   }
-  // Retrieve EXT041
-  Closure<?> outData_EXT042 = { DBContainer EXT041 ->
-    //logger.debug("found EXT041")
+  /**
+   * Closure to handle the output of EXT042
+   * @param EXT041
+   */
+  Closure<?> outDataExt042 = { DBContainer EXT041 ->
+    logger.debug("found EXT041")
     previousCalendar = EXT041.get("EXCDNN")
   }
-  // Retrieve current calendar name
+  /**
+   * Retrieve current calendar name
+   * @return
+   */
   private void retrieveCurrentCalendar() {
     currentCalendar = ""
     currentCalendarYearWeek = ""
@@ -109,14 +119,14 @@ public class RtvNextCalendar extends ExtendM3Transaction {
     int currentYear = cal.get(Calendar.YEAR)
     int currentWeek = cal.get(Calendar.WEEK_OF_YEAR)
 
-    currentCalendarYearWeek = (currentYear as String) + String.format("%02d", currentWeek);
-    //logger.debug("currentCalendarYearWeek = " + currentCalendarYearWeek)
+    currentCalendarYearWeek = (currentYear as String) + String.format("%02d", currentWeek)
+    logger.debug("currentCalendarYearWeek = " + currentCalendarYearWeek)
 
     if(currentCalendarYearWeek != previousCalendarYearWeek) {
       currentCalendar = currentCalendarYearWeek + "001"
     } else {
       currentCalendar = currentCalendarYearWeek + previousCalendarNextSuffix
     }
-    //logger.debug("currentCalendar = " + currentCalendar)
+    logger.debug("currentCalendar = " + currentCalendar)
   }
 }

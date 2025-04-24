@@ -45,7 +45,7 @@ public class DelFrom extends ExtendM3Transaction {
 
     //READLOCK EXT875
     DBAction ext875Query = database.table("EXT875")
-      .index("20")
+      .index("00")
       .matching(ext875Expression)
       .build()
 
@@ -56,10 +56,10 @@ public class DelFrom extends ExtendM3Transaction {
       ext875LockedResult.delete()
     }
     Closure<?> ext875Reader = { DBContainer ext875Result ->
-      ext875Query.readAllLock(ext875Result, 4, ext875Updater)
+      ext875Query.readLock(ext875Result, ext875Updater)
     }
 
-    if (!ext875Query.readAll(ext875Request, 1,110000, ext875Reader)){
+    if (!ext875Query.readAll(ext875Request, 1, 10000, ext875Reader)){
       mi.error("No records found")
       return
     }

@@ -861,60 +861,8 @@ public class AddNewDel extends ExtendM3Transaction {
     logger.debug("OOLINE_RORL:${OOLINE_RORL} OOLINE_RORC:${OOLINE_RORC}")
     // Break link with purchase order
     if (OOLINE_RORC.trim() == "2") {
-
       // Remove link from purchase order line
       executePPS200MIUpdLine(OOLINE_RORN, "" + OOLINE_RORL, "" + OOLINE_RORX, "0", "0", "0", "0")
-
-      // We have to Restitute MITPLO and MITALO values after deallocation
-      // See Case 17509839 and KB 2301902 issues in MMS080 and MMS120
-      for (def mitplo in mitplos) {
-        MITPLO_query = database.table("MITPLO").index("00").build()
-        MITPLO_request = MITPLO_query.getContainer()
-        MITPLO_request.set("MOCONO", currentCompany)
-        MITPLO_request.set("MOWHLO", mitplo["MOWHLO"] as String)
-        MITPLO_request.set("MOITNO", mitplo["MOITNO"] as String)
-        MITPLO_request.set("MOPLDT", mitplo["MOPLDT"] as int)
-        MITPLO_request.set("MOTIHM", mitplo["MOTIHM"] as int)
-        MITPLO_request.set("MOORCA", mitplo["MOORCA"] as String)
-        MITPLO_request.set("MORIDN", mitplo["MORIDN"] as String)
-        MITPLO_request.set("MORIDL", mitplo["MORIDL"] as int)
-        MITPLO_request.set("MORIDX", mitplo["MORIDX"] as int)
-        MITPLO_request.set("MORIDI", mitplo["MORIDI"] as long)
-        MITPLO_request.set("MOSTAT", mitplo["MOSTAT"] as String)
-
-        Closure<?> MITPLO_updater = { LockedResult MITPLO_lockedResult ->
-          MITPLO_lockedResult.set("MOALQT", mitplo["MOALQT"] as double)
-          MITPLO_lockedResult.update()
-          logger.debug("MITPLO UPDATED")
-        }
-        MITPLO_query.readLock(MITPLO_request, MITPLO_updater)
-      }
-      for (def mitalo in mitalos) {
-        MITALO_query = database.table("MITALO").index("00").build()
-        MITALO_request = MITALO_query.getContainer()
-        MITALO_request.set("MQCONO", currentCompany)
-        MITALO_request.set("MQWHLO", mitalo["MQWHLO"] as String)
-        MITALO_request.set("MQITNO", mitalo["MQITNO"] as String)
-        MITALO_request.set("MQWHSL", mitalo["MQWHSL"] as String)
-        MITALO_request.set("MQBANO", mitalo["MQBANO"] as String)
-        MITALO_request.set("MQCAMU", mitalo["MQCAMU"] as String)
-        MITALO_request.set("MQTTYP", mitalo["MQTTYP"] as int)
-        MITALO_request.set("MQRIDN", mitalo["MQRIDN"] as String)
-        MITALO_request.set("MQRIDO", mitalo["MQRIDO"] as int)
-        MITALO_request.set("MQRIDL", mitalo["MQRIDL"] as int)
-        MITALO_request.set("MQRIDX", mitalo["MQRIDX"] as int)
-        MITALO_request.set("MQRIDI", mitalo["MQRIDI"] as long)
-        MITALO_request.set("MQPLSX", mitalo["MQPLSX"] as int)
-        MITALO_request.set("MQSOFT", mitalo["MQSOFT"] as int)
-
-
-        Closure<?> MITALO_updater = { LockedResult MITALO_lockedResult ->
-          MITALO_lockedResult.set("MQALQT", mitalo["MQALQT"] as double)
-          MITALO_lockedResult.update()
-          logger.debug("MITALO UPDATED")
-        }
-        MITALO_query.readLock(MITALO_request, MITALO_updater)
-      }
     }
 
     //deallocation

@@ -1,12 +1,13 @@
 /**
  * Name : EXT012MI.DelPlanningGDA
- * 
- * Description : 
- * This API method to add records in specific table EXT012 Planning GDA
- * 
- * 
+ *
+ * Description :
+ * APP02 Planning GDA This API method to delete records in specific table EXT012
+ *
+ *
  * Date         Changed By    Description
- * 20230308     SEAR       Creation
+ * 20230308     SEAR          APP02 - Planning GDA
+ * 20240911     FLEBARS       Revue code pour validation
  */
 public class DelPlanningGDA extends ExtendM3Transaction {
   private final MIAPI mi
@@ -16,7 +17,6 @@ public class DelPlanningGDA extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
-  private String errorMessage
 
 
   public DelPlanningGDA(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
@@ -42,23 +42,23 @@ public class DelPlanningGDA extends ExtendM3Transaction {
     String suno = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
     int drgd = (Integer)(mi.in.get("DRGD") != null ? mi.in.get("DRGD") : 0)
     int hrgd = (Integer)(mi.in.get("HRGD") != null ? mi.in.get("HRGD") : 0)
-    
 
-    DBAction query = database.table("EXT012").index("00").build()
-    DBContainer containerEXT012 = query.getContainer()
-    containerEXT012.set("EXCONO", currentCompany)
-    containerEXT012.set("EXCUNO", cuno)
-    containerEXT012.set("EXSUNO", suno)
-    containerEXT012.set("EXASGD", asgd)
-    containerEXT012.set("EXDRGD", drgd)
-    containerEXT012.set("EXHRGD", hrgd)
-    if(!query.readLock(containerEXT012, updateCallBack)){
+
+    DBAction ext012Query = database.table("EXT012").index("00").build()
+    DBContainer ext012Request = ext012Query.getContainer()
+    ext012Request.set("EXCONO", currentCompany)
+    ext012Request.set("EXCUNO", cuno)
+    ext012Request.set("EXSUNO", suno)
+    ext012Request.set("EXASGD", asgd)
+    ext012Request.set("EXDRGD", drgd)
+    ext012Request.set("EXHRGD", hrgd)
+    if(!ext012Query.readLock(ext012Request, ext012Updater)){
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
-  Closure<?> updateCallBack = { LockedResult lockedResult ->
-    lockedResult.delete()
+  Closure<?> ext012Updater = { LockedResult ext012LockedResult ->
+    ext012LockedResult.delete()
   }
 
 }

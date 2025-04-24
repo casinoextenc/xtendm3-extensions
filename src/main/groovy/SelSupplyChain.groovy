@@ -1,3 +1,14 @@
+/**
+ * Name : EXT012MI.SelSupplyChain
+ *
+ * Description :
+ * This API method is used to get more infos from MWS150MI SelSupplyChain
+ *
+ *
+ * Date         Changed By    Description
+ * 20240208     MLECLERCQ     APP02 - Planning GDA
+ */
+
 public class SelSupplyChain extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
@@ -22,59 +33,59 @@ public class SelSupplyChain extends ExtendM3Transaction {
     currentCompany = (Integer) program.getLDAZD().CONO
     int maxReturnedRecords = 9999
 
-    String ridn_input = (mi.in.get("RIDN")).toString()
-    String orca_input = (mi.in.get("ORCA")).toString()
-    Integer ponr_input = (mi.in.get("PONR"))
-    String rids_input = (mi.in.get("RIDS")).toString()
-    String scnb_input = (mi.in.get("SCNB")).toString()
-    String orc2_input = (mi.in.get("ORC2")).toString()
-    String sucl_input = (mi.in.get("SUCL")).toString()
+    String ridnInput = (mi.in.get("RIDN")).toString()
+    String orcaInput = (mi.in.get("ORCA")).toString()
+    Integer ponrInput = (mi.in.get("PONR"))
+    String ridsInput = (mi.in.get("RIDS")).toString()
+    String scnbInput = (mi.in.get("SCNB")).toString()
+    String orc2Input = (mi.in.get("ORC2")).toString()
+    String suclInput = (mi.in.get("SUCL")).toString()
 
-    if (ridn_input == null || ridn_input == "") {
+    if (ridnInput == null || ridnInput == "") {
       mi.error("N° de commande obligatoire.")
       return
     }
 
-    if (orca_input == null || orca_input == "") {
+    if (orcaInput == null || orcaInput == "") {
       mi.error("Catégorie d'ordre obligatoire.")
       return
     }
 
-    if (orc2_input == null || orc2_input == "") {
+    if (orc2Input == null || orc2Input == "") {
       mi.error("Catégorie d'ordre secondaire est obligatoire")
       return
     }
 
-    if (sucl_input == null || sucl_input == "") {
+    if (suclInput == null || suclInput == "") {
       mi.error("Groupe fournisseur est obligatoire")
       return
     }
 
-    if(ponr_input == null){
-      ponr_input = null
+    if(ponrInput == null){
+      ponrInput = null
     }
 
-    if(rids_input == null){
-      rids_input = ""
+    if(ridsInput == null){
+      ridsInput = ""
     }
 
-    if(scnb_input == null){
-      scnb_input = ""
+    if(scnbInput == null){
+      scnbInput = ""
     }
 
-    logger.debug('Received RIDN input : ' + ridn_input)
-    logger.debug('Received ORCA input : ' + orca_input)
-    logger.debug('Received ORC2 input : ' + orc2_input)
-    logger.debug('Received SUCL input : ' + sucl_input)
+    logger.debug('Received RIDN input : ' + ridnInput)
+    logger.debug('Received ORCA input : ' + orcaInput)
+    logger.debug('Received ORC2 input : ' + orc2Input)
+    logger.debug('Received SUCL input : ' + suclInput)
 
     Map<String, String> params = [
-      "RIDN": ridn_input,
-      "ORCA": orca_input
+      "RIDN": ridnInput,
+      "ORCA": orcaInput
     ]
 
-    if(ponr_input){
-      logger.debug("ponr_input as string : " + ponr_input.toString())
-      params.put("PONR", ponr_input.toString())
+    if(ponrInput){
+      logger.debug("ponrInput as string : " + ponrInput.toString())
+      params.put("PONR", ponrInput.toString())
     }
 
     Closure<?> closureMWS150 = {
@@ -87,11 +98,11 @@ public class SelSupplyChain extends ExtendM3Transaction {
         logger.debug('Received WHLO from MWS150MI:' + (String) response["WHLO"])
         logger.debug('Received PONR from MWS150MI:' + (String) response["PONR"])
 
-        Boolean valid = false;
+        Boolean valid = false
 
-        if(ponr_input){
+        if(ponrInput){
           valid = true
-        }else if((String) response["ORCA"] == orc2_input){
+        }else if((String) response["ORCA"] == orc2Input){
           valid = true
         }
 
@@ -102,8 +113,6 @@ public class SelSupplyChain extends ExtendM3Transaction {
           String rids = (String) response["RIDS"].toString()
           String whlo = (String) response["WHLO"].toString()
 
-
-          //DBAction rechercheMPOPLP = database.table("MPOPLP").index("00").matching(expression).selection("POPLPN","POITNO","POSUNO").build()
           DBAction rechercheMPOPLP = database.table("MPOPLP").index("00").selection("POPLPN","POITNO","POSUNO").build()
           DBContainer mpoplpContainer = rechercheMPOPLP.createContainer()
           mpoplpContainer.set("POCONO", currentCompany)
@@ -124,15 +133,14 @@ public class SelSupplyChain extends ExtendM3Transaction {
               cidvenContainer.set("IISUNO", suno)
 
               if(rechercheCIDVEN.read(cidvenContainer)){
-                logger.debug("CIDVEN sucl = " + cidvenContainer.get("IISUCL").toString() + ", input sucl :" + sucl_input)
-                if(cidvenContainer.get("IISUCL") == sucl_input){
+                logger.debug("CIDVEN sucl = " + cidvenContainer.get("IISUCL").toString() + ", input sucl :" + suclInput)
+                if(cidvenContainer.get("IISUCL") == suclInput){
                   logger.debug("Record passed all conditions with SUNO : " + cidvenContainer.get("IISUNO") +", and SUCL : " + cidvenContainer.get("IISUCL") )
 
                   mi.outData.put("RIDN", ridn)
                   mi.outData.put("PONR", ponr)
                   mi.outData.put("ITNO", itno)
                   mi.outData.put("RIDS", rids)
-                  mi.outData.put("RIDN", ridn)
                   mi.outData.put("WHLO", whlo)
                   mi.outData.put("SUNO", suno)
 
@@ -149,6 +157,7 @@ public class SelSupplyChain extends ExtendM3Transaction {
 
     }
 
+    miCaller.setListMaxRecords(9999)
     miCaller.call("MWS150MI", "SelSupplyChain", params, closureMWS150)
   }
 }

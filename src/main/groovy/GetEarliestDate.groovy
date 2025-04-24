@@ -1,12 +1,13 @@
 /**
  * Name : EXT012MI.GetEarliestDate
- * 
- * Description : 
- * This API method to add records in specific table EXT010 Customer Assortment
- * 
- * 
+ *
+ * Description :
+ * APP02 Planning GDA Get the earliest date in EXT012
+ *
+ *
  * Date         Changed By    Description
- * 20230308     SEAR       Creation
+ * 20230308     SEAR          APP02 - Planning GDA
+ * 20240911     FLEBARS       Revue code pour validation
  */
 public class GetEarliestDate extends ExtendM3Transaction {
   private final MIAPI mi
@@ -16,8 +17,6 @@ public class GetEarliestDate extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
-  private String errorMessage
-
 
   public GetEarliestDate(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -42,16 +41,16 @@ public class GetEarliestDate extends ExtendM3Transaction {
     String suno = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
     int drgd = (Integer)(mi.in.get("DRGD") != null ? mi.in.get("DRGD") : 0)
     int hrgd = (Integer)(mi.in.get("HRGD") != null ? mi.in.get("HRGD") : 0)
-    
+
     String pickupDate = (mi.in.get("DRGD") != null ? (Integer)mi.in.get("DRGD") : 0)
-    
+
     ExpressionFactory expression = database.getExpressionFactory("EXT012")
     expression = expression.gt("EXDRGD", pickupDate)
-    
-    DBAction queryEXT012 = database.table("EXT012")
-        .index("00")
-        .matching(expression)
-        .selection(
+
+    DBAction ext012Query = database.table("EXT012")
+      .index("00")
+      .matching(expression)
+      .selection(
         "EXCONO",
         "EXCUNO",
         "EXSUNO",
@@ -64,34 +63,38 @@ public class GetEarliestDate extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
-        
-    DBContainer containerEXT012 = queryEXT012.getContainer()
-    containerEXT012.set("EXCONO", currentCompany)
-    containerEXT012.set("EXCUNO", cuno)
-    containerEXT012.set("EXSUNO", suno)
-    containerEXT012.set("EXASGD", asgd)
-    containerEXT012.set("EXDRGD", drgd)
-    
+      )
+      .build()
+
+    DBContainer ext012Request = ext012Query.getContainer()
+    ext012Request.set("EXCONO", currentCompany)
+    ext012Request.set("EXCUNO", cuno)
+    ext012Request.set("EXSUNO", suno)
+    ext012Request.set("EXASGD", asgd)
+    ext012Request.set("EXDRGD", drgd)
+
+
     //Record exists
-    if (!queryEXT012.readAll(containerEXT012, 4, outData)){
+    if (!ext012Query.readAll(ext012Request, 5, 1,ext012OutData)){
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
-  Closure<?> outData = { DBContainer containerEXT012 ->
-    String customerCode = containerEXT012.get("EXCUNO")
-    String supplierCode = containerEXT012.get("EXSUNO")
-    String Assortment = containerEXT012.get("EXASGD")
-    String pickupDate = containerEXT012.get("EXDRGD")
-    String pickuptHour = containerEXT012.get("EXHRGD")
-    String deliveryDate = containerEXT012.get("EXDLGD")
-    String entryDate = containerEXT012.get("EXRGDT")
-    String entryTime = containerEXT012.get("EXRGTM")
-    String changeDate = containerEXT012.get("EXLMDT")
-    String changeNumber = containerEXT012.get("EXCHNO")
-    String changedBy = containerEXT012.get("EXCHID")
+  /**
+   * Write outData
+   */
+  Closure<?> ext012OutData = { DBContainer ext012Result ->
+    String customerCode = ext012Result.get("EXCUNO")
+    String supplierCode = ext012Result.get("EXSUNO")
+    String Assortment = ext012Result.get("EXASGD")
+    String pickupDate = ext012Result.get("EXDRGD")
+    String pickuptHour = ext012Result.get("EXHRGD")
+    String deliveryDate = ext012Result.get("EXDLGD")
+    String entryDate = ext012Result.get("EXRGDT")
+    String entryTime = ext012Result.get("EXRGTM")
+    String changeDate = ext012Result.get("EXLMDT")
+    String changeNumber = ext012Result.get("EXCHNO")
+    String changedBy = ext012Result.get("EXCHID")
     mi.outData.put("CUNO", customerCode)
     mi.outData.put("SUNO", supplierCode)
     mi.outData.put("ASGD", Assortment)

@@ -9,6 +9,7 @@
  * 20230620     FLEBARS      QUAX01 - evol contrainte
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
+ * 20250121     YJANNIN      QUAX01 - Controle code pour validation Infor
  */
 
 import java.time.LocalDateTime
@@ -38,7 +39,7 @@ public class AddConstraint extends ExtendM3Transaction {
 
   public void main() {
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO") as int
       String currentUser = program.getUser()
@@ -49,26 +50,26 @@ public class AddConstraint extends ExtendM3Transaction {
     }
 
     //Get mi inputs
-    String zcod = (mi.in.get("ZCOD") != null ? (String)mi.in.get("ZCOD") : "")
-    String stat = (mi.in.get("STAT") != null ? (String)mi.in.get("STAT") : "")
-    int zblo = (mi.in.get("ZBLO") != null ? (Integer)mi.in.get("ZBLO") : 0)
-    String cscd = (mi.in.get("CSCD") != null ? (String)mi.in.get("CSCD") : "")
-    String cuno = (mi.in.get("CUNO") != null ? (String)mi.in.get("CUNO") : "")
-    String zcap = (mi.in.get("ZCAP") != null ? (String)mi.in.get("ZCAP") : "")
-    String zcas = (mi.in.get("ZCAS") != null ? (String)mi.in.get("ZCAS") : "")
-    String orco = (mi.in.get("ORCO") != null ? (String)mi.in.get("ORCO") : "")
-    String popn = (mi.in.get("POPN") != null ? (String)mi.in.get("POPN") : "")
-    String hie0 = (mi.in.get("HIE0") != null ? (String)mi.in.get("HIE0") : "")
-    int hazi = (mi.in.get("HAZI") != null ? (Integer)mi.in.get("HAZI") : 2)
-    String csno = (mi.in.get("CSNO") != null ? (String)mi.in.get("CSNO") : "")
-    int zalc = (mi.in.get("ZALC") != null ? (Integer)mi.in.get("ZALC") : 2)
-    String cfi4 = (mi.in.get("CFI4") != null ? (String)mi.in.get("CFI4") : "")
-    int zsan = (mi.in.get("ZSAN") != null ? (Integer)mi.in.get("ZSAN") : 2)
-    String znag = (mi.in.get("ZNAG") != null ?(String) mi.in.get("ZNAG") : "")
-    int zali = (mi.in.get("ZALI") != null ? (Integer)mi.in.get("ZALI") : 2)
-    int zphy = (mi.in.get("ZPHY") != null ? (Integer)mi.in.get("ZPHY") : 2)
-    int zori = (mi.in.get("ZORI") != null ? (Integer)mi.in.get("ZORI") : 2)
-    int zohf = (mi.in.get("ZOHF") != null ? (Integer)mi.in.get("ZOHF") : 2)
+    String zcod = (mi.in.get("ZCOD") != null ? (String) mi.in.get("ZCOD") : "")
+    String stat = (mi.in.get("STAT") != null ? (String) mi.in.get("STAT") : "")
+    int zblo = (mi.in.get("ZBLO") != null ? (Integer) mi.in.get("ZBLO") : 0)
+    String cscd = (mi.in.get("CSCD") != null ? (String) mi.in.get("CSCD") : "")
+    String cuno = (mi.in.get("CUNO") != null ? (String) mi.in.get("CUNO") : "")
+    String zcap = (mi.in.get("ZCAP") != null ? (String) mi.in.get("ZCAP") : "")
+    String zcas = (mi.in.get("ZCAS") != null ? (String) mi.in.get("ZCAS") : "")
+    String orco = (mi.in.get("ORCO") != null ? (String) mi.in.get("ORCO") : "")
+    String popn = (mi.in.get("POPN") != null ? (String) mi.in.get("POPN") : "")
+    String hie0 = (mi.in.get("HIE0") != null ? (String) mi.in.get("HIE0") : "")
+    int hazi = (mi.in.get("HAZI") != null ? (Integer) mi.in.get("HAZI") : 2)
+    String csno = (mi.in.get("CSNO") != null ? (String) mi.in.get("CSNO") : "")
+    int zalc = (mi.in.get("ZALC") != null ? (Integer) mi.in.get("ZALC") : 2)
+    String cfi4 = (mi.in.get("CFI4") != null ? (String) mi.in.get("CFI4") : "")
+    int zsan = (mi.in.get("ZSAN") != null ? (Integer) mi.in.get("ZSAN") : 2)
+    String znag = (mi.in.get("ZNAG") != null ? (String) mi.in.get("ZNAG") : "")
+    int zali = (mi.in.get("ZALI") != null ? (Integer) mi.in.get("ZALI") : 2)
+    int zphy = (mi.in.get("ZPHY") != null ? (Integer) mi.in.get("ZPHY") : 2)
+    int zori = (mi.in.get("ZORI") != null ? (Integer) mi.in.get("ZORI") : 2)
+    int zohf = (mi.in.get("ZOHF") != null ? (Integer) mi.in.get("ZOHF") : 2)
 
     //Check if record exists in Constraint Code Table (EXT034)
     if (zcod.length() > 0) {
@@ -83,28 +84,28 @@ public class AddConstraint extends ExtendM3Transaction {
     }
 
     // check Status
-    if(stat == ""){
+    if (stat == "") {
       stat = "10"
     }
-    if (stat != "10" && stat != "20" && stat != "90"){
+    if (stat != "10" && stat != "20" && stat != "90") {
       mi.error("Statut autorisé : 10, 20 ou 90")
       return
     }
 
     // check assortment
-    if (zblo != 0 && zblo != 1){
+    if (zblo != 0 && zblo != 1) {
       mi.error("L'indicateur dangerosité ZBLO doit être égal à 0 ou 1")
       return
     }
 
     //Check if record exists in country Code Table (EXT034)
     if (cscd.length() > 0) {
-      DBAction csytabCSCDQuery = database.table("CSYTAB").index("00").build()
-      DBContainer csytabCSCDRequest = csytabCSCDQuery.getContainer()
-      csytabCSCDRequest.set("CTCONO", currentCompany)
-      csytabCSCDRequest.set("CTSTCO", "CSCD")
-      csytabCSCDRequest.set("CTSTKY", cscd)
-      if (!csytabCSCDQuery.read(csytabCSCDRequest)) {
+      DBAction csytabCscdQuery = database.table("CSYTAB").index("00").build()
+      DBContainer csytabCscdRequest = csytabCscdQuery.getContainer()
+      csytabCscdRequest.set("CTCONO", currentCompany)
+      csytabCscdRequest.set("CTSTCO", "CSCD")
+      csytabCscdRequest.set("CTSTKY", cscd)
+      if (!csytabCscdQuery.read(csytabCscdRequest)) {
         mi.error("Code pays " + cscd + " n'existe pas")
         return
       }
@@ -127,7 +128,7 @@ public class AddConstraint extends ExtendM3Transaction {
       DBContainer ext033request = ext033query.getContainer()
       ext033request.set("EXCONO", currentCompany)
       ext033request.set("EXZCAR", zcap)
-      if(!ext033query.read(ext033request)){
+      if (!ext033query.read(ext033request)) {
         mi.error("Caractéristique de contrainte principale (EXT033) " + zcap + " n'existe pas")
         return
       }
@@ -139,7 +140,7 @@ public class AddConstraint extends ExtendM3Transaction {
       DBContainer ext033Request = ext033Query.getContainer()
       ext033Request.set("EXCONO", currentCompany)
       ext033Request.set("EXZCAR", zcas)
-      if(!ext033Query.read(ext033Request)){
+      if (!ext033Query.read(ext033Request)) {
         mi.error("Caractéristique de contrainte secondaire (EXT033) " + zcas + " n'existe pas")
         return
       }
@@ -147,12 +148,12 @@ public class AddConstraint extends ExtendM3Transaction {
 
     //Check if Origine exists in country Code Table (CSYTAB)
     if (orco.length() > 0) {
-      DBAction csytabCSCDQuery = database.table("CSYTAB").index("00").build()
-      DBContainer csytabCSCDRequest = csytabCSCDQuery.getContainer()
-      csytabCSCDRequest.set("CTCONO", currentCompany)
-      csytabCSCDRequest.set("CTSTCO", "CSCD")
-      csytabCSCDRequest.set("CTSTKY", orco)
-      if (!csytabCSCDQuery.read(csytabCSCDRequest)) {
+      DBAction csytabCscdQuery = database.table("CSYTAB").index("00").build()
+      DBContainer csytabCscdRequest = csytabCscdQuery.getContainer()
+      csytabCscdRequest.set("CTCONO", currentCompany)
+      csytabCscdRequest.set("CTSTCO", "CSCD")
+      csytabCscdRequest.set("CTSTKY", orco)
+      if (!csytabCscdQuery.read(csytabCscdRequest)) {
         mi.error("Code origine " + orco + " n'existe pas")
         return
       }
@@ -174,8 +175,8 @@ public class AddConstraint extends ExtendM3Transaction {
       }
     }
     // check Dangerous
-    if(mi.in.get("HAZI") != null){
-      if (hazi != 0 && hazi != 1 && hazi != 2){
+    if (mi.in.get("HAZI") != null) {
+      if (hazi != 0 && hazi != 1 && hazi != 2) {
         mi.error("L'indicateur dangerosité HAZI doit être égal à 0 ou 1")
         return
       }
@@ -193,8 +194,8 @@ public class AddConstraint extends ExtendM3Transaction {
       }
     }
     // check alcohol
-    if(mi.in.get("ZALC") != null){
-      if (zalc != 0 && zalc != 1 && zalc != 2){
+    if (mi.in.get("ZALC") != null) {
+      if (zalc != 0 && zalc != 1 && zalc != 2) {
         mi.error("L'indicateur d'alcool ZALC doit être égal à 0, 1 ou 2")
         return
       }
@@ -203,19 +204,19 @@ public class AddConstraint extends ExtendM3Transaction {
     // Check control code
     if (cfi4.length() > 0) {
       DBAction countryQuery = database.table("CSYTAB").index("00").build()
-      DBContainer CSYTAB = countryQuery.getContainer()
-      CSYTAB.set("CTCONO",currentCompany)
-      CSYTAB.set("CTSTCO",  "CFI4")
-      CSYTAB.set("CTSTKY", cfi4)
-      if (!countryQuery.read(CSYTAB)) {
+      DBContainer csytabRequest = countryQuery.getContainer()
+      csytabRequest.set("CTCONO", currentCompany)
+      csytabRequest.set("CTSTCO", "CFI4")
+      csytabRequest.set("CTSTKY", cfi4)
+      if (!countryQuery.read(csytabRequest)) {
         mi.error("Code régie " + cfi4 + " n'existe pas")
         return
       }
     }
 
     // check sanitary
-    if(mi.in.get("ZSAN") != null){
-      if (zsan != 0 && zsan != 1 && zsan != 2){
+    if (mi.in.get("ZSAN") != null) {
+      if (zsan != 0 && zsan != 1 && zsan != 2) {
         mi.error("L'indicateur sanitaire ZSAN doit être égal à 0, 1 ou 2")
         return
       }
@@ -235,29 +236,29 @@ public class AddConstraint extends ExtendM3Transaction {
     }
 
     // check food
-    if(mi.in.get("ZALI") != null){
-      if (zali != 0 && zali != 1 && zali != 2){
+    if (mi.in.get("ZALI") != null) {
+      if (zali != 0 && zali != 1 && zali != 2) {
         mi.error("L'indicateur alimentaire ZALI doit être égal à 0, 1 ou 2")
         return
       }
     }
 
     // check PhytoSanitary
-    if(mi.in.get("ZPHY") != null){
-      if (zphy != 0 && zphy != 1 && zphy != 2){
+    if (mi.in.get("ZPHY") != null) {
+      if (zphy != 0 && zphy != 1 && zphy != 2) {
         mi.error("L'indicateur Phytosanitaire ZPHY doit être égal à 0, 1 ou 2")
         return
       }
     }
 
     // check Origin UE
-    if(mi.in.get("ZORI") != null){
-      if (zori != 0 && zori != 1 && zori != 2){
+    if (mi.in.get("ZORI") != null) {
+      if (zori != 0 && zori != 1 && zori != 2) {
         mi.error("L'indicateur origine UE ZORI doit être égal à 0, 1 ou 2")
         return
       }
     }
-    if (zohf != 0 && zohf != 1 && zohf != 2){
+    if (zohf != 0 && zohf != 1 && zohf != 2) {
       mi.error("L'indicateur hors France ZOHF doit être égal à 0, 1 ou 2")
       return
     }
@@ -267,7 +268,7 @@ public class AddConstraint extends ExtendM3Transaction {
     ext030Request.set("EXCONO", currentCompany)
     // Retrieve constraint ID
     executeCRS165MIRtvNextNumber("ZA", "A")
-    ext030Request.set("EXZCID",  nbnr as Integer)
+    ext030Request.set("EXZCID", nbnr as Integer)
     if (!ext030Query.read(ext030Request)) {
       ext030Request.set("EXZCOD", zcod)
       ext030Request.set("EXSTAT", stat)
@@ -304,12 +305,12 @@ public class AddConstraint extends ExtendM3Transaction {
     }
   }
   // Execute CRS165MI.RtvNextNumber
-  private executeCRS165MIRtvNextNumber(String nbty, String nbid){
+  private executeCRS165MIRtvNextNumber(String nbty, String nbid) {
     Map<String, String> parameters = ["NBTY": nbty, "NBID": nbid]
     Closure<?> handler = { Map<String, String> response ->
       nbnr = response.NBNR.trim()
       if (response.error != null) {
-        return mi.error("Failed CRS165MI.RtvNextNumber: "+ response.errorMessage)
+        return mi.error("Failed CRS165MI.RtvNextNumber: " + response.errorMessage)
       }
     }
     miCaller.call("CRS165MI", "RtvNextNumber", parameters, handler)

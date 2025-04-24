@@ -1,13 +1,18 @@
-/**
- * Name : EXT850MI.UpdPOP
- *
- * Description :
+/****************************************************************************************
+ Extension Name: EXT850MI.UpdPOP
+ Type: ExtendM3Transaction
+ Script Author: FLEBARS
+ Date: 2023-08-04
+ Description:
  * This API method to Update MPOPLP.POPPSQ
  * There are no standard transactions that allow us to update this field. We have created a case 17675366
- *
- * Date         Changed By    Description
- * 20230804     FLEBARS       Creation
- */
+
+ Revision History:
+ Name        Date        Version   Description of Changes
+ FLEBARS     2023-08-04  1.0       Creation
+ ARENARD     2025-04-22  1.1       Code has been checked
+ ******************************************************************************************/
+
 class UpdPOP extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
@@ -45,12 +50,12 @@ class UpdPOP extends ExtendM3Transaction {
 
     //read mpoplp to read note
     DBAction queryMPOPLP00 = database.table("MPOPLP").index("00").selection(
-        "POCONO"
-        ,"POPLPN"
-        ,"POPLPS"
-        ,"POPLP2"
-        ,"POPTXT"
-        ).build()
+      "POCONO"
+      ,"POPLPN"
+      ,"POPLPS"
+      ,"POPLP2"
+      ,"POPTXT"
+    ).build()
 
     DBContainer containerMPOPLP = queryMPOPLP00.getContainer()
     containerMPOPLP.set("POCONO",currentCompany)
@@ -61,13 +66,13 @@ class UpdPOP extends ExtendM3Transaction {
       ptxt = containerMPOPLP.getString("POPTXT").trim()
     }
 
-    def params = [
+    Map<String, String> params = [
       "PLPN" : plpn + ""
       ,"PLPS" : plps + ""
       ,"PLP2" : plp2 + ""
       ,"NOTE" : ptxt + "."
     ]
-    def callback = { Map<String, String> response ->
+    Closure<?> callback = { Map<String, String> response ->
       logger.debug("Call PPS170MI/UpdPOP " + response)
       if (response.error != null) {
         hasStdError = true

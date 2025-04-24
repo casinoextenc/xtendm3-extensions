@@ -2,10 +2,11 @@
  * README
  * This extension is used by Mashup
  *
- * Name : EXT050MI.LstMastFilOrdL1
- * Description : List master file order line
+ * Name : EXT050MI.LstMastFilShip1
+ * Description : batch template
  * Date         Changed By   Description
- * 20230511     SEAR         LOG28 - Creation of files and containers
+ * 20230511     SEAR         LOG28 - Creation of files and containers V1
+ * 20240425     MLECLERCQ    LOG28 - Added week and year filters
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -21,15 +22,19 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
   private final MICallerAPI miCaller
   private final UtilityAPI utility
   private String parm
-  private String itno_OOLINE
-  private String uca4_input
+  private String itnoOoline
+  private String uca4Input
+  private String uca5Input
+  private String uca6Input
   private int currentCompany
-  private double tot_ConfirmQty
+  private double totConfirmqty
   private double confirmedQuantityUB
   private String baseUnit
-  private double MITAUN_cofa
+  private double mitaunCofa
   private String dmcf
-  private String MasterFile
+  private String masterFile
+  private String week
+  private String year
   private String commande
   private String refOrderNumber
   private String ItemNumber
@@ -38,8 +43,12 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
   private double volume
   private double weight
   private double salesPrice
+  private String customer
+  private String custName
 
   private String jobNumber
+
+  private Integer nbMaxRecord = 10000
 
   public LstMastFilOrdL1(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -62,100 +71,141 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
     }
 
     //Get mi inputs
-    uca4_input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
+    uca4Input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
+    uca5Input = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
+    uca6Input = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
 
-    if (uca4_input.length() == 0) {
+    if (uca4Input.length() == 0) {
       mi.error("dossier maitre est obligatoire")
     }
 
-    ExpressionFactory expression_OOHEAD = database.getExpressionFactory("OOHEAD")
-    expression_OOHEAD = expression_OOHEAD.eq("OAUCA4", uca4_input)
+    ExpressionFactory expressionOohead = database.getExpressionFactory("OOHEAD")
+    expressionOohead = expressionOohead.eq("OAUCA4", uca4Input)
+    expressionOohead = expressionOohead.and(expressionOohead.eq("OAUCA5", uca5Input))
+    expressionOohead = expressionOohead.and(expressionOohead.eq("OAUCA6", uca6Input))
 
-    DBAction query_OOHEAD = database.table("OOHEAD").index("00").matching(expression_OOHEAD).selection("OAORNO", "OAUCA4").build()
-    DBContainer containerOOHEAD = query_OOHEAD.getContainer()
+    DBAction queryOohead = database.table("OOHEAD").index("00").matching(expressionOohead).selection("OAORNO", "OAUCA4","OAUCA5","OAUCA6","OACUNO").build()
+    DBContainer containerOOHEAD = queryOohead.getContainer()
     containerOOHEAD.set("OACONO", currentCompany)
 
-    if (!query_OOHEAD.readAll(containerOOHEAD, 1, OOHEADData)){
-      mi.error("aucune commande associée au dossier "+ uca4_input)
+    if (!queryOohead.readAll(containerOOHEAD, 1, nbMaxRecord, OOHEADData)){
+      mi.error("aucune commande associée au dossier "+ uca4Input)
     }
   }
 
-  // liste OOHEAD
+  /**
+   * Retrieve OOHEAD data
+   * @param containerOOHEAD
+   */
   Closure<?> OOHEADData = { DBContainer containerOOHEAD ->
 
     commande = containerOOHEAD.get("OAORNO")
-    MasterFile = containerOOHEAD.get("OAUCA4")
+    masterFile = containerOOHEAD.get("OAUCA4")
+    week = containerOOHEAD.get("OAUCA5")
+    year = containerOOHEAD.get("OAUCA6")
+    customer = containerOOHEAD.get("OACUNO")
+
+    DBAction queryOcusma = database.table("OCUSMA").index("00").selection("OKCUNM").build()
+    DBContainer OCUSMA = queryOcusma.getContainer()
+    OCUSMA.set("OKCONO", currentCompany)
+    OCUSMA.set("OKCUNO", customer)
+
+    if(queryOcusma.readAll(OCUSMA, 2, nbMaxRecord, OCUSMAData)){
+    }
+
+    ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
+    oolineExp = oolineExp.lt("OBORST","44")
 
     // list OOLINE
-    DBAction query_OOLINE = database.table("OOLINE").index("00").selection("OBITNO", "OBRORC","OBORNO","OBRORN","OBRORL","OBORQT","OBSAPR").build()
-    DBContainer OOLINE = query_OOLINE.getContainer()
+    DBAction queryOoline = database.table("OOLINE").index("00").matching(oolineExp).selection("OBITNO", "OBRORC","OBORNO","OBRORN","OBRORL","OBORQT","OBSAPR").build()
+    DBContainer OOLINE = queryOoline.getContainer()
     OOLINE.set("OBCONO", currentCompany)
     OOLINE.set("OBORNO", commande)
-    if(query_OOLINE.readAll(OOLINE, 2, OOLINEData)){
+    if(queryOoline.readAll(OOLINE, 2, nbMaxRecord, OOLINEData)){
     }
   }
 
-  // data OOLINE
-  Closure<?> OOLINEData = { DBContainer ContainerOOLINE ->
-    ItemNumber = ContainerOOLINE.get("OBITNO")
-    int refOrdCat = ContainerOOLINE.get("OBRORC")
-    refOrderNumber = ContainerOOLINE.get("OBRORN")
-    int refOrderNumberLine = ContainerOOLINE.get("OBRORL")
-    orderedQuantity = ContainerOOLINE.getDouble("OBORQT")
-    salesPrice = ContainerOOLINE.get("OBSAPR")
+  /**
+   * Retrieve OCUSMA data
+   * @param containerOCUSMA
+   */
+  Closure<?> OCUSMAData = { DBContainer containerOCUSMA ->
+    custName = containerOCUSMA.get("OKCUNM").toString().trim()
+    logger.debug("Customer Name : ${custName}")
+  }
+
+  /**
+   * Retrieve OOLINE data
+   * @param containerOOLINE
+   */
+  Closure<?> OOLINEData = { DBContainer containerOOLINE ->
+    ItemNumber = containerOOLINE.get("OBITNO")
+    int refOrdCat = containerOOLINE.get("OBRORC")
+    refOrderNumber = containerOOLINE.get("OBRORN")
+    int refOrderNumberLine = containerOOLINE.get("OBRORL")
+    orderedQuantity = containerOOLINE.getDouble("OBORQT")
+    salesPrice = containerOOLINE.get("OBSAPR")
 
     // get MITMAS
     baseUnit = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMITDS", "MMPUUN","MMUNMS", "MMGRWE", "MMVOL3").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
+    DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMITDS", "MMPUUN","MMUNMS", "MMGRWE", "MMVOL3").build()
+    DBContainer MITMAS = queryMitmas.getContainer()
     MITMAS.set("MMCONO", currentCompany)
     MITMAS.set("MMITNO", ItemNumber)
-    if(query_MITMAS.read(MITMAS)){
+    if(queryMitmas.read(MITMAS)){
       description = MITMAS.get("MMITDS")
       baseUnit = MITMAS.get("MMUNMS")
       volume = MITMAS.getDouble("MMVOL3")
       weight = MITMAS.getDouble("MMGRWE")
     }
 
-    tot_ConfirmQty = 0
+    totConfirmqty = 0
     confirmedQuantityUB = 0
     if(refOrdCat == 2) {
-      DBAction query_MPLINE = database.table("MPLINE").index("00").selection("IBPUUN","IBITNO", "IBCFQA","IBPUNO").build()
-      DBContainer MPLINE = query_MPLINE.getContainer()
+      DBAction queryMpline = database.table("MPLINE").index("00").selection("IBPUUN","IBITNO", "IBCFQA","IBPUNO").build()
+      DBContainer MPLINE = queryMpline.getContainer()
       MPLINE.set("IBCONO", currentCompany)
       MPLINE.set("IBPUNO", refOrderNumber)
       MPLINE.set("IBPNLI", refOrderNumberLine)
-      query_MPLINE.readAll(MPLINE, 3, MPLINEData)
+      queryMpline.readAll(MPLINE, 3, nbMaxRecord, MPLINEData)
     }
 
     double ZGR1 =  new BigDecimal (orderedQuantity * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-    double ZGR2 =  new BigDecimal (tot_ConfirmQty * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+    double ZGR2 =  new BigDecimal (totConfirmqty * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
     double ZVO1 =  new BigDecimal (orderedQuantity * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-    double ZVO2 =  new BigDecimal (tot_ConfirmQty * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+    double ZVO2 =  new BigDecimal (totConfirmqty * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
     double ZAM1 =  new BigDecimal (orderedQuantity * salesPrice).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-    double ZAM2 =  new BigDecimal (tot_ConfirmQty * salesPrice).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-    mi.outData.put("UCA4", MasterFile)
+    double ZAM2 =  new BigDecimal (totConfirmqty * salesPrice).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+    logger.debug("Before OutDatas Cust : ${customer} , ${custName}")
+
+    mi.outData.put("UCA4", masterFile)
     mi.outData.put("ORNO", commande)
     mi.outData.put("RORN", refOrderNumber)
     mi.outData.put("ITNO", ItemNumber)
     mi.outData.put("ITDS", description)
     mi.outData.put("ORQT", orderedQuantity.toString())
-    mi.outData.put("CFQA", tot_ConfirmQty.toString())
+    mi.outData.put("CFQA", totConfirmqty.toString())
     mi.outData.put("ZGR1", ZGR1.toString())
     mi.outData.put("ZGR2", ZGR2.toString())
     mi.outData.put("ZVO1", ZVO1.toString())
     mi.outData.put("ZVO2", ZVO2.toString())
     mi.outData.put("ZAM1", ZAM1.toString())
     mi.outData.put("ZAM2", ZAM2.toString())
+    mi.outData.put("CUNO",customer)
+    mi.outData.put("CUNM",custName)
 
     mi.write()
   }
 
-  // data MPLINE
-  Closure<?> MPLINEData = { DBContainer ContainerMPLINE ->
-    String PurchaseItem = ContainerMPLINE.get("IBITNO")
-    double confirmedQuantity = ContainerMPLINE.get("IBCFQA")
-    String purchaseUnit = ContainerMPLINE.get("IBPUUN")
+  /**
+   * Retrieve MPLINE data
+   * @param containerMPLINE
+   */
+  Closure<?> MPLINEData = { DBContainer containerMPLINE ->
+    String PurchaseItem = containerMPLINE.get("IBITNO")
+    double confirmedQuantity = containerMPLINE.get("IBCFQA")
+    String purchaseUnit = containerMPLINE.get("IBPUUN")
     if (!baseUnit.equals(purchaseUnit)) {
       DBAction queryMITAUN00 = database.table("MITAUN").index("00").selection(
         "MUCONO",
@@ -171,24 +221,26 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
       containerMITAUN.set("MUITNO", PurchaseItem)
       containerMITAUN.set("MUAUTP", 1)
       containerMITAUN.set("MUALUN", purchaseUnit)
-      queryMITAUN00.readAll(containerMITAUN, 4, readMITAUN)
+      queryMITAUN00.readAll(containerMITAUN, 4, nbMaxRecord, readMITAUN)
 
       if (dmcf.equals("1")) {
-        confirmedQuantityUB = confirmedQuantity * MITAUN_cofa
+        confirmedQuantityUB = confirmedQuantity * mitaunCofa
       } else {
-        confirmedQuantityUB = confirmedQuantity / MITAUN_cofa
+        confirmedQuantityUB = confirmedQuantity / mitaunCofa
       }
-      tot_ConfirmQty =  tot_ConfirmQty + confirmedQuantityUB
+      totConfirmqty =  totConfirmqty + confirmedQuantityUB
     } else {
-      tot_ConfirmQty =  tot_ConfirmQty + confirmedQuantity
+      totConfirmqty =  totConfirmqty + confirmedQuantity
     }
-    //mi.error("trouvé MPLINE avec données avec currentCompany : " + currentCompany + "  PurchaseItem:" + PurchaseItem + ", confirmedQuantity :" + confirmedQuantity + ", purchaseUnit : " + purchaseUnit+ ", baseUnit : " + baseUnit + " COFA : " + MITAUN_cofa + " dmcf " + dmcf + "tot : " + tot_ConfirmQty)
   }
 
-
+  /**
+   * Retrieve MITAUN data
+   * @param resultMITAUN
+   */
   Closure<?> readMITAUN = { DBContainer resultMITAUN ->
     String alun = resultMITAUN.getString("MUALUN").toString()
-    MITAUN_cofa = resultMITAUN.getDouble("MUCOFA")
+    mitaunCofa = resultMITAUN.getDouble("MUCOFA")
     dmcf = resultMITAUN.getInt("MUDMCF")
   }
 }

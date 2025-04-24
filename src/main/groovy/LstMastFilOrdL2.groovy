@@ -8,6 +8,7 @@
  * 20230516     SEAR         LOG28 - Creation of files and containers
  * 20230818     MLECLERCQ    LOG28 - EXT050 ZAAM = OOLINE LNAM
  * 20240324     MLECLERCQ    LOG28 - Filtres Qualité
+ * 20241011     MLECLERCQ    LOG28 - added nb of cols
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -28,47 +29,49 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
   private boolean sameIndex
   private boolean foundLineIndex
   private boolean sameCustomer
-  private String whlo_OOLINE
-  private String whlo_input
-  private String uca4_input
-  private String uca5_input
-  private String uca6_input
-  private String cuno_input
-  private Long dlix_input
+  private String whloOoline
+  private String whloInput
+  private String uca4Input
+  private String uca5Input
+  private String uca6Input
+  private String cunoInput
+  private Long dlixInput
   private Integer currentCompany
-  private String cuno_OOLINE
-  private String orno_OOLINE
-  private int ponr_OOLINE
-  private int posx_OOLINE
+  private String cunoOoline
+  private String ornoOoline
+  private int ponrOoline
+  private int posxOoline
   private double volume
   private double weight
   private double salesPrice
   private String baseUnit
-  private String ItemNumber
+  private String itemNumber
   private String description
   private String dossier
   private String semaine
   private String annee
-  private double sapr_OOLINE
-  private double alqt_OOLINE
-  private double orqt_OOLINE
-  private int dmcs_OOLINE
-  private double cofs_OOLINE
-  private String spun_OOLINE
-  private String ltyp_OOLINE
-  private double lnam_OOLINE
+  private double saprOoline
+  private double alqtOoline
+  private double orqtOoline
+  private int dmcsOoline
+  private double cofsOoline
+  private String spunOoline
+  private String ltypOoline
+  private double lnamOoline
   private double allocatedQuantity
   private double allocatedQuantityUB
   private String commande
-  private String orst_OOLINE
-  private String cust_name
-  private String cust_number
+  private String orstOoline
+  private String custName
+  private String custNumber
   private boolean allocMethod
   private Long lineIndex
-  private int conn_MHDISH
-  private String rscd_MHDISH //20230821 MLQ
+  private int connMhdish
+  private String rscdMhdish //20230821 MLQ
+  private double nbOfCols
+  private double nbOfPals
 
-  private Map<String, Boolean> quaFilters_input
+  private Map<String, Boolean> quaFiltersInput
 
   private boolean hasBeer = false
   private boolean hasWine = false
@@ -82,7 +85,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
   private boolean isDgx = false
   private boolean isDgx4 = false
 
-
+  private Integer nbMaxRecord = 10000
 
   private String jobNumber
 
@@ -107,86 +110,86 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       currentCompany = mi.in.get("CONO")
     }
 
-    quaFilters_input = new HashMap<String, Boolean>()
+    quaFiltersInput = new HashMap<String, Boolean>()
 
     //Get mi inputs
-    whlo_input = (mi.in.get("WHLO") != null ? (String) mi.in.get("WHLO") : "")
-    uca4_input = (mi.in.get("UCA4") != null ? (String) mi.in.get("UCA4") : "")
-    uca5_input = (mi.in.get("UCA5") != null ? (String) mi.in.get("UCA5") : "")
-    uca6_input = (mi.in.get("UCA6") != null ? (String) mi.in.get("UCA6") : "")
-    cuno_input = (mi.in.get("CUNO") != null ? (String) mi.in.get("CUNO") : "")
-    dlix_input = (Long) (mi.in.get("DLIX") != null ? mi.in.get("DLIX") : 0)
+    whloInput = (mi.in.get("WHLO") != null ? (String) mi.in.get("WHLO") : "")
+    uca4Input = (mi.in.get("UCA4") != null ? (String) mi.in.get("UCA4") : "")
+    uca5Input = (mi.in.get("UCA5") != null ? (String) mi.in.get("UCA5") : "")
+    uca6Input = (mi.in.get("UCA6") != null ? (String) mi.in.get("UCA6") : "")
+    cunoInput = (mi.in.get("CUNO") != null ? (String) mi.in.get("CUNO") : "")
+    dlixInput = (Long) (mi.in.get("DLIX") != null ? mi.in.get("DLIX") : 0)
 
-    quaFilters_input["PHYT"] = (mi.in.get("PHYT") != null ? (Boolean) mi.in.get("PHYT") : false)
-    quaFilters_input["SANI"] = (mi.in.get("SANI") != null ? (Boolean) mi.in.get("SANI") : false)
-    quaFilters_input["PETF"] = (mi.in.get("PETF") != null ? (Boolean) mi.in.get("PETF") : false)
-    quaFilters_input["LAIT"] = (mi.in.get("LAIT") != null ? (Boolean) mi.in.get("LAIT") : false)
-    quaFilters_input["ALCO"] = (mi.in.get("ALCO") != null ? (Boolean) mi.in.get("ALCO") : false)
-    quaFilters_input["BIER"] = (mi.in.get("BIER") != null ? (Boolean) mi.in.get("BIER") : false)
-    quaFilters_input["VIN1"] = (mi.in.get("VIN1") != null ? (Boolean) mi.in.get("VIN1") : false)
-    quaFilters_input["CHAM"] = (mi.in.get("CHAM") != null ? (Boolean) mi.in.get("CHAM") : false)
-    quaFilters_input["DGX1"] = (mi.in.get("DGX1") != null ? (Boolean) mi.in.get("DGX1") : false)
-    quaFilters_input["DGX4"] = (mi.in.get("DGX4") != null ? (Boolean) mi.in.get("DGX4") : false)
-    quaFilters_input["ISO1"] = (mi.in.get("ISO1") != null ? (Boolean) mi.in.get("ISO1") : false)
-    quaFilters_input["DPH1"] = (mi.in.get("DPH1") != null ? (Boolean) mi.in.get("DPH1") : false)
+    quaFiltersInput["PHYT"] = (mi.in.get("PHYT") != null ? (Boolean) mi.in.get("PHYT") : false)
+    quaFiltersInput["SANI"] = (mi.in.get("SANI") != null ? (Boolean) mi.in.get("SANI") : false)
+    quaFiltersInput["PETF"] = (mi.in.get("PETF") != null ? (Boolean) mi.in.get("PETF") : false)
+    quaFiltersInput["LAIT"] = (mi.in.get("LAIT") != null ? (Boolean) mi.in.get("LAIT") : false)
+    quaFiltersInput["ALCO"] = (mi.in.get("ALCO") != null ? (Boolean) mi.in.get("ALCO") : false)
+    quaFiltersInput["BIER"] = (mi.in.get("BIER") != null ? (Boolean) mi.in.get("BIER") : false)
+    quaFiltersInput["VIN1"] = (mi.in.get("VIN1") != null ? (Boolean) mi.in.get("VIN1") : false)
+    quaFiltersInput["CHAM"] = (mi.in.get("CHAM") != null ? (Boolean) mi.in.get("CHAM") : false)
+    quaFiltersInput["DGX1"] = (mi.in.get("DGX1") != null ? (Boolean) mi.in.get("DGX1") : false)
+    quaFiltersInput["DGX4"] = (mi.in.get("DGX4") != null ? (Boolean) mi.in.get("DGX4") : false)
+    quaFiltersInput["ISO1"] = (mi.in.get("ISO1") != null ? (Boolean) mi.in.get("ISO1") : false)
+    quaFiltersInput["DPH1"] = (mi.in.get("DPH1") != null ? (Boolean) mi.in.get("DPH1") : false)
 
 
     // check warehouse
-    DBAction query_MITWHL = database.table("MITWHL").index("00").selection("MWWHLO").build()
-    DBContainer MITWHL = query_MITWHL.getContainer()
+    DBAction queryMitwhl = database.table("MITWHL").index("00").selection("MWWHLO").build()
+    DBContainer MITWHL = queryMitwhl.getContainer()
     MITWHL.set("MWCONO", currentCompany)
-    MITWHL.set("MWWHLO", whlo_input)
-    if (!query_MITWHL.read(MITWHL)) {
-      mi.error("Le dépôt " + whlo_input + " n'existe pas")
+    MITWHL.set("MWWHLO", whloInput)
+    if (!queryMitwhl.read(MITWHL)) {
+      mi.error("Le dépôt " + whloInput + " n'existe pas")
     }
 
     // check customer number
-    if (cuno_input.length() > 0) {
-      DBAction query_OCUSMA = database.table("OCUSMA").index("00").selection("OKCUNO").build()
-      DBContainer OCUSMA = query_OCUSMA.getContainer()
+    if (cunoInput.length() > 0) {
+      DBAction queryOcusma = database.table("OCUSMA").index("00").selection("OKCUNO").build()
+      DBContainer OCUSMA = queryOcusma.getContainer()
       OCUSMA.set("OKCONO", currentCompany)
-      OCUSMA.set("OKCUNO", cuno_input)
-      if (!query_OCUSMA.read(OCUSMA)) {
-        mi.error("Le code client  " + cuno_input + " n'existe pas")
+      OCUSMA.set("OKCUNO", cunoInput)
+      if (!queryOcusma.read(OCUSMA)) {
+        mi.error("Le code client  " + cunoInput + " n'existe pas")
         return
       }
     }
 
     // check index number
     if ((mi.in.get("DLIX") != null)) {
-      DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX", "OQRSCD").build()
-      DBContainer MHDISH = query_MHDISH.getContainer()
+      DBAction queryMhdish = database.table("MHDISH").index("00").selection("OQDLIX", "OQRSCD").build()
+      DBContainer MHDISH = queryMhdish.getContainer()
       MHDISH.set("OQCONO", currentCompany)
       MHDISH.set("OQINOU", 1)
-      MHDISH.set("OQDLIX", dlix_input)
-      if (!query_MHDISH.read(MHDISH)) {
-        mi.error("Index de livraison  " + dlix_input + " n'existe pas")
+      MHDISH.set("OQDLIX", dlixInput)
+      if (!queryMhdish.read(MHDISH)) {
+        mi.error("Index de livraison  " + dlixInput + " n'existe pas")
         return
       }
     }
 
-    ExpressionFactory expression_OOHEAD = database.getExpressionFactory("OOHEAD")
-    if (uca4_input != "") {
-      expression_OOHEAD = expression_OOHEAD.eq("OAUCA4", uca4_input)
+    ExpressionFactory expressionOohead = database.getExpressionFactory("OOHEAD")
+    if (uca4Input != "") {
+      expressionOohead = expressionOohead.eq("OAUCA4", uca4Input)
     } else {
-      expression_OOHEAD = expression_OOHEAD.ne("OAUCA4", "")
+      expressionOohead = expressionOohead.ne("OAUCA4", "")
     }
-    if (uca5_input != "") {
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.eq("OAUCA5", uca5_input))
+    if (uca5Input != "") {
+      expressionOohead = expressionOohead.and(expressionOohead.eq("OAUCA5", uca5Input))
     } else {
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.ne("OAUCA5", ""))
+      expressionOohead = expressionOohead.and(expressionOohead.ne("OAUCA5", ""))
     }
-    if (uca6_input != "") {
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.eq("OAUCA6", uca6_input))
+    if (uca6Input != "") {
+      expressionOohead = expressionOohead.and(expressionOohead.eq("OAUCA6", uca6Input))
     } else {
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.ne("OAUCA6", ""))
+      expressionOohead = expressionOohead.and(expressionOohead.ne("OAUCA6", ""))
     }
 
-    DBAction query_OOHEAD = database.table("OOHEAD").index("01").matching(expression_OOHEAD).selection("OAORNO", "OAUCA4", "OAUCA5", "OAUCA6").build()
-    DBContainer containerOOHEAD = query_OOHEAD.getContainer()
+    DBAction queryOohead = database.table("OOHEAD").index("00").matching(expressionOohead).selection("OAORNO", "OAUCA4", "OAUCA5", "OAUCA6").build()
+    DBContainer containerOOHEAD = queryOohead.getContainer()
     containerOOHEAD.set("OACONO", currentCompany)
 
-    if (!query_OOHEAD.readAll(containerOOHEAD, 1, OOHEADData)) {
+    if (!queryOohead.readAll(containerOOHEAD, 1, nbMaxRecord, OOHEADData)) {
     }
 
     // list out data
@@ -213,7 +216,9 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
         "EXZAAM",
         "EXDLIX",
         "EXCONN",
-        "EXRSCD" //20230821 MLQ
+        "EXRSCD", //20230821 MLQ
+        "EXCOLS",
+        "EXPALS"
       )
       .build()
 
@@ -221,7 +226,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     ListContainerEXT051.set("EXBJNO", jobNumber)
 
     //Record exists
-    if (!ListqueryEXT051.readAll(ListContainerEXT051, 1, outData)) {
+    if (!ListqueryEXT051.readAll(ListContainerEXT051, 1, nbMaxRecord, outData)) {
     }
 
     // delete workfile
@@ -229,12 +234,17 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     DBContainer DelcontainerEXT051 = DelQuery.getContainer()
     DelcontainerEXT051.set("EXBJNO", jobNumber)
     if (!DelQuery.readAllLock(DelcontainerEXT051, 1, deleteCallBack)) {
-      mi.error("L'enregistrement n'existe pas")
+      mi.error("L'enregistrement n'existe pas en EXT051")
       return
     }
   }
 
-  // liste OOHEAD
+  /**
+   * Retrieve OOHEAD data
+   * @param itno
+   * @param filterResults
+   * @return
+   */
   Closure<?> OOHEADData = { DBContainer containerOOHEAD ->
 
     int company = containerOOHEAD.get("OACONO")
@@ -244,15 +254,15 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     annee = containerOOHEAD.get("OAUCA6")
 
     // Get OOLINE
-    ExpressionFactory expression_OOLINE = database.getExpressionFactory("OOLINE")
-    expression_OOLINE = (expression_OOLINE.lt("OBORST", "44"))
-    expression_OOLINE = expression_OOLINE.and(expression_OOLINE.gt("OBORST", "22"))
+    ExpressionFactory expressionOoline = database.getExpressionFactory("OOLINE")
+    expressionOoline = (expressionOoline.lt("OBORST", "44"))
+    expressionOoline = expressionOoline.and(expressionOoline.gt("OBORST", "22"))
 
-    DBAction query_OOLINE = database.table("OOLINE").index("00").matching(expression_OOLINE).selection("OBCUNO", "OBORNO", "OBPONR", "OBPOSX", "OBWHLO", "OBSPUN", "OBDMCS", "OBCOFS", "OBORQT", "OBALQT", "OBSAPR", "OBLTYP", "OBORST", "OBITNO", "OBLNAM").build()
-    DBContainer OOLINE = query_OOLINE.getContainer()
+    DBAction queryOoline = database.table("OOLINE").index("00").matching(expressionOoline).selection("OBCUNO", "OBORNO", "OBPONR", "OBPOSX", "OBWHLO", "OBSPUN", "OBDMCS", "OBCOFS", "OBORQT", "OBALQT", "OBSAPR", "OBLTYP", "OBORST", "OBITNO", "OBLNAM").build()
+    DBContainer OOLINE = queryOoline.getContainer()
     OOLINE.set("OBCONO", company)
     OOLINE.set("OBORNO", commande)
-    if (query_OOLINE.readAll(OOLINE, 2, OOLINEData)) {
+    if (queryOoline.readAll(OOLINE, 2, nbMaxRecord, OOLINEData)) {
     }
 
 
@@ -261,65 +271,68 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     logger.debug("sameWarehouse : " + sameWarehouse)
   }
 
-  // data OOLINE
+  /**
+   * Retrieve OOLINE data
+   * @param containerOOLINE
+   */
   Closure<?> OOLINEData = { DBContainer ContainerOOLINE ->
-    whlo_OOLINE = ContainerOOLINE.get("OBWHLO")
-    cuno_OOLINE = ContainerOOLINE.get("OBCUNO")
-    orno_OOLINE = ContainerOOLINE.get("OBORNO")
-    ponr_OOLINE = ContainerOOLINE.get("OBPONR")
-    posx_OOLINE = ContainerOOLINE.get("OBPOSX")
-    spun_OOLINE = ContainerOOLINE.get("OBSPUN")
-    cofs_OOLINE = ContainerOOLINE.get("OBCOFS")
-    orqt_OOLINE = ContainerOOLINE.get("OBORQT")
-    alqt_OOLINE = ContainerOOLINE.get("OBALQT")
-    sapr_OOLINE = ContainerOOLINE.get("OBSAPR")
-    dmcs_OOLINE = ContainerOOLINE.get("OBDMCS")
-    ltyp_OOLINE = ContainerOOLINE.get("OBLTYP")
-    orst_OOLINE = ContainerOOLINE.get("OBORST")
-    lnam_OOLINE = ContainerOOLINE.get("OBLNAM")
-    ItemNumber = ContainerOOLINE.get("OBITNO")
+    whloOoline = ContainerOOLINE.get("OBWHLO")
+    cunoOoline = ContainerOOLINE.get("OBCUNO")
+    ornoOoline = ContainerOOLINE.get("OBORNO")
+    ponrOoline = ContainerOOLINE.get("OBPONR")
+    posxOoline = ContainerOOLINE.get("OBPOSX")
+    spunOoline = ContainerOOLINE.get("OBSPUN")
+    cofsOoline = ContainerOOLINE.get("OBCOFS")
+    orqtOoline = ContainerOOLINE.get("OBORQT")
+    alqtOoline = ContainerOOLINE.get("OBALQT")
+    saprOoline = ContainerOOLINE.get("OBSAPR")
+    dmcsOoline = ContainerOOLINE.get("OBDMCS")
+    ltypOoline = ContainerOOLINE.get("OBLTYP")
+    orstOoline = ContainerOOLINE.get("OBORST")
+    lnamOoline = ContainerOOLINE.get("OBLNAM")
+    itemNumber = ContainerOOLINE.get("OBITNO")
 
     sameWarehouse = false
     sameIndex = false
     sameCustomer = false
     foundLineIndex = false
 
-    if (whlo_OOLINE.equals(whlo_input)) {
+    if (whloOoline.equals(whloInput)) {
       sameWarehouse = true
     }
-    logger.debug("sameWarehouse = " + sameWarehouse)
+    logger.debug("OOLINE sameWarehouse = " + sameWarehouse)
 
-    if (cuno_input.length() > 0) {
-      if (cuno_input.trim().equals(cuno_OOLINE.trim())) {
+    if (cunoInput.length() > 0) {
+      if (cunoInput.trim().equals(cunoOoline.trim())) {
         sameCustomer = true
       }
     } else {
       sameCustomer = true
     }
 
-    logger.debug("sameCustomer = " + sameCustomer)
+    logger.debug("OOLINE sameCustomer = " + sameCustomer)
 
     // check index number
     lineIndex = 0
     if ((mi.in.get("DLIX") != null)) {
-      ExpressionFactory expression_MHDISL = database.getExpressionFactory("MHDISL")
-      expression_MHDISL = expression_MHDISL.eq("URDLIX", dlix_input.toString())
-      DBAction query_MHDISL = database.table("MHDISL").index("10").matching(expression_MHDISL).selection("URDLIX").build()
-      DBContainer MHDISL = query_MHDISL.getContainer()
+      ExpressionFactory expressionMhdisl = database.getExpressionFactory("MHDISL")
+      expressionMhdisl = expressionMhdisl.eq("URDLIX", dlixInput.toString())
+      DBAction queryMhdisl = database.table("MHDISL").index("10").matching(expressionMhdisl).selection("URDLIX").build()
+      DBContainer MHDISL = queryMhdisl.getContainer()
       MHDISL.set("URCONO", currentCompany)
       MHDISL.set("URRORC", 3)
-      MHDISL.set("URRIDN", orno_OOLINE)
-      MHDISL.set("URRIDL", ponr_OOLINE)
-      if (query_MHDISL.readAll(MHDISL, 4, DataMHDISL)) {
+      MHDISL.set("URRIDN", ornoOoline)
+      MHDISL.set("URRIDL", ponrOoline)
+      if (queryMhdisl.readAll(MHDISL, 4, nbMaxRecord, DataMHDISL)) {
       }
     } else {
-      DBAction query_MHDISL = database.table("MHDISL").index("10").selection("URDLIX").build()
-      DBContainer MHDISL = query_MHDISL.getContainer()
+      DBAction queryMhdisl = database.table("MHDISL").index("10").selection("URDLIX").build()
+      DBContainer MHDISL = queryMhdisl.getContainer()
       MHDISL.set("URCONO", currentCompany)
       MHDISL.set("URRORC", 3)
-      MHDISL.set("URRIDN", orno_OOLINE)
-      MHDISL.set("URRIDL", ponr_OOLINE)
-      if (query_MHDISL.readAll(MHDISL, 4, DataMHDISL)) {
+      MHDISL.set("URRIDN", ornoOoline)
+      MHDISL.set("URRIDL", ponrOoline)
+      if (queryMhdisl.readAll(MHDISL, 4, nbMaxRecord, DataMHDISL)) {
       }
     }
 
@@ -327,32 +340,32 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     if ((mi.in.get("DLIX") == null)) {
       sameIndex = true
     }
-    logger.debug("orno_OOLINE + PONR = " + orno_OOLINE + ";" + ponr_OOLINE)
-    logger.debug("ItemNumber = " + ItemNumber)
-    logger.debug("whlo_OOLINE = " + whlo_OOLINE)
+    logger.debug("ornoOoline + PONR = " + ornoOoline + ";" + ponrOoline)
+    logger.debug("ItemNumber = " + itemNumber)
+    logger.debug("whloOoline = " + whloOoline)
     logger.debug("foundLineIndex = " + foundLineIndex)
-    conn_MHDISH = 0
+    connMhdish = 0
     if (foundLineIndex) {
 
-      DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX", "OQCONN", "OQRSCD").build()
-      DBContainer MHDISH = query_MHDISH.getContainer()
+      DBAction queryMhdish = database.table("MHDISH").index("00").selection("OQDLIX", "OQCONN", "OQRSCD").build()
+      DBContainer MHDISH = queryMhdish.getContainer()
       MHDISH.set("OQCONO", currentCompany)
       MHDISH.set("OQINOU", 1)
       MHDISH.set("OQDLIX", lineIndex)
-      if (query_MHDISH.read(MHDISH)) {
-        conn_MHDISH = MHDISH.get("OQCONN")
-        rscd_MHDISH = MHDISH.get("OQRSCD") //20230821 MLQ
+      if (queryMhdish.read(MHDISH)) {
+        connMhdish = MHDISH.get("OQCONN")
+        rscdMhdish = MHDISH.get("OQRSCD") //20230821 MLQ
       }
     }
 
     // get allocation method in MITBAL
     allocMethod = false
-    DBAction query_MITBAL = database.table("MITBAL").index("00").selection("MBALMT").build()
-    DBContainer MITBAL = query_MITBAL.getContainer()
+    DBAction queryMitbal = database.table("MITBAL").index("00").selection("MBALMT").build()
+    DBContainer MITBAL = queryMitbal.getContainer()
     MITBAL.set("MBCONO", currentCompany)
-    MITBAL.set("MBITNO", ItemNumber)
-    MITBAL.set("MBWHLO", whlo_OOLINE)
-    if (query_MITBAL.read(MITBAL)) {
+    MITBAL.set("MBITNO", itemNumber)
+    MITBAL.set("MBWHLO", whloOoline)
+    if (queryMitbal.read(MITBAL)) {
       if (6 == MITBAL.getInt("MBALMT") || 7 == MITBAL.getInt("MBALMT")) {
         allocMethod = true
       }
@@ -363,32 +376,31 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       logger.debug("samedata")
 
       if ((mi.in.get("DLIX") != null)) {
-        DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX").build()
-        DBContainer MHDISH = query_MHDISH.getContainer()
+        DBAction queryMhdish = database.table("MHDISH").index("00").selection("OQDLIX").build()
+        DBContainer MHDISH = queryMhdish.getContainer()
         MHDISH.set("OQCONO", currentCompany)
         MHDISH.set("OQINOU", 1)
-        MHDISH.set("OQDLIX", dlix_input)
-        if (!query_MHDISH.read(MHDISH)) {
-          // mi.error("Index de livraison  " + dlix_input + " n'existe pas")
+        MHDISH.set("OQDLIX", dlixInput)
+        if (!queryMhdish.read(MHDISH)) {
         }
       }
       // get OCUSMA
-      DBAction query_OCUSMA = database.table("OCUSMA").index("00").selection("OKCUNO", "OKCUNM").build()
-      DBContainer OCUSMA = query_OCUSMA.getContainer()
+      DBAction queryOcusma = database.table("OCUSMA").index("00").selection("OKCUNO", "OKCUNM").build()
+      DBContainer OCUSMA = queryOcusma.getContainer()
       OCUSMA.set("OKCONO", currentCompany)
-      OCUSMA.set("OKCUNO", cuno_OOLINE)
-      if (query_OCUSMA.read(OCUSMA)) {
-        cust_name = OCUSMA.get("OKCUNM")
-        cust_number = OCUSMA.get("OKCUNO")
+      OCUSMA.set("OKCUNO", cunoOoline)
+      if (queryOcusma.read(OCUSMA)) {
+        custName = OCUSMA.get("OKCUNM")
+        custNumber = OCUSMA.get("OKCUNO")
       }
 
       // get MITMAS
       baseUnit = ""
-      DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMITDS", "MMPUUN", "MMUNMS", "MMGRWE", "MMVOL3", "MMSPUN").build()
-      DBContainer MITMAS = query_MITMAS.getContainer()
+      DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMITDS", "MMPUUN", "MMUNMS", "MMGRWE", "MMVOL3", "MMSPUN").build()
+      DBContainer MITMAS = queryMitmas.getContainer()
       MITMAS.set("MMCONO", currentCompany)
-      MITMAS.set("MMITNO", ItemNumber)
-      if (query_MITMAS.read(MITMAS)) {
+      MITMAS.set("MMITNO", itemNumber)
+      if (queryMitmas.read(MITMAS)) {
         description = MITMAS.get("MMITDS")
         baseUnit = MITMAS.get("MMUNMS")
         volume = MITMAS.getDouble("MMVOL3")
@@ -396,10 +408,21 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
       }
 
-      double ALQT = new BigDecimal(alqt_OOLINE).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double GRWE = new BigDecimal(alqt_OOLINE * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double VOL3 = new BigDecimal(alqt_OOLINE * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      //double ZAAM = new BigDecimal (alqt_OOLINE * sapr_OOLINE).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double ALQT = new BigDecimal(alqtOoline).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double GRWE = new BigDecimal(alqtOoline * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double VOL3 = new BigDecimal(alqtOoline * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+      ExpressionFactory expressionMitaun = database.getExpressionFactory("MITAUN")
+      expressionMitaun = expressionMitaun.eq("MUALUN","COL")
+      expressionMitaun = expressionMitaun.or(expressionMitaun.eq("MUALUN","UPA"))
+      DBAction queryMitaun = database.table("MITAUN").index("00").matching(expressionMitaun).selection("MUALUN","MUCOFA").build()
+      DBContainer MITAUN = queryMitaun.getContainer()
+      MITAUN.set("MUCONO", currentCompany)
+      MITAUN.set("MUITNO", itemNumber)
+      MITAUN.set("MUAUTP", 1)
+
+      if(queryMitaun.readAll(MITAUN,3, nbMaxRecord, dataMITAUN)){
+      }
 
       //Check if record exists
       DBAction queryEXT051 = database.table("EXT051")
@@ -426,6 +449,8 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
           "EXDLIX",
           "EXCONN",
           "EXRSCD", //20230821 MLQ
+          "EXCOLS",
+          "EXPALS",
           "EXRGDT",
           "EXRGTM",
           "EXLMDT",
@@ -441,8 +466,8 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       containerEXT051.set("EXUCA5", semaine)
       containerEXT051.set("EXUCA6", annee)
       containerEXT051.set("EXORNO", commande)
-      containerEXT051.set("EXPONR", ponr_OOLINE)
-      containerEXT051.set("EXPOSX", posx_OOLINE)
+      containerEXT051.set("EXPONR", ponrOoline)
+      containerEXT051.set("EXPOSX", posxOoline)
 
       //Record exists
       if (!queryEXT051.read(containerEXT051)) {
@@ -452,21 +477,23 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
         containerEXT051.set("EXUCA5", semaine)
         containerEXT051.set("EXUCA6", annee)
         containerEXT051.set("EXORNO", commande)
-        containerEXT051.set("EXPONR", ponr_OOLINE)
-        containerEXT051.set("EXPOSX", posx_OOLINE)
-        containerEXT051.set("EXLTYP", ltyp_OOLINE)
-        containerEXT051.set("EXORST", orst_OOLINE)
-        containerEXT051.set("EXCUNO", cust_number)
-        containerEXT051.set("EXCUNM", cust_name)
-        containerEXT051.set("EXITNO", ItemNumber)
+        containerEXT051.set("EXPONR", ponrOoline)
+        containerEXT051.set("EXPOSX", posxOoline)
+        containerEXT051.set("EXLTYP", ltypOoline)
+        containerEXT051.set("EXORST", orstOoline)
+        containerEXT051.set("EXCUNO", custNumber)
+        containerEXT051.set("EXCUNM", custName)
+        containerEXT051.set("EXITNO", itemNumber)
         containerEXT051.set("EXITDS", description)
         containerEXT051.set("EXALQT", ALQT)
         containerEXT051.set("EXGRWE", GRWE)
         containerEXT051.set("EXVOL3", VOL3)
-        containerEXT051.set("EXZAAM", lnam_OOLINE)
+        containerEXT051.set("EXCOLS", nbOfCols)
+        containerEXT051.set("EXPALS", nbOfPals)
+        containerEXT051.set("EXZAAM", lnamOoline)
         containerEXT051.set("EXDLIX", lineIndex)
-        containerEXT051.set("EXCONN", conn_MHDISH)
-        containerEXT051.set("EXRSCD", rscd_MHDISH) //20230821 MLQ
+        containerEXT051.set("EXCONN", connMhdish)
+        containerEXT051.set("EXRSCD", rscdMhdish) //20230821 MLQ
         containerEXT051.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
         containerEXT051.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
         containerEXT051.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -478,12 +505,43 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
   }
 
+  /**
+   * Retrieve MHDISL data
+   * @param containerMHDISL
+   */
   Closure<?> DataMHDISL = { DBContainer containerMHDISL ->
     lineIndex = containerMHDISL.getLong("URDLIX")
     sameIndex = true
     foundLineIndex = true
   }
 
+  /**
+   * Retrieve MITAUN data
+   * @param containerMITAUN
+   */
+  Closure<?> dataMITAUN = { DBContainer containerMITAUN ->
+    double ALQT = new BigDecimal(alqtOoline).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+    Double cofa = containerMITAUN.get("MUCOFA")
+    String alun = containerMITAUN.get("MUALUN")
+    logger.debug("MUALUNE = ${alun} ,MUCOFA = ${cofa}")
+
+    if(alun.equals("COL")){
+      nbOfCols = ALQT / cofa
+      nbOfCols = new BigDecimal(nbOfCols).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      logger.debug("nbOfCols = ${nbOfCols} and ALQT = ${ALQT} with COFA = ${cofa}"  )
+    }else if(alun.equals("UPA")){
+      nbOfPals = ALQT / cofa
+      nbOfPals = new BigDecimal(nbOfPals).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      logger.debug("nbOfPals = ${nbOfPals} and ALQT = ${ALQT} with COFA = ${cofa}")
+    }
+
+
+  }
+
+  /**
+   * Retrieve EXT051 data
+   * @param containerEXT051
+   */
   Closure<?> outData = { DBContainer containerEXT051 ->
     String dossierEXT051 = containerEXT051.get("EXUCA4")
     String semaineEXT051 = containerEXT051.get("EXUCA5")
@@ -504,28 +562,30 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     String indexEXT051 = containerEXT051.get("EXDLIX")
     String shipmentEXT051 = containerEXT051.get("EXCONN")
     String priorityEXT051 = containerEXT051.get("EXRSCD") //20230821 MLQ
+    String colsEXT051 = containerEXT051.get("EXCOLS")
+    String palsEXT051 = containerEXT051.get("EXPALS")
     String posxEXT051 = containerEXT051.get("EXPOSX") as Integer //20230821 MLQ
 
     boolean isRecordValid = false
 
 
-    if (quaFilters_input.containsValue(true)) {
+    if (quaFiltersInput.containsValue(true)) {
 
       LinkedHashMap<String, Boolean> filterResults = new LinkedHashMap<>()
-      for(key in quaFilters_input.keySet()){
-        if(quaFilters_input.get(key) == true){
+      for(key in quaFiltersInput.keySet()){
+        if(quaFiltersInput.get(key) == true){
           filterResults.put(key,false)
         }
       }
 
       logger.debug("Before check alcool")
 
-      if(quaFilters_input.get("ALCO") || quaFilters_input.get("BIER") || quaFilters_input.get("VIN1")){
+      if(quaFiltersInput.get("ALCO") || quaFiltersInput.get("BIER") || quaFiltersInput.get("VIN1")){
         filterResults = (LinkedHashMap<String, Boolean>)filterAlcool(itemEXT051, filterResults)
       }
 
       logger.debug("Before check cugex")
-      if(quaFilters_input.get("ISO1") || quaFilters_input.get("DPH1")){
+      if(quaFiltersInput.get("ISO1") || quaFiltersInput.get("DPH1")){
 
         filterResults = (LinkedHashMap<String, Boolean>)filterOnCugex(itemEXT051, filterResults)
       }
@@ -561,22 +621,40 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       mi.outData.put("DLIX", indexEXT051)
       mi.outData.put("CONN", shipmentEXT051)
       mi.outData.put("RSCD", priorityEXT051) //20230821 MLQ
+      mi.outData.put("COLS", colsEXT051)
+      mi.outData.put("PALS", palsEXT051)
       mi.outData.put("POSX", posxEXT051)
       mi.write()
     }
 
   }
 
+  /**
+   * Delete callback
+   * @param orno
+   * @param ponr
+   * @param posx
+   * @param filterResults
+   * @return
+   */
   Closure<?> deleteCallBack = { LockedResult lockedResult ->
     lockedResult.delete()
   }
 
+  /**
+   * Filter alcool
+   * @param orno
+   * @param ponr
+   * @param posx
+   * @param filterResults
+   * @return
+   */
   private filterAlcool(itno,filterResults){
 
     //Get suno from MITMAS
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMITNO","MMSUNO", "MMCFI4").build()
+    DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMITNO","MMSUNO", "MMCFI4").build()
 
-    DBContainer containerMITMAS = query_MITMAS.getContainer()
+    DBContainer containerMITMAS = queryMitmas.getContainer()
     containerMITMAS.set("MMCONO", currentCompany)
     containerMITMAS.set("MMITNO", itno)
 
@@ -585,7 +663,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     String orco = ""
     String cfi4 = ""
 
-    if(query_MITMAS.read(containerMITMAS)){
+    if(queryMitmas.read(containerMITMAS)){
       suno = containerMITMAS.get("MMSUNO")
       cfi4 = containerMITMAS.get("MMCFI4")
 
@@ -608,7 +686,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
     }
 
-    if(!quaFilters_input.get("ALCO")){
+    if(!quaFiltersInput.get("ALCO")){
       //Don't need to check more if not Alcool filter
       return filterResults
     }
@@ -617,37 +695,37 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     ExpressionFactory expressionMITPOP = database.getExpressionFactory("MITPOP")
     expressionMITPOP = expressionMITPOP.eq("MPREMK", "SIGMA6")
 
-    DBAction query_MITPOP = database.table("MITPOP").index("00").matching(expressionMITPOP).selection("MPPOPN","MPITNO","MPREMK").build()
-    DBContainer containerMITPOP = query_MITPOP.getContainer()
+    DBAction queryMitpop = database.table("MITPOP").index("00").matching(expressionMITPOP).selection("MPPOPN","MPITNO","MPREMK").build()
+    DBContainer containerMITPOP = queryMitpop.getContainer()
     containerMITPOP.set("MPCONO", currentCompany)
     containerMITPOP.set("MPALWT", 1)
     containerMITPOP.set("MPALWQ", "")
     containerMITPOP.set("MPITNO", itno)
 
-    if(query_MITPOP.readAll(containerMITPOP,4,1, {DBContainer closureMITPOP ->
+    if(queryMitpop.readAll(containerMITPOP,4,1, {DBContainer closureMITPOP ->
       popn = closureMITPOP.get("MPPOPN")
       logger.debug("In closureMITPOP, popn is : " + popn)
     } )){}
 
-    DBAction query_MITFAC = database.table("MITFAC").index("00").selection("M9FACI", "M9ITNO", "M9ORCO").build()
-    DBContainer containerMITFAC = query_MITFAC.getContainer()
+    DBAction queryMitfac = database.table("MITFAC").index("00").selection("M9FACI", "M9ITNO", "M9ORCO").build()
+    DBContainer containerMITFAC = queryMitfac.getContainer()
     containerMITFAC.set("M9CONO", currentCompany)
     containerMITFAC.set("M9FACI", "E10")
     containerMITFAC.set("M9ITNO", itno)
 
-    if(query_MITFAC.read(containerMITFAC)){
+    if(queryMitfac.read(containerMITFAC)){
       orco = containerMITFAC.get("M9ORCO")
       logger.debug("In closureMITFAC, orco is : " + orco)
     }
 
-    DBAction query_EXT032 = database.table("EXT032").index("00").selection("EXZALC", "EXPOPN","EXSUNO","EXORCO").build()
-    DBContainer containerEXT032 = query_EXT032.getContainer()
+    DBAction queryExt032 = database.table("EXT032").index("00").selection("EXZALC", "EXPOPN","EXSUNO","EXORCO").build()
+    DBContainer containerEXT032 = queryExt032.getContainer()
     containerEXT032.set("EXCONO", currentCompany)
     containerEXT032.set("EXPOPN", popn)
     containerEXT032.set("EXSUNO", suno)
     containerEXT032.set("EXORCO", orco)
 
-    if(query_EXT032.read(containerEXT032)){
+    if(queryExt032.read(containerEXT032)){
       if(containerEXT032.get("EXZALC")){
 
         filterResults["ALCO"] = true
@@ -658,12 +736,18 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     return filterResults
   }
 
+  /**
+   * Filter on CUGEX1
+   * @param itno
+   * @param filterResults
+   * @return
+   */
   private filterOnCugex(itno, filterResults){
 
     LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>)filterResults
 
-    DBAction query_CUGEX1 = database.table("CUGEX1").index("00").selection("F1CHB9", "F1CHB6").build()
-    DBContainer CUGEX1 = query_CUGEX1.getContainer()
+    DBAction queryCugex1 = database.table("CUGEX1").index("00").selection("F1CHB9", "F1CHB6").build()
+    DBContainer CUGEX1 = queryCugex1.getContainer()
     CUGEX1.set("F1CONO", currentCompany)
     CUGEX1.set("F1FILE", "MITMAS")
     CUGEX1.set("F1PK01", itno)
@@ -673,7 +757,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     int chb6 = 0
     int chb9 = 0
 
-    if(query_CUGEX1.readAll(CUGEX1,3,1, { DBContainer closureCugex1 ->
+    if(queryCugex1.readAll(CUGEX1,3,1, { DBContainer closureCugex1 ->
       chb6 = closureCugex1.get("F1CHB6")
       chb9 = closureCugex1.get("F1CHB9")
     })){
@@ -694,14 +778,21 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     }
   }
 
-
+  /**
+   * Filter on EXT036
+   * @param orno
+   * @param ponr
+   * @param posx
+   * @param filterResults
+   * @return
+   */
   private filterOnEXT036(orno, ponr, posx, filterResults){
 
     LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>)filterResults
     posx = posx == null ? 0 : posx
 
-    DBAction query_EXT036 = database.table("EXT036").index("00").selection("EXORNO","EXPONR","EXITNO","EXZSTY", "EXZCTY").build()
-    DBContainer containerEXT036 = query_EXT036.getContainer()
+    DBAction queryExt036 = database.table("EXT036").index("00").selection("EXORNO","EXPONR","EXITNO","EXZSTY", "EXZCTY").build()
+    DBContainer containerEXT036 = queryExt036.getContainer()
     containerEXT036.set("EXCONO", currentCompany)
     containerEXT036.set("EXORNO", orno)
     containerEXT036.set("EXPONR", ponr as Integer)
@@ -710,7 +801,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     String zcty = ""
     String zsty = ""
     String itno = ""
-    if(query_EXT036.readAll(containerEXT036, 4,50, {DBContainer closureEXT036 ->
+    if(queryExt036.readAll(containerEXT036, 4,50, {DBContainer closureEXT036 ->
       zcty = closureEXT036.get("EXZCTY")
       zsty = closureEXT036.get("EXZSTY")
       itno = closureEXT036.get("EXITNO")
@@ -742,12 +833,12 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       }
 
       if(results.containsKey("DGX4") && zsty.trim() == "DGX"){
-        DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMHAC1").build()
-        DBContainer containerMITMAS = query_MITMAS.getContainer()
+        DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMHAC1").build()
+        DBContainer containerMITMAS = queryMitmas.getContainer()
         containerMITMAS.set("MMCONO", currentCompany)
         containerMITMAS.set("MMITNO", itno)
 
-        if(query_MITMAS.read(containerMITMAS)){
+        if(queryMitmas.read(containerMITMAS)){
           String haci = containerMITMAS.get("MMHAC1")
           if(haci == "4.1" || haci == "4.2" || haci == "4.3"){
             results["DGX4"] = true
@@ -759,9 +850,4 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
     return results
   }
-
-
-
-
-
 }

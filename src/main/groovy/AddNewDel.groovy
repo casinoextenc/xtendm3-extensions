@@ -724,17 +724,11 @@ public class AddNewDel extends ExtendM3Transaction {
    *
    */
   public void blopunblopIndex(String index, int blop) {
-    /*
-      We have to update MHDISH reocrd in order to lock the delivery
-      then to have ourt new delivery lines on a new delivery heazd
-      it works like interractive program MWS410 option 51 & 52
-      Support Case  : 17334686
-      EHR           : #98882
-    */
     logger.debug("blopunblopIndex dlix:${index} blop:${blop}")
     if (index == 0 || !(blop == 0 || blop == 1)) {
       return
     }
+
 
     DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX", "OQBLOP").build()
     DBContainer MHDISH = query_MHDISH.getContainer()

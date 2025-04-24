@@ -1,19 +1,17 @@
-/**                    
-* Name: EXT050MI.AddNewDelPal
-* Migration projet GIT
-* old file = EXT050MI_AddNewDelPal.groovy
-*/
+/****************************************************************************************
+ Extension Name: EXT050MI.AddNewDelPal
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-26
+ Description:
+ * Add new delivery pallet
 
+ Revision History:
+ Name        Date        Version   Description of Changes
+ SEAR        2023-05-26  1.0       LOG28 - Creation of files and containers
+ ARENARD     2025-04-22  1.1       Code has been checked
+ ******************************************************************************************/
 
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.AddNewDelPal
- * Description : batch template
- * Date         Changed By   Description
- * 20230526     SEAR         LOG28 - Creation of files and containers
- */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -30,6 +28,7 @@ public class AddNewDelPal extends ExtendM3Transaction {
   private int currentCompany
 
   private String jobNumber
+  private Integer nbMaxRecord = 10000
 
   public AddNewDelPal(MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility, LoggerAPI logger) {
     this.mi = mi
@@ -40,6 +39,7 @@ public class AddNewDelPal extends ExtendM3Transaction {
     this.logger = logger
   }
 
+  // Main
   public void main() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentCompany = (Integer)program.getLDAZD().CONO
@@ -60,30 +60,30 @@ public class AddNewDelPal extends ExtendM3Transaction {
     logger.debug("EXT050MI.AddNewDelPal bjno:${jobNumber}")
 
 
-    ExpressionFactory MITALO_expr = database.getExpressionFactory("MITALO")
-    MITALO_expr = MITALO_expr.eq("MQCAMU", camu)
-    
-    DBAction MITALO_query = database.table("MITALO").index("10").matching(MITALO_expr).selection("MQRIDN").build()
-    DBContainer MITALO_request = MITALO_query.getContainer()
-    MITALO_request.set("MQCONO", currentCompany)
-    MITALO_request.set("MQTTYP", 31)
-    
-    
-    Closure<?> MITALO_reader = { DBContainer MITALO_result ->
+    ExpressionFactory mitaloExpr = database.getExpressionFactory("MITALO")
+    mitaloExpr = mitaloExpr.eq("MQCAMU", camu)
+
+    DBAction mitaloQuery = database.table("MITALO").index("10").matching(mitaloExpr).selection("MQRIDN").build()
+    DBContainer mitaloRequest = mitaloQuery.getContainer()
+    mitaloRequest.set("MQCONO", currentCompany)
+    mitaloRequest.set("MQTTYP", 31)
+
+
+    Closure<?> mitaloReader = { DBContainer mitaloResult ->
     }
-    
-    if(!MITALO_query.readAll(MITALO_request, 2, MITALO_reader)) {
+
+    if(!mitaloQuery.readAll(mitaloRequest, 2, nbMaxRecord, mitaloReader)) {
       mi.error("Le numéro de palette " + camu + " n'existe pas")
       return
     }
 
     if (mi.in.get("TLIX") != null) {
-      DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX").build()
-      DBContainer MHDISH = query_MHDISH.getContainer()
+      DBAction queryMhdish = database.table("MHDISH").index("00").selection("OQDLIX").build()
+      DBContainer MHDISH = queryMhdish.getContainer()
       MHDISH.set("OQCONO", currentCompany)
       MHDISH.set("OQINOU", 1)
       MHDISH.set("OQDLIX", tlix)
-      if(!query_MHDISH.read(MHDISH)){
+      if(!queryMhdish.read(MHDISH)){
         mi.error("Index de livraison  " + tlix + " n'existe pas")
         return
       }
@@ -91,8 +91,8 @@ public class AddNewDelPal extends ExtendM3Transaction {
 
     //Check if record exists
     DBAction queryEXT059 = database.table("EXT059")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXCONO",
         "EXBJNO",
         "EXORNO",
@@ -103,8 +103,8 @@ public class AddNewDelPal extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer containerEXT059 = queryEXT059.getContainer()
     containerEXT059.set("EXBJNO", jobNumber)

@@ -1,19 +1,17 @@
-/**                    
-* Name: EXT050MI.AddNewDelLine
-* Migration projet GIT
-* old file = EXT050MI_AddNewDelLine.groovy
-*/
+/****************************************************************************************
+ Extension Name: EXT050MI.AddNewDelLine
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-26
+ Description:
+ * Add new delivery line
 
+ Revision History:
+ Name        Date        Version   Description of Changes
+ SEAR        2023-05-26  1.0       LOG28 - Creation of files and containers
+ ARENARD     2025-04-22  1.1       Code has been checked
+ ******************************************************************************************/
 
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.AddNewDelLine
- * Description : batch template
- * Date         Changed By   Description
- * 20230526     SEAR         LOG28 - Creation of files and containers
- */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -30,6 +28,7 @@ public class AddNewDelLine extends ExtendM3Transaction {
   private int currentCompany
 
   private String jobNumber
+  private Integer nbMaxRecord = 10000
 
   public AddNewDelLine(MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.mi = mi
@@ -39,6 +38,7 @@ public class AddNewDelLine extends ExtendM3Transaction {
     this.utility = utility
   }
 
+  // Main
   public void main() {
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -58,54 +58,54 @@ public class AddNewDelLine extends ExtendM3Transaction {
     long tlix  = (Long)(mi.in.get("TLIX") != null ? mi.in.get("TLIX") : 0)
     String dlix = null
 
-    DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection("OAORNO").build()
-    DBContainer OOHEAD = OOHEAD_query.getContainer()
+    DBAction ooheadQuery = database.table("OOHEAD").index("00").selection("OAORNO").build()
+    DBContainer OOHEAD = ooheadQuery.getContainer()
     OOHEAD.set("OACONO", currentCompany)
     OOHEAD.set("OAORNO", orno)
-    if(!OOHEAD_query.read(OOHEAD)) {
+    if(!ooheadQuery.read(OOHEAD)) {
       mi.error("Le numéro de commande " + orno + " n'existe pas")
       return
     }
 
     if (mi.in.get("TLIX") != null) {
-      DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX").build()
-      DBContainer MHDISH = query_MHDISH.getContainer()
+      DBAction queryMhdish = database.table("MHDISH").index("00").selection("OQDLIX").build()
+      DBContainer MHDISH = queryMhdish.getContainer()
       MHDISH.set("OQCONO", currentCompany)
       MHDISH.set("OQINOU", 1)
       MHDISH.set("OQDLIX", tlix)
-      if(!query_MHDISH.read(MHDISH)){
+      if(!queryMhdish.read(MHDISH)){
         mi.error("Index de livraison  " + tlix + " n'existe pas")
         return
       }
     }
 
-    
-    DBAction MHDISL_query = database.table("MHDISL").index("10").build()
-    DBContainer MHDISL_request = MHDISL_query.getContainer()
-    MHDISL_request.set("URCONO", currentCompany)
-    MHDISL_request.set("URRORC", 3)
-    MHDISL_request.set("URRIDN", orno)
-    MHDISL_request.set("URRIDL", ponr)
-    MHDISL_request.set("URRIDX", posx)
-    
-    Closure<?> closure_MHDISL = { DBContainer MHDISL_result ->
+
+    DBAction mhdislQuery = database.table("MHDISL").index("10").build()
+    DBContainer mhdislRequest = mhdislQuery.getContainer()
+    mhdislRequest.set("URCONO", currentCompany)
+    mhdislRequest.set("URRORC", 3)
+    mhdislRequest.set("URRIDN", orno)
+    mhdislRequest.set("URRIDL", ponr)
+    mhdislRequest.set("URRIDX", posx)
+
+    Closure<?> closureMhdisl = { DBContainer mhdislResult ->
       if (dlix == null)
-        dlix = MHDISL_result.get("URDLIX") as String
+        dlix = mhdislResult.get("URDLIX") as String
     }
 
-    
-    
-    if (!MHDISL_query.readAll(MHDISL_request, 5, closure_MHDISL)) {
+
+
+    if (!mhdislQuery.readAll(mhdislRequest, 5, nbMaxRecord, closureMhdisl)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
 
-    
-    
+
+
     //Check if record exists
     DBAction queryEXT057 = database.table("EXT057")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXCONO",
         "EXBJNO",
         "EXORNO",
@@ -118,8 +118,8 @@ public class AddNewDelLine extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer containerEXT057 = queryEXT057.getContainer()
     containerEXT057.set("EXBJNO", jobNumber)

@@ -1,3 +1,12 @@
+/**
+ * README
+ * This extension is used by Mashup
+ *
+ * Name : EXT050MI.LstDLIX
+ * Description : List delivery indexes
+ * Date         Changed By   Description
+ * 20230828     FLEBARS      LOG28 - Creation of files and containers
+ */
 public class LstDLIX extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
@@ -6,8 +15,7 @@ public class LstDLIX extends ExtendM3Transaction {
   private final ProgramAPI program
   private final UtilityAPI utility
   private Integer currentCompany
-
-
+  private Integer nbMaxRecord = 10000
 
   public LstDLIX(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program,UtilityAPI utility,MICallerAPI miCaller) {
     this.mi = mi
@@ -37,10 +45,9 @@ public class LstDLIX extends ExtendM3Transaction {
 
     List<String> dlixes = new ArrayList<String>()
 
-    
     //GET MHDISH DATA For input DLIX
-    DBAction MHDISH_query = database.table("MHDISH")
-        .selection(
+    DBAction mhdishQuery = database.table("MHDISH")
+      .selection(
         "OQCONO"
         ,"OQINOU"
         ,"OQDLIX"
@@ -56,77 +63,70 @@ public class LstDLIX extends ExtendM3Transaction {
         ,"OQFWNO"
         ,"OQAGKY"
         ,"OQDCC1"
-        )
-        .index("00")
-        .build()
+      )
+      .index("00")
+      .build()
 
-
-    DBContainer MHDISH_request = MHDISH_query.getContainer()
-    MHDISH_request.set("OQCONO", currentCompany)
-    MHDISH_request.set("OQINOU", 1)
-    MHDISH_request.set("OQDLIX", dlix as Long)
-    if (MHDISH_query.read(MHDISH_request)) {
-      rorc = MHDISH_request.get("OQRORC") as Integer
-      whlo = MHDISH_request.get("OQWHLO") as String
-      dpol = MHDISH_request.get("OQDPOL") as String
-      modl = MHDISH_request.get("OQMODL") as String
-      tedl = MHDISH_request.get("OQTEDL") as String
-      srot = MHDISH_request.get("OQSROT") as String
-      cona = MHDISH_request.get("OQCONA") as String
-      coaa = MHDISH_request.get("OQCOAA") as String
-      pcka = MHDISH_request.get("OQPCKA") as String
-      fwno = MHDISH_request.get("OQFWNO") as String
-      agky = MHDISH_request.get("OQAGKY") as String
-      dcc1 = MHDISH_request.get("OQDCC1") as String
+    DBContainer mhdishRequest = mhdishQuery.getContainer()
+    mhdishRequest.set("OQCONO", currentCompany)
+    mhdishRequest.set("OQINOU", 1)
+    mhdishRequest.set("OQDLIX", dlix as Long)
+    if (mhdishQuery.read(mhdishRequest)) {
+      rorc = mhdishRequest.get("OQRORC") as Integer
+      whlo = mhdishRequest.get("OQWHLO") as String
+      dpol = mhdishRequest.get("OQDPOL") as String
+      modl = mhdishRequest.get("OQMODL") as String
+      tedl = mhdishRequest.get("OQTEDL") as String
+      srot = mhdishRequest.get("OQSROT") as String
+      cona = mhdishRequest.get("OQCONA") as String
+      coaa = mhdishRequest.get("OQCOAA") as String
+      pcka = mhdishRequest.get("OQPCKA") as String
+      fwno = mhdishRequest.get("OQFWNO") as String
+      agky = mhdishRequest.get("OQAGKY") as String
+      dcc1 = mhdishRequest.get("OQDCC1") as String
     }
-    
-    
+
     //
     //  Load relative indexes
     //
-    ExpressionFactory MHDISH2_expression = database.getExpressionFactory("MHDISH")
-    MHDISH2_expression = MHDISH2_expression.lt("OQPGRS", '50')
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQRORC", "" + rorc))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQWHLO", whlo))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQDPOL", dpol))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQMODL", modl))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQTEDL", tedl))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQSROT", srot))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQCOAA", coaa))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQPCKA", pcka))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQFWNO", fwno))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQAGKY", agky))
-    MHDISH2_expression = MHDISH2_expression.and (MHDISH2_expression.eq("OQDCC1", dcc1))
-    
-    
+    ExpressionFactory mhdish2Expression = database.getExpressionFactory("MHDISH")
+    mhdish2Expression = mhdish2Expression.lt("OQPGRS", '50')
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQRORC", "" + rorc))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQWHLO", whlo))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQDPOL", dpol))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQMODL", modl))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQTEDL", tedl))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQSROT", srot))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQCOAA", coaa))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQPCKA", pcka))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQFWNO", fwno))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQAGKY", agky))
+    mhdish2Expression = mhdish2Expression.and (mhdish2Expression.eq("OQDCC1", dcc1))
 
-    DBAction MHDISH2_query = database.table("MHDISH")
-        .matching(MHDISH2_expression)
-        .index("50")
-        .build()
+    DBAction mhdish2Query = database.table("MHDISH")
+      .matching(mhdish2Expression)
+      .index("50")
+      .build()
 
-    Closure<?> MHDISH2_reader = { DBContainer MHDISH2_result ->
-      String tmp = MHDISH2_result.get("OQDLIX") as String
+    Closure<?> mhdish2Reader = { DBContainer mhdish2Result ->
+      String tmp = mhdish2Result.get("OQDLIX") as String
       if (!tmp.equals(dlix))
         dlixes.add(tmp)
     }
 
+    DBContainer mhdish2Request = mhdish2Query.getContainer()
+    mhdish2Request.set("OQCONO", currentCompany)
+    mhdish2Request.set("OQINOU", 1)
+    mhdish2Request.set("OQCONA", cona)
 
-    DBContainer MHDISH2_request = MHDISH2_query.getContainer()
-    MHDISH2_request.set("OQCONO", currentCompany)
-    MHDISH2_request.set("OQINOU", 1)
-    MHDISH2_request.set("OQCONA", cona)
-    
-    if (MHDISH2_query.readAll(MHDISH2_request, 3, MHDISH2_reader)) {
+    if (mhdish2Query.readAll(mhdish2Request, 3, nbMaxRecord, mhdish2Reader)) {
     }
-    
-    Collections.sort(dlixes);
-    
+
+    Collections.sort(dlixes)
+
     for (dlix1 in dlixes) {
       mi.outData.put("DLIX", dlix1)
       mi.write()
     }
-
-    
   }
 }

@@ -1,19 +1,18 @@
 /**
- * Name : EXT010MI.DelRefAsso
+ * Name : EXT010MI.DelRefAssoHist
  * Description :
- * This API method to delete records in specific table EXT010 Customer Assortment
+ * This API method to delete records in specific table EXT011 Customer Assortment
  * COMX01 Gestion des assortiments clients
  * Date         Changed By    Description
  * 20221122     FLEBARS       COMX01 - Creation
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
- * 20250114     YJANNIN       COMX01 - Historisation
- * 20250409     PBEAUDOUIN    COMX01 - Check For Approval
+ * 20240409     PBEAUDOUIN    COMX01 - Check for approval
  */
 
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-public class DelRefAsso extends ExtendM3Transaction {
+public class DelRefAssoHist extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
@@ -23,7 +22,7 @@ public class DelRefAsso extends ExtendM3Transaction {
   private int currentCompany
 
 
-  public DelRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
+  public DelRefAssoHist(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger

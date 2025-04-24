@@ -1,12 +1,17 @@
-/**
- * README
- * This extension is used by EventHub
- *
- * Name : EXT062MI.AddSrvChrgOrdLn
- * Description : Add line to service order charge
- * Date         Changed By   Description
- * 20231124     RENARN       CMD03 - Calculation of service charges
- */
+/****************************************************************************************
+ Extension Name: EXT062MI.AddSrvChrgOrdLn
+ Type: ExtendM3Transaction
+ Script Author: RENARN
+ Date: 2023-11-24
+ Description:
+ * Add line to service order charge
+
+ Revision History:
+ Name        Date         Version   Description of Changes
+ RENARN      2023-11-24   1.0       CMD03 - Calculation of service charges
+ ARENARD     2025-04-22   1.1       Code has been checked
+ ******************************************************************************************/
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -191,6 +196,7 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
         return
       }
 
+
       // Retrieve order line informations
       itno = ""
       sapr = ""
@@ -215,26 +221,24 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       // Search corresponding service charge order
       ExpressionFactory ooheadFrExpression = database.getExpressionFactory("OOHEAD")
       ooheadFrExpression = ooheadFrExpression.eq("OAOFNO", inOrno)
-      ooheadFrExpression = ooheadFrExpression.and(ooheadFrExpression.eq("OAUDN3", inDLIX))
+      //ooheadFrExpression = ooheadFrExpression.and(ooheadFrExpression.eq("OAUDN3", inDlix.toString()))
 
-      DBAction ooheadFRQuery = database.table("OOHEAD").index("00").matching(ooheadFrExpression).selection("OACONO", "OAORNO").build()
-      DBContainer ooheadFRRequest = ooheadQuery.getContainer()
-      ooheadFRRequest.setInt("OACONO", currentCompany)
-      Closure<?> ooheadFRReader = { DBContainer OOHEAD ->
+      DBAction ooheadFrQuery = database.table("OOHEAD").index("00").matching(ooheadFrExpression).selection("OACONO", "OAORNO").build()
+      DBContainer ooheadFrRequest = ooheadQuery.getContainer()
+      ooheadFrRequest.setInt("OACONO", currentCompany)
+      Closure<?> ooheadFrReader = { DBContainer OOHEAD ->
         logger.debug("Commande de frais existante trouvée - Ajout ligne")
         // Existing service order charge is found, adding the line
         existingServiceChargeOrderOrno = OOHEAD.get("OAORNO")
         newPonr = 0
         newPosx = 0
-        logger.debug("Création ligne orqt:${orqt} alun:${alun}")
-        executeOIS100MIAddLineBatchEnt(existingServiceChargeOrderOrno, itno, orqt, "", inWhlo, alun, dwdt)
-        updateServiceOrderLine()
+        executeOIS100MIUpdUserDefCOL(existingServiceChargeOrderOrno.toString(),inPonr.toString(),inPosx.toString(),inDlix.toString(),inOrno.toString(),inPonr.toString(),inPosx.toString())
         mi.outData.put("ORNO", existingServiceChargeOrderOrno)
         mi.outData.put("PONR", newPonr as String)
         mi.outData.put("POSX", newPosx as String)
         mi.write()
       }
-      if (!ooheadFRQuery.readAll(ooheadFRRequest, 1, 1, ooheadFRReader)) {
+      if (!ooheadFrQuery.readAll(ooheadFrRequest, 1, 1, ooheadFrReader)) {
         logger.debug("Commande de frais n'existe pas")
         // Service charge order does not exist, it must be created
         newOrno = ""
@@ -246,8 +250,7 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
           newPonr = 0
           newPosx = 0
           logger.debug("Ajout ligne")
-          //executeOIS100MIAddLineBatchEnt(newOrno, itno, orqt, "", inWhlo, alun, dwdt)
-          updateServiceOrderLine()
+          executeOIS100MIUpdUserDefCOL(newOrno.toString(),inPonr.toString(),inPosx.toString(),inDlix.toString(),inOrno.toString(),inPonr.toString(),inPosx.toString())
         }
         mi.outData.put("ORNO", newOrno)
         mi.outData.put("PONR", newPonr as String)
@@ -259,19 +262,24 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       return
     }
   }
-  // Update new order line with delivery order line primary key
-  private updateServiceOrderLine() {
-    logger.debug("Màj ligne newORNO/newPONR/newPOSX = " + newOrno + "/" + newPonr + "/" + newPosx)
-    DBAction queryOOLINE = database.table("OOLINE").index("00").build()
-    DBContainer OOLINE = queryOOLINE.getContainer()
-    OOLINE.set("OBCONO", currentCompany)
-    OOLINE.set("OBORNO", newOrno)
-    OOLINE.set("OBPONR", newPonr)
-    OOLINE.set("OBPOSX", newPosx)
-    if (!queryOOLINE.readLock(OOLINE, updateCallBack)) {
-    }
-  }
-  // Execute OIS100MI.CpyOrder
+  /**
+   * Execute OIS100MI.CpyOrder
+   * @param ornr
+   * @param ortp
+   * @param corh
+   * @param corl
+   * @param coch
+   * @param cotx
+   * @param clch
+   * @param cltx
+   * @param cadr
+   * @param sapr
+   * @param ucos
+   * @param jdcd
+   * @param rldt
+   * @param codt
+   * @param epri
+   */
   private executeOIS100MICpyOrder(String ornr, String ortp, String corh, String corl, String coch, String cotx, String clch, String cltx, String cadr, String sapr, String ucos, String jdcd, String rldt, String codt, String epri) {
     Map<String, String> parameters = ["ORNR": ornr, "ORTP": ortp, "CORH": corh, "CORL": corl, "COCH": coch, "COTX": cotx, "CLCH": clch, "CLTX": cltx, "CADR": cadr, "SAPR": sapr, "UCOS": ucos, "JDCD": jdcd, "RLDT": rldt, "CODT": codt, "EPRI": epri]
     logger.debug("Paramètres OIS100MI CpyOrder: " + parameters)
@@ -286,7 +294,11 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     }
     miCaller.call("OIS100MI", "CpyOrder", parameters, handler)
   }
-  // Execute OIS100MI.ChgOrderRef
+  /**
+   * Execute OIS100MI.ChgOrderRef
+   * @param orno
+   * @param ofno
+   */
   private executeOIS100MIChgOrderRef(String orno, String ofno) {
     logger.debug("Changement de référence de commande orno:" + orno + " ofno:" + ofno)
     Map<String, String> parameters = ["ORNO": orno, "OFNO": ofno]
@@ -298,7 +310,15 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     }
     miCaller.call("OIS100MI", "ChgOrderRef", parameters, handler)
   }
-  // Execute OIS100MI.AddLineBatchEnt
+  /** Execute OIS100MI.AddLineBatchEnt
+   * @param orno
+   * @param itno
+   * @param orqt
+   * @param sapr
+   * @param whlo
+   * @param alun
+   * @param dwdt
+   */
   private executeOIS100MIAddLineBatchEnt(String orno, String itno, String orqt, String sapr, String whlo, String alun, String dwdt) {
     Map<String, String> parameters = ["ORNO": orno, "ITNO": itno, "ORQT": orqt, "SAPR": sapr, "WHLO": whlo, "ALUN": alun, "DWDT": dwdt]
     Closure<?> handler = { Map<String, String> response ->
@@ -313,17 +333,24 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
     miCaller.call("OIS100MI", "AddLineBatchEnt", parameters, handler)
   }
 
-  // Update OOLINE
-  Closure<?> updateCallBack = { LockedResult lockedResult ->
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    int changeNumber = lockedResult.get("OBCHNO")
-    lockedResult.set("OBUCA6", inOrno)
-    lockedResult.set("OBUCA7", inPonr as String)
-    lockedResult.set("OBUCA8", inPosx as String)
-    lockedResult.set("OBUCA9", inDlix as String)
-    lockedResult.setInt("OBLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-    lockedResult.setInt("OBCHNO", changeNumber + 1)
-    lockedResult.set("OBCHID", program.getUser())
-    lockedResult.update()
+  /** Execute OIS100MI.UpdUserDefCOL
+   * @param newOrno
+   * @param newPonr
+   * @param newPosx
+   * @param dlix
+   * @param origORNO
+   * @param origPONR
+   * @param origPosx
+   */
+  private executeOIS100MIUpdUserDefCOL(String newOrno, String newPonr, String newPosx, String dlix, String origORNO, String origPONR, String origPosx) {
+    Map<String, String> parameters = ["ORNO": newOrno, "PONR": newPonr, "UCA6": inOrno.toString(), "UCA7": inPonr.toString(), "UCA8": inPosx.toString(), "UCA9": dlix]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        return mi.error("Erreur OIS100MI UpdUserDefCOL: " + response.errorMessage)
+      } else {
+        logger.debug("Order ${newOrno} updated on line ${inPonr.toString()}, newPonr: ${newPonr}")
+      }
+    }
+    miCaller.call("OIS100MI", "UpdUserDefCOL", parameters, handler)
   }
 }

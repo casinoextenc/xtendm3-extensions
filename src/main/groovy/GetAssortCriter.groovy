@@ -15,6 +15,7 @@ public class GetAssortCriter extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final UtilityAPI utility
+  private Integer nbMaxRecord = 10000
 
   public GetAssortCriter(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -60,44 +61,41 @@ public class GetAssortCriter extends ExtendM3Transaction {
       return
     }
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction ext032Query = database.table("EXT020").index("00").selection("EXCONO", "EXASCD", "EXCUNO", "EXFDAT", "EXSTAT", "EXSTTS", "EXNDTS", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
-    DBContainer ext032Request = ext032Query.getContainer()
-    ext032Request.set("EXCONO", currentCompany)
-    ext032Request.set("EXCUNO", cuno)
-    ext032Request.set("EXASCD", ascd)
-    ext032Request.setInt("EXFDAT", fdat as Integer)
-    if (!ext032Query.readAll(ext032Request, 4, 10000, ext020Reader)) {
+    DBAction ext020Query = database.table("EXT020").index("00").selection("EXCONO", "EXASCD", "EXCUNO", "EXFDAT", "EXSTAT", "EXSTTS", "EXNDTS", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
+    DBContainer ext020Request = ext020Query.getContainer()
+    ext020Request.set("EXCONO", currentCompany)
+    ext020Request.set("EXCUNO", cuno)
+    ext020Request.set("EXASCD", ascd)
+    ext020Request.setInt("EXFDAT", fdat as Integer)
+    if (!ext020Query.read(ext020Request)) {
       mi.error("L'enregistrement n'existe pas")
-      return
+    } else {
+      String cono = ext020Request.get("EXCONO")
+      cuno = ext020Request.get("EXCUNO")
+      ascd = ext020Request.get("EXASCD")
+      fdat = ext020Request.get("EXFDAT")
+      String stat = ext020Request.get("EXSTAT")
+      String stts = ext020Request.get("EXSTTS")
+      String ndts = ext020Request.get("EXNDTS")
+      String entryDate = ext020Request.get("EXRGDT")
+      String entryTime = ext020Request.get("EXRGTM")
+      String changeDate = ext020Request.get("EXLMDT")
+      String changeNumber = ext020Request.get("EXCHNO")
+      String changedBy = ext020Request.get("EXCHID")
+
+      mi.outData.put("CONO", cono)
+      mi.outData.put("CUNO", cuno)
+      mi.outData.put("ASCD", ascd)
+      mi.outData.put("FDAT", fdat)
+      mi.outData.put("STAT", stat)
+      mi.outData.put("STTS", stts)
+      mi.outData.put("NDTS", ndts)
+      mi.outData.put("RGDT", entryDate)
+      mi.outData.put("RGTM", entryTime)
+      mi.outData.put("LMDT", changeDate)
+      mi.outData.put("CHNO", changeNumber)
+      mi.outData.put("CHID", changedBy)
+      mi.write()
     }
-  }
-
-  Closure<?> ext020Reader = { DBContainer ext020Resut ->
-    String cono = ext020Resut.get("EXCONO")
-    String cuno = ext020Resut.get("EXCUNO")
-    String ascd = ext020Resut.get("EXASCD")
-    String fdat = ext020Resut.get("EXFDAT")
-    String stat = ext020Resut.get("EXSTAT")
-    String stts = ext020Resut.get("EXSTTS")
-    String ndts = ext020Resut.get("EXNDTS")
-    String entryDate = ext020Resut.get("EXRGDT")
-    String entryTime = ext020Resut.get("EXRGTM")
-    String changeDate = ext020Resut.get("EXLMDT")
-    String changeNumber = ext020Resut.get("EXCHNO")
-    String changedBy = ext020Resut.get("EXCHID")
-
-    mi.outData.put("CONO", cono)
-    mi.outData.put("CUNO", cuno)
-    mi.outData.put("ASCD", ascd)
-    mi.outData.put("FDAT", fdat)
-    mi.outData.put("STAT", stat)
-    mi.outData.put("STTS", stts)
-    mi.outData.put("NDTS", ndts)
-    mi.outData.put("RGDT", entryDate)
-    mi.outData.put("RGTM", entryTime)
-    mi.outData.put("LMDT", changeDate)
-    mi.outData.put("CHNO", changeNumber)
-    mi.outData.put("CHID", changedBy)
-    mi.write()
   }
 }

@@ -5,7 +5,7 @@
  * Name : EXT031MI.GetConstrType
  * Description : Retrieve records from the EXT031 table.
  * Date         Changed By   Description
- * 20210125     SEAR         QUAX01 - Constraints matrix 
+ * 20210125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 

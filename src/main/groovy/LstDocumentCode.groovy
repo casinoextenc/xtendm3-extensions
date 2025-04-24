@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20210125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
+ * 20240708     FLEBARS      QUAX01 - Controle code pour validation Infor retour controle readAll
  */
 public class LstDocumentCode extends ExtendM3Transaction {
   private final MIAPI mi
@@ -33,7 +34,7 @@ public class LstDocumentCode extends ExtendM3Transaction {
       DBAction ext035Query = database.table("EXT035").index("00").selection("EXCONO", "EXZCOD", "EXCSCD", "EXCUNO", "EXDOID", "EXADS1", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
       DBContainer ext035Request = ext035Query.getContainer()
       ext035Request.set("EXCONO", currentCompany)
-      if (!ext035Query.readAll(ext035Request, 1, ext035Reader)) {
+      if (!ext035Query.readAll(ext035Request, 1, 1000, ext035Reader)) {
         mi.error("L'enregistrement n'existe pas")
         return
       }
@@ -54,7 +55,7 @@ public class LstDocumentCode extends ExtendM3Transaction {
         .selection("EXCONO", "EXZCOD", "EXCSCD", "EXCUNO", "EXDOID", "EXADS1", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
       DBContainer ext035Request = ext035Query.getContainer()
       ext035Request.set("EXCONO", currentCompany)
-      if (!ext035Query.readAll(ext035Request, 1, ext035Reader)) {
+      if (!ext035Query.readAll(ext035Request, 1, 10000, ext035Reader)) {
         mi.error("L'enregistrement n'existe pas")
         return
       }

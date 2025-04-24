@@ -1,12 +1,13 @@
 /**
- * Name : EXT013MI.AddOrUpdGDA
- * 
- * Description : 
- * This API method to add records in specific table  Customer Assortment
- * 
- * 
+ * Name : EXT013MI.AddOrUpdRmk
+ *
+ * Description :
+ * This API method to add or update records in specific table EXT013
+ *
+ *
  * Date         Changed By    Description
- * 20230329     FLEBARS       Creation
+ * 20230329     FLEBARS       CMD08 - Rapport d'intégration de demande
+ * 20250410     ARENARD       Extension has been fixed
  */
 public class AddOrUpdRmk extends ExtendM3Transaction {
   private final MIAPI mi
@@ -17,7 +18,6 @@ public class AddOrUpdRmk extends ExtendM3Transaction {
 
   private int currentCompany
   private String errorMessage
-
 
   public AddOrUpdRmk(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -30,8 +30,8 @@ public class AddOrUpdRmk extends ExtendM3Transaction {
   /**
    * Get mi inputs
    * Check input values
-   * Check if record not exists in 
-   * Serialize in 
+   * Check if record not exists in
+   * Serialize in
    */
   public void main() {
     currentCompany = (int)program.getLDAZD().CONO
@@ -45,10 +45,25 @@ public class AddOrUpdRmk extends ExtendM3Transaction {
     String remk = (String)(mi.in.get("REMK") != null ? mi.in.get("REMK") : "")
     String mscd = (String)(mi.in.get("MSCD") != null ? mi.in.get("MSCD") : "")
 
+    // Check order number
+    if(mi.in.get("ORNO") != null && mi.in.get("ORNO") != ""){
+      DBAction queryOXHEAD = database.table("OXHEAD").index("00").build();
+      DBContainer OXHEAD = queryOXHEAD.getContainer();
+      OXHEAD.set("OACONO", currentCompany);
+      OXHEAD.set("OAORNO", mi.in.get("ORNO"));
+      if(!queryOXHEAD.read(OXHEAD)){
+        mi.error("La commande " + mi.in.get("ORNO") + " n'existe pas")
+        return;
+      }
+    } else {
+      mi.error("Le N° de commande est obligatoire")
+      return;
+    }
+
     //Check if record exists
     DBAction queryEXT013 = database.table("EXT013")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXCONO",
         "EXORNO",
         "EXPONR",
@@ -62,8 +77,8 @@ public class AddOrUpdRmk extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer containerEXT013 = queryEXT013.getContainer()
     containerEXT013.set("EXCONO", currentCompany)

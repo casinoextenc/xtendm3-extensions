@@ -1,12 +1,13 @@
 /**
  * Name : EXT013MI.GetOrderRemark
- * 
- * Description : 
- * This API method to add records in specific table EXT013 Get Order Remark
- * 
- * 
+ *
+ * Description :
+ * This API method to get records from specific table EXT013
+ *
+ *
  * Date         Changed By    Description
- * 20230308     SEAR       Creation
+ * 20230308     SEAR          CMD08 - Rapport d'intégration de demande
+ * 20250410     ARENARD       Extension has been fixed
  */
 public class GetOrderRemark extends ExtendM3Transaction {
   private final MIAPI mi
@@ -17,7 +18,6 @@ public class GetOrderRemark extends ExtendM3Transaction {
 
   private int currentCompany
   private String errorMessage
-
 
   public GetOrderRemark(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -41,11 +41,10 @@ public class GetOrderRemark extends ExtendM3Transaction {
     int ponr = (Integer)(mi.in.get("PONR") != null ? mi.in.get("PONR") : 0)
     int posx = (Integer)(mi.in.get("POSX") != null ? mi.in.get("POSX") : 0)
     int lino = (Integer)(mi.in.get("LINO") != null ? mi.in.get("LINO") : 0)
-    
 
     DBAction queryEXT013 = database.table("EXT013")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXCONO",
         "EXORNO",
         "EXPONR",
@@ -59,50 +58,36 @@ public class GetOrderRemark extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
-        
+      )
+      .build()
+
     DBContainer containerEXT013 = queryEXT013.getContainer()
     containerEXT013.set("EXCONO", currentCompany)
     containerEXT013.set("EXORNO", orno)
     containerEXT013.set("EXPONR", ponr)
     containerEXT013.set("EXPOSX", posx)
     containerEXT013.set("EXLINO", lino)
-
-    //Record exists
-    if (!queryEXT013.readAll(containerEXT013, 5, outData)){
+    if (queryEXT013.read(containerEXT013)) {
+      String item = containerEXT013.get("EXFITN")
+      String messageCode = containerEXT013.get("EXMSCD")
+      String remark = containerEXT013.get("EXREMK")
+      String entryDate = containerEXT013.get("EXRGDT")
+      String entryTime = containerEXT013.get("EXRGTM")
+      String changeDate = containerEXT013.get("EXLMDT")
+      String changeNumber = containerEXT013.get("EXCHNO")
+      String changedBy = containerEXT013.get("EXCHID")
+      mi.outData.put("FITN", item)
+      mi.outData.put("MSCD", messageCode)
+      mi.outData.put("REMK", remark)
+      mi.outData.put("RGDT", entryDate)
+      mi.outData.put("RGTM", entryTime)
+      mi.outData.put("LMDT", changeDate)
+      mi.outData.put("CHNO", changeNumber)
+      mi.outData.put("CHID", changedBy)
+      mi.write()
+    } else {
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
-  Closure<?> outData = { DBContainer containerEXT013 ->
-    String customerCode = containerEXT013.get("EXCUNO")
-    String OrderNumber = containerEXT013.get("EXORNO")
-    String orderLineNumber = containerEXT013.get("EXPONR")
-    String suffixeLineNumber = containerEXT013.get("EXPOSX")
-    String RemarkLineNumber = containerEXT013.get("EXLINO")
-    String Item = containerEXT013.get("EXFITN")
-    String MessageCode = containerEXT013.get("EXMSCD")
-    String Remark = containerEXT013.get("EXREMK")
-    String entryDate = containerEXT013.get("EXRGDT")
-    String entryTime = containerEXT013.get("EXRGTM")
-    String changeDate = containerEXT013.get("EXLMDT")
-    String changeNumber = containerEXT013.get("EXCHNO")
-    String changedBy = containerEXT013.get("EXCHID")
-    mi.outData.put("ORNO", OrderNumber)
-    mi.outData.put("PONR", orderLineNumber)
-    mi.outData.put("POSX", suffixeLineNumber)
-    mi.outData.put("LINO", RemarkLineNumber)
-    mi.outData.put("FITN", Item)
-    mi.outData.put("MSCD", MessageCode)
-    mi.outData.put("REMK", Remark)
-    mi.outData.put("RGDT", entryDate)
-    mi.outData.put("RGTM", entryTime)
-    mi.outData.put("LMDT", changeDate)
-    mi.outData.put("CHNO", changeNumber)
-    mi.outData.put("CHID", changedBy)
-    mi.write()
-  }
-
-
 }

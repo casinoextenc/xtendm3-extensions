@@ -216,7 +216,7 @@ public class AddQualityRef extends ExtendM3Transaction {
 
     //Check if record has an associated text
     if (txid > 0) {
-      String textID = (Long) mi.in.get("TXID")
+      String textID = mi.in.get("TXID") as String
       ExpressionFactory msytxhExpression = database.getExpressionFactory("MSYTXH")
       msytxhExpression = msytxhExpression.ge("THTXID", textID)
       DBAction msytxhQuery = database.table("MSYTXH").index("10").matching(msytxhExpression).build()

@@ -37,11 +37,13 @@ public class LstQualityRef extends ExtendM3Transaction {
       currentCompany = mi.in.get("CONO")
     }
 
+    /*
+
     if (mi.in.get("POPN") == null && mi.in.get("SUNO") == null && mi.in.get("ZALI") == null && mi.in.get("ZQUA") == null){
       mi.error("Veuillez renseigner au moins un critère")
       return
     }
-
+    */
 
     String sigma6 =  (String)(mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
     String supplier = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")

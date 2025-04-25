@@ -187,7 +187,7 @@ public class EXT013 extends ExtendM3Batch {
 
     server = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "")
     path = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "RapportIntegration", "Path", "", "")
-    share = "${server}\\${path}\\"
+    share = "\\\\${server}\\${path}\\"
     logger.debug("#PB share = " + share)
 
     logger.debug("#PB share = " + share)
@@ -1369,7 +1369,14 @@ public class EXT013 extends ExtendM3Batch {
   public void writeEndFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "docNumber.xml"
     docnumber = fileJobNumber + "-" + confOrderNumber
-    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document><DocumentType>RAPPORTINTEGRATION</DocumentType><DocumentNumber>${docnumber}</DocumentNumber><DocumentPath>${share}</DocumentPath></Document>"
+
+    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    header += "<Document>"
+    header += "<DocumentType>RAPPORTINTEGRATION</DocumentType>"
+    header += "<DocumentNumber>${docnumber}</DocumentNumber>"
+    header += "<DocumentPath>${share}</DocumentPath>"
+    header += "</Document>"
+
     logger.debug("#PB Docnumber =" + header)
     logMessage(header, "")
   }

@@ -1327,10 +1327,21 @@ public class EXT040 extends ExtendM3Batch {
    *
    */
   public void createControlFile() {
+    String server  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
+    String inpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "Path", "", "", "TDTX40")
+    String outpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "OutPutPath", "", "", "TDTX40")
+
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
     //todo changer le chemin serveur
-    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>CADENCIER</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>\\\\XC006WKS\\CadencierClient\\</DocumentPath></Document>"
+    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    header += "<Document>"
+    header += "<DocumentType>CADENCIER</DocumentType>"
+    header += "<DocumentNumber>${docnumber}</DocumentNumber>"
+    header += "<CFC1>${cfc1}</CFC1>"
+    header += "<DocumentPath>\\\\${server}\\${inpath}</DocumentPath>"
+    header += "<DocumentOutPath>\\\\${server}\\${outpath}</DocumentOutPath>"
+    header += "</Document>"
     writeInFile(header, "")
   }
 

@@ -202,10 +202,10 @@ public class EXT030 extends ExtendM3Batch {
       search = "CONTAINER"
     }
 
-    server = getCRS881("","EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "")
-    path = getCRS881("","EXTENC", "1", "ExtendM3", "I", "RapportQualite", "Path", "", "")
+    server = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
+    path = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "RapportQualite", "Path", "", "", "TDTX40")
     share = "\\\\${server}\\${path}\\"
-    logger.debug("#PB share = "+share)
+    logger.debug("#PB share = " + share)
 
     commentaire = getNextParameter()
     commentaire2 = getNextParameter()
@@ -225,7 +225,7 @@ public class EXT030 extends ExtendM3Batch {
     zcod8 = ""
     zcod9 = ""
     zcod10 = ""
-    logger.debug("#pb current company "+currentCompany)
+    logger.debug("#pb current company " + currentCompany)
     transactionNumber = ""
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -261,13 +261,13 @@ public class EXT030 extends ExtendM3Batch {
     logger.debug("longBjno = ${longBjno}")
 
     //check lines to print in EXT038
-    DBAction ext038query = database.table("EXT038").index("00").selection("EXORNO","EXPONR","EXPOSX","EXDLIX","EXCONN","EXITNO","EXBANO","EXZCID","EXZCOD","EXZCLI","EXCUNO").build()
+    DBAction ext038query = database.table("EXT038").index("00").selection("EXORNO", "EXPONR", "EXPOSX", "EXDLIX", "EXCONN", "EXITNO", "EXBANO", "EXZCID", "EXZCOD", "EXZCLI", "EXCUNO").build()
     DBContainer ext038container = ext038query.getContainer()
-    ext038container.set("EXCONO",currentCompany)
-    ext038container.set("EXBJNO",longBjno)
-    if(ext038query.readAll(ext038container,2,nbMaxRecord, ext038Reader )){
+    ext038container.set("EXCONO", currentCompany)
+    ext038container.set("EXBJNO", longBjno)
+    if (ext038query.readAll(ext038container, 2, nbMaxRecord, ext038Reader)) {
       logger.debug("Out of EXT038 closure")
-    }else{
+    } else {
       logger.debug("In else of EXT038 closure")
     }
 
@@ -597,17 +597,17 @@ public class EXT030 extends ExtendM3Batch {
   Closure<?> ext038Reader = { DBContainer ext038Result ->
     String ext038Orno = ext038Result.get("EXORNO").toString().trim()
 
-    logger.debug("In EXT038 closure, found ORNO : ${ext038Orno}" )
+    logger.debug("In EXT038 closure, found ORNO : ${ext038Orno}")
 
-    int ext038Ponr = (Integer)ext038Result.get("EXPONR")
-    int ext038Posx = (Integer)ext038Result.get("EXPOSX")
-    Long ext038Dlix = (Long)ext038Result.get("EXDLIX")
-    int ext038Conn = (Integer)ext038Result.get("EXCONN")
+    int ext038Ponr = (Integer) ext038Result.get("EXPONR")
+    int ext038Posx = (Integer) ext038Result.get("EXPOSX")
+    Long ext038Dlix = (Long) ext038Result.get("EXDLIX")
+    int ext038Conn = (Integer) ext038Result.get("EXCONN")
     String ext038Itno = ext038Result.get("EXITNO").toString().trim()
     String ext038Bano = ext038Result.get("EXBANO").toString().trim()
-    Long ext038Zcid = (Long)ext038Result.get("EXZCID")
+    Long ext038Zcid = (Long) ext038Result.get("EXZCID")
     String ext038Zcod = ext038Result.get("EXZCOD").toString().trim()
-    int ext038Zcli = (Integer)ext038Result.get("EXZCLI")
+    int ext038Zcli = (Integer) ext038Result.get("EXZCLI")
     String ext038Cuno = ext038Result.get("EXCUNO").toString().trim()
 
     logger.debug("EXT037 Expr. = DLIX:${ext038Dlix}, CONN:${ext038Conn.toString()},ITNO:${ext038Itno},BANO:${ext038Bano},ZCID:${ext038Zcid.toString()},ZCOD:${ext038Zcod},ZCLI:${ext038Zcli.toString()},CUNO:${ext038Cuno}")
@@ -615,10 +615,10 @@ public class EXT030 extends ExtendM3Batch {
 
     ExpressionFactory expressionEXT037 = database.getExpressionFactory("EXT037")
     expressionEXT037 = expressionEXT037.eq("EXADS1", "ANNE")
-    if(!ext038Dlix.toString().equals("0")){
+    if (!ext038Dlix.toString().equals("0")) {
       expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXDLIX", ext038Dlix.toString()))
     }
-    if(!ext038Conn.toString().equals("0")){
+    if (!ext038Conn.toString().equals("0")) {
       expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXCONN", ext038Conn.toString()))
     }
     expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXITNO", ext038Itno))
@@ -663,9 +663,9 @@ public class EXT030 extends ExtendM3Batch {
     ext037RequestOrno.set("EXPONR", ext038Ponr)
     ext037RequestOrno.set("EXPOSX", ext038Posx)
     //ext037RequestOrno.set("EXDLIX", ext038Dlix)
-    if (ext037QueryOrno.readAll(ext037RequestOrno, 4,nbMaxRecord, ext037Reader)) {
+    if (ext037QueryOrno.readAll(ext037RequestOrno, 4, nbMaxRecord, ext037Reader)) {
       logger.debug("In !ext037QueryOrno.readAll out of closure")
-    }else{
+    } else {
       logger.debug("In else of !ext037QueryOrno.readAll")
     }
   }
@@ -1436,7 +1436,14 @@ public class EXT030 extends ExtendM3Batch {
   public void writeEndFile(String title) {
     logFileName = title + "-" + "docNumber.xml"
     docnumber = title
-    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>EDITIONQUALITE</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>${share}</DocumentPath>  <DocumentSearch>${search}</DocumentSearch><JobNumber>${jobNumber}</JobNumber>  </Document>"
+    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    header += "<Document>"
+    header += "<DocumentType>EDITIONQUALITE</DocumentType>"
+    header += "<DocumentNumber>${docnumber}</DocumentNumber>"
+    header += "<DocumentPath>${share}</DocumentPath>"
+    header += "<DocumentSearch>${search}</DocumentSearch>"
+    header += "<JobNumber>${jobNumber}</JobNumber>"
+    header += "</Document>"
     logMessage(header, "")
   }
   /**
@@ -1567,7 +1574,7 @@ public class EXT030 extends ExtendM3Batch {
    * @param mbmc The MBMC value to filter the query.
    * @return The CR881 value if found, otherwise null.
    */
-  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
+  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc, String field) {
     String mvxd = ""
     DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
     DBContainer requestMbmtrn = queryMbmtrn.getContainer()
@@ -1582,7 +1589,7 @@ public class EXT030 extends ExtendM3Batch {
     requestMbmtrn.set("TRMBMC", mbmc)
 
     if (queryMbmtrn.read(requestMbmtrn)) {
-      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX40").build()
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD", "TDTX15", "TDTX40").build()
       DBContainer requestMbmtrd = queryMbmtrd.getContainer()
       logger.debug("#PB CurrentCompany in mbmtrd  {$currentCompany}")
       requestMbmtrd.set("TDCONO", currentCompany)
@@ -1590,13 +1597,13 @@ public class EXT030 extends ExtendM3Batch {
       requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
       // Retrieve MBTRND
       Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
-        mvxd = resultMbmtrd.get("TDTX40") as String
+        mvxd = resultMbmtrd.get(field) as String
         mvxd = mvxd.trim()
-        logger.debug("#pb mvxd in closure "+mvxd)
+        logger.debug("#pb mvxd in closure " + mvxd)
       }
       if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {
       }
-      logger.debug("#pb mvxd in crs881 "+mvxd)
+      logger.debug("#pb mvxd in crs881 " + mvxd)
       return mvxd
     }
   }

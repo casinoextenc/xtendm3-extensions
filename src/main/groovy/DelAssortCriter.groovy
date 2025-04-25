@@ -66,9 +66,15 @@ public class DelAssortCriter extends ExtendM3Transaction {
     ext021Request.set("EXCUNO", cuno)
     ext021Request.set("EXASCD", ascd)
     ext021Request.setInt("EXFDAT", fdat as Integer)
-    if (!ext021Query.readAllLock(ext021Request, 4, updateCallBack)) {
+
+    Closure<?> ext021Reader = { DBAction ext010Result ->
+      Closure<?> ext010Updater = { LockedResult ext010LockedResult ->
+        ext010LockedResult.delete()
+      }
+      ext021Query.readLock(ext010Result, ext010Updater)
+    }
+    if (!ext021Query.readAll(ext021Request, 4, 10000, ext021Reader)) {
     }
   }
-  Closure<?> updateCallBack = { LockedResult lockedResult -> lockedResult.delete()
-  }
+
 }

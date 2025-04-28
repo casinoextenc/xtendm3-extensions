@@ -8,16 +8,12 @@
  * 20210125     SEAR         QUAX01 - Constraints matrix
  */
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.math.RoundingMode
 
 public class UpdJokerItem extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
 
@@ -60,31 +56,31 @@ public class UpdJokerItem extends ExtendM3Transaction {
     zpqaInput = (double) (mi.in.get("ZPQA") != null ? mi.in.get("ZPQA") : 0)
 
     //Check if record exists in Constraint Type Table (EXT055)
-    DBAction query = database.table("EXT055").index("00").build()
+    DBAction ext055Query = database.table("EXT055").index("00").build()
     // list out data
-    DBAction ListqueryEXT055 = database.table("EXT055").index("00").selection("EXBJNO").build()
-    DBContainer ListContainerEXT055 = ListqueryEXT055.getContainer()
+    DBAction ext055Request = database.table("EXT055").index("00").selection("EXBJNO").build()
+    DBContainer ListContainerEXT055 = ext055Request.getContainer()
     ListContainerEXT055.set("EXBJNO", bjnoInput)
     //Record exists
-    if (!ListqueryEXT055.readAll(ListContainerEXT055, 1, nbMaxRecord, existData)){
+    if (!ext055Request.readAll(ListContainerEXT055, 1, nbMaxRecord, ext055Reader)){
       mi.error("Numéro de job " + bjnoInput + " n'existe pas dans la table EXT055")
     }
 
     //Check if Item exist
     mitmasPuun = ""
-    DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMPUUN","MMVOL3","MMGRWE","MMSUNO").build()
-    DBContainer MITMAS = queryMitmas.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", itnoInput)
-    if(!queryMitmas.read(MITMAS)){
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMPUUN","MMVOL3","MMGRWE","MMSUNO").build()
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", itnoInput)
+    if(!mitmasQuery.read(mitmasRequest)){
       mi.error("Code article " + itnoInput + " n'existe pas")
     } else {
-      mitmasPuun = MITMAS.get("MMPUUN")
-      mitmasVolume = MITMAS.getDouble("MMVOL3")
-      mitmasWeight = MITMAS.getDouble("MMGRWE")
+      mitmasPuun = mitmasRequest.get("MMPUUN")
+      mitmasVolume = mitmasRequest.getDouble("MMVOL3")
+      mitmasWeight = mitmasRequest.getDouble("MMGRWE")
     }
 
-    DBAction queryEXT055 = database.table("EXT055")
+    DBAction ext055LQuery = database.table("EXT055")
       .index("00")
       .selection(
         "EXBJNO",
@@ -105,11 +101,11 @@ public class UpdJokerItem extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer containerEXT055 = queryEXT055.getContainer()
-    containerEXT055.set("EXBJNO", bjnoInput)
-    containerEXT055.set("EXCONO", currentCompany)
-    containerEXT055.set("EXITNO", itnoInput)
-    if(!queryEXT055.readLock(containerEXT055, updateCallBack)){
+    DBContainer ext055LRequest = ext055LQuery.getContainer()
+    ext055LRequest.set("EXBJNO", bjnoInput)
+    ext055LRequest.set("EXCONO", currentCompany)
+    ext055LRequest.set("EXITNO", itnoInput)
+    if(!ext055LQuery.readLock(ext055LRequest, ext055Updater)){
       mi.error("L'enregistrement n'existe pas")
       return
     }
@@ -118,11 +114,11 @@ public class UpdJokerItem extends ExtendM3Transaction {
   /**
    * Update EXT055
    */
-  Closure<?> updateCallBack = { LockedResult lockedResultEXT055 ->
+  Closure<?> ext055Updater = { LockedResult ext055LockedResult ->
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    int changeNumber = lockedResultEXT055.get("EXCHNO")
+    int changeNumber = ext055LockedResult.get("EXCHNO")
 
-    DBAction queryMITAUN00 = database.table("MITAUN").index("00").selection(
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection(
       "MUCONO",
       "MUITNO",
       "MUAUTP",
@@ -135,14 +131,14 @@ public class UpdJokerItem extends ExtendM3Transaction {
     totVolume = 0
     palQuantity = zpqaInput
     totQuantity = 0
-    DBContainer containerMITAUN = queryMITAUN00.getContainer()
-    containerMITAUN.set("MUCONO", currentCompany)
-    containerMITAUN.set("MUITNO", itnoInput)
-    containerMITAUN.set("MUAUTP", 1)
-    containerMITAUN.set("MUALUN", mitmasPuun)
-    if (queryMITAUN00.read(containerMITAUN)) {
-      mitaunCofa = containerMITAUN.getDouble("MUCOFA")
-      dmcf = containerMITAUN.getInt("MUDMCF")
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itnoInput)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", mitmasPuun)
+    if (mitaunQuery.read(mitaunRequest)) {
+      mitaunCofa = mitaunRequest.getDouble("MUCOFA")
+      dmcf = mitaunRequest.getInt("MUDMCF")
       if (dmcf == 1) {
         palQuantity = zpqaInput * mitaunCofa
       } else {
@@ -159,20 +155,20 @@ public class UpdJokerItem extends ExtendM3Transaction {
     logger.debug("mitaunCofa : " + mitaunCofa)
     logger.debug("dmcf : " + dmcf)
 
-    lockedResultEXT055.set("EXZQUV", zquvInput)
-    lockedResultEXT055.set("EXZPQA", palQuantity)
-    lockedResultEXT055.set("EXGRWE", totWeight)
-    lockedResultEXT055.set("EXVOL3", totVolume)
-    lockedResultEXT055.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-    lockedResultEXT055.setInt("EXCHNO", ((Integer)lockedResultEXT055.get("EXCHNO") + 1))
-    lockedResultEXT055.set("EXCHID", program.getUser())
-    lockedResultEXT055.update()
+    ext055LockedResult.set("EXZQUV", zquvInput)
+    ext055LockedResult.set("EXZPQA", palQuantity)
+    ext055LockedResult.set("EXGRWE", totWeight)
+    ext055LockedResult.set("EXVOL3", totVolume)
+    ext055LockedResult.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+    ext055LockedResult.setInt("EXCHNO", ((Integer)ext055LockedResult.get("EXCHNO") + 1))
+    ext055LockedResult.set("EXCHID", program.getUser())
+    ext055LockedResult.update()
   }
 
   /**
    * Get EXT055 data
    */
-  Closure<?> existData = { DBContainer containerEXT055 ->
+  Closure<?> ext055Reader = { DBContainer ext055Result ->
     return
   }
 

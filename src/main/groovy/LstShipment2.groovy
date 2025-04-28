@@ -17,8 +17,7 @@ public class LstShipment2 extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
+
   private final MICallerAPI miCaller
   private final UtilityAPI utility
   private String parm
@@ -32,7 +31,7 @@ public class LstShipment2 extends ExtendM3Transaction {
   private String ude1Input
   private int ccudInput
   private int currentCompany
-  private boolean sameUDE1
+  private boolean sameUde1
   private boolean sameCCUD
   private Boolean foundDradtr
   private long index = 0
@@ -86,40 +85,40 @@ public class LstShipment2 extends ExtendM3Transaction {
     connInput = (int)(mi.in.get("CONN") != null ? mi.in.get("CONN") : 0)
 
     // check warehouse
-    DBAction queryMitwhl = database.table("MITWHL").index("00").selection("MWWHLO").build()
-    DBContainer MITWHL = queryMitwhl.getContainer()
-    MITWHL.set("MWCONO", currentCompany)
-    MITWHL.set("MWWHLO", whloInput)
-    if(!queryMitwhl.read(MITWHL)){
+    DBAction mitwhlQuery = database.table("MITWHL").index("00").selection("MWWHLO").build()
+    DBContainer mitwhlRequest = mitwhlQuery.getContainer()
+    mitwhlRequest.set("MWCONO", currentCompany)
+    mitwhlRequest.set("MWWHLO", whloInput)
+    if(!mitwhlQuery.read(mitwhlRequest)){
       mi.error("Le dépôt " + whloInput + " n'existe pas")
       return
     }
 
-    ExpressionFactory expressionMhdish = database.getExpressionFactory("MHDISH")
+    ExpressionFactory mhdishExpression = database.getExpressionFactory("MHDISH")
     if(mi.in.get("CONN") != null){
-      expressionMhdish = expressionMhdish.eq("OQCONN", connInput.toString().trim())
+      mhdishExpression = mhdishExpression.eq("OQCONN", connInput.toString().trim())
     }else{
-      expressionMhdish = (expressionMhdish.ne("OQCONN", "0"))
+      mhdishExpression = (mhdishExpression.ne("OQCONN", "0"))
     }
 
     if(mi.in.get("DLIX") != null){
-      expressionMhdish = expressionMhdish.and(expressionMhdish.eq("OQDLIX", dlixInput.toString().trim()))
+      mhdishExpression = mhdishExpression.and(mhdishExpression.eq("OQDLIX", dlixInput.toString().trim()))
     }
-    expressionMhdish = expressionMhdish.and(expressionMhdish.eq("OQRLDT", "0"))
-    expressionMhdish = expressionMhdish.and(expressionMhdish.lt("OQPGRS", "50"))
+    mhdishExpression = mhdishExpression.and(mhdishExpression.eq("OQRLDT", "0"))
+    mhdishExpression = mhdishExpression.and(mhdishExpression.lt("OQPGRS", "50"))
 
-    DBAction queryMhdish = database.table("MHDISH").index("94").matching(expressionMhdish).selection("OQDLIX","OQCONN").build()
-    DBContainer containerMHDISH = queryMhdish.getContainer()
-    containerMHDISH.set("OQCONO", currentCompany)
-    containerMHDISH.set("OQINOU", 1)
-    containerMHDISH.set("OQWHLO", whloInput)
+    DBAction mhdishQuery = database.table("MHDISH").index("94").matching(mhdishExpression).selection("OQDLIX","OQCONN").build()
+    DBContainer mhdishRequest = mhdishQuery.getContainer()
+    mhdishRequest.set("OQCONO", currentCompany)
+    mhdishRequest.set("OQINOU", 1)
+    mhdishRequest.set("OQWHLO", whloInput)
 
 
-    if (queryMhdish.readAll(containerMHDISH, 3, nbMaxRecord, MHDISHData)){
+    if (mhdishQuery.readAll(mhdishRequest, 3, nbMaxRecord, mhdishReader)){
     }
 
     // list out data
-    DBAction ListqueryEXT056 = database.table("EXT056")
+    DBAction ext056Query = database.table("EXT056")
       .index("00")
       .selection(
         "EXBJNO",
@@ -144,32 +143,37 @@ public class LstShipment2 extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer ListContainerEXT056 = ListqueryEXT056.getContainer()
-    ListContainerEXT056.set("EXBJNO", jobNumber)
+    DBContainer ext056Request = ext056Query.getContainer()
+    ext056Request.set("EXBJNO", jobNumber)
 
     //Record exists
-    if (!ListqueryEXT056.readAll(ListContainerEXT056, 1, nbMaxRecord, outData)){
+    if (!ext056Query.readAll(ext056Request, 1, nbMaxRecord, ext056Reader)){
 
     }
 
+    Closure<?> ext056LReader = {DBContainer ext056Result ->
+      Closure<?> ext056Deleter = { LockedResult lockedResultEXT056 ->
+        lockedResultEXT056.delete()
+      }
+      ext056Query.readLock(ext056Result, ext056Deleter)
+    }
     // delete workfile
-    DBAction DelQuery = database.table("EXT056").index("00").build()
-    DBContainer DelcontainerEXT056 = DelQuery.getContainer()
-    DelcontainerEXT056.set("EXBJNO", jobNumber)
-    if(!DelQuery.readAllLock(DelcontainerEXT056, 1, deleteCallBack)){
+    DBContainer ext056DelRequest = ext056Query.getContainer()
+    ext056DelRequest.set("EXBJNO", jobNumber)
+    if(!ext056Query.readAll(ext056DelRequest, 1, 10000, ext056LReader)){
     }
   }
 
   // liste MHDISH
-  Closure<?> MHDISHData = { DBContainer containerMHDISH ->
+  Closure<?> mhdishReader = { DBContainer mhdishResult ->
 
-    sameUDE1 = false
+    sameUde1 = false
     sameCCUD = false
-    dlixMhdish = containerMHDISH.get("OQDLIX")
+    dlixMhdish = mhdishResult.get("OQDLIX")
     if(!previousDlixMhdish || !previousDlixMhdish.equals(dlixMhdish)){
       previousDlixMhdish = dlixMhdish
     }
-    connMhdish = containerMHDISH.get("OQCONN")
+    connMhdish = mhdishResult.get("OQCONN")
     logger.debug("DLIX : " + dlixMhdish)
 
 
@@ -183,22 +187,22 @@ public class LstShipment2 extends ExtendM3Transaction {
     departureDate = 0
     packagindDate = 0
 
-    DBAction queryDradtr = database.table("DRADTR").index("00").selection("DRDLIX","DRCONN","DRETAD","DRETDD","DRCCUD","DRUDE1","DRUDE2","DRUDE3").build()
-    DBContainer DRADTR = queryDradtr.getContainer()
-    DRADTR.set("DRCONO", currentCompany)
-    DRADTR.set("DRTLVL", 1)
-    DRADTR.set("DRCONN", connMhdish)
+    DBAction dradtrQuery = database.table("DRADTR").index("00").selection("DRDLIX","DRCONN","DRETAD","DRETDD","DRCCUD","DRUDE1","DRUDE2","DRUDE3").build()
+    DBContainer dradtrRequest = dradtrQuery.getContainer()
+    dradtrRequest.set("DRCONO", currentCompany)
+    dradtrRequest.set("DRTLVL", 1)
+    dradtrRequest.set("DRCONN", connMhdish)
     //DRADTR.set("DRDLIX", dlixMhdish)
-    if(!queryDradtr.readAll(DRADTR, 3, nbMaxRecord, DRADTRData)){
+    if(!dradtrQuery.readAll(dradtrRequest, 3, nbMaxRecord, dradtrReader)){
       foundDradtr = false
     }
 
     if (mi.in.get("UDE1") != null) {
       if (ude1Input.trim() == dossier.trim()) {
-        sameUDE1 = true
+        sameUde1 = true
       }
     } else {
-      sameUDE1 = true
+      sameUde1 = true
     }
 
     if (mi.in.get("CCUD") != null) {
@@ -209,7 +213,7 @@ public class LstShipment2 extends ExtendM3Transaction {
       sameCCUD = true
     }
 
-    if (foundDradtr && sameUDE1 && sameCCUD) {
+    if (foundDradtr && sameUde1 && sameCCUD) {
       logger.debug("has DLIX : " + dlixMhdish)
 
       qty = 0
@@ -219,19 +223,19 @@ public class LstShipment2 extends ExtendM3Transaction {
       lnam = 0
 
       if(dlixMhdish != 0){
-        DBAction queryMhdisl = database.table("MHDISL").index("00").selection("URRIDN","URRIDL","URITNO","URTRQT").build()
-        DBContainer MHDISL = queryMhdisl.getContainer()
-        MHDISL.set("URCONO", currentCompany)
-        MHDISL.set("URDLIX", dlixMhdish)
-        MHDISL.set("URRORC", 3)
+        DBAction mhdislQuery = database.table("MHDISL").index("00").selection("URRIDN","URRIDL","URITNO","URTRQT").build()
+        DBContainer mhdsilRequest = mhdislQuery.getContainer()
+        mhdsilRequest.set("URCONO", currentCompany)
+        mhdsilRequest.set("URDLIX", dlixMhdish)
+        mhdsilRequest.set("URRORC", 3)
 
-        if(queryMhdisl.readAll(MHDISL,3, nbMaxRecord, MHDISLData)){}
+        if(mhdislQuery.readAll(mhdsilRequest,3, nbMaxRecord, mhdislReader)){}
       }
 
       logger.debug("after MHDISLDATA, nbOfCols = ${nbOfCols}")
 
       //Check if record exists
-      DBAction queryEXT056 = database.table("EXT056")
+      DBAction ext056Query = database.table("EXT056")
         .index("00")
         .selection(
           "EXBJNO",
@@ -256,17 +260,17 @@ public class LstShipment2 extends ExtendM3Transaction {
         )
         .build()
 
-      DBContainer containerEXT056 = queryEXT056.getContainer()
-      containerEXT056.set("EXBJNO", jobNumber)
-      containerEXT056.set("EXCONO", currentCompany)
-      containerEXT056.set("EXUCA4", dossier)
-      containerEXT056.set("EXUCA5", semaine)
-      containerEXT056.set("EXUCA6", annee)
-      containerEXT056.set("EXDLIX", dlixMhdish)
-      containerEXT056.set("EXCONN", connMhdish)
+      DBContainer ext056Request = ext056Query.getContainer()
+      ext056Request.set("EXBJNO", jobNumber)
+      ext056Request.set("EXCONO", currentCompany)
+      ext056Request.set("EXUCA4", dossier)
+      ext056Request.set("EXUCA5", semaine)
+      ext056Request.set("EXUCA6", annee)
+      ext056Request.set("EXDLIX", dlixMhdish)
+      ext056Request.set("EXCONN", connMhdish)
 
       //Record exists
-      if (queryEXT056.read(containerEXT056)) {
+      if (ext056Query.read(ext056Request)) {
         Closure<?> updateEXT056 = { LockedResult lockedResultEXT056 ->
           lockedResultEXT056.set("EXETAD", arrivalDate)
           lockedResultEXT056.set("EXETDD", departureDate)
@@ -276,62 +280,56 @@ public class LstShipment2 extends ExtendM3Transaction {
           lockedResultEXT056.set("EXCHID", program.getUser())
           lockedResultEXT056.update()
         }
-        queryEXT056.readLock(containerEXT056, updateEXT056)
+        ext056Query.readLock(ext056Request, updateEXT056)
       } else {
-        containerEXT056.set("EXBJNO", jobNumber)
-        containerEXT056.set("EXCONO", currentCompany)
-        containerEXT056.set("EXUCA4", dossier)
-        containerEXT056.set("EXUCA5", semaine)
-        containerEXT056.set("EXUCA6", annee)
-        containerEXT056.set("EXDLIX", dlixMhdish)
-        containerEXT056.set("EXCONN", connMhdish)
-        containerEXT056.set("EXCOLS", nbOfCols)
-        containerEXT056.set("EXVOL3", vol3)
-        containerEXT056.set("EXGRWE", grwe)
-        containerEXT056.set("EXLNAM", lnam)
-        containerEXT056.set("EXETAD", arrivalDate)
-        containerEXT056.set("EXETDD", departureDate)
-        containerEXT056.set("EXCCUD", packagindDate)
-        containerEXT056.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
-        containerEXT056.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
-        containerEXT056.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-        containerEXT056.set("EXCHNO", 1)
-        containerEXT056.set("EXCHID", program.getUser())
-        queryEXT056.insert(containerEXT056)
+        ext056Request.set("EXBJNO", jobNumber)
+        ext056Request.set("EXCONO", currentCompany)
+        ext056Request.set("EXUCA4", dossier)
+        ext056Request.set("EXUCA5", semaine)
+        ext056Request.set("EXUCA6", annee)
+        ext056Request.set("EXDLIX", dlixMhdish)
+        ext056Request.set("EXCONN", connMhdish)
+        ext056Request.set("EXCOLS", nbOfCols)
+        ext056Request.set("EXVOL3", vol3)
+        ext056Request.set("EXGRWE", grwe)
+        ext056Request.set("EXLNAM", lnam)
+        ext056Request.set("EXETAD", arrivalDate)
+        ext056Request.set("EXETDD", departureDate)
+        ext056Request.set("EXCCUD", packagindDate)
+        ext056Request.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
+        ext056Request.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
+        ext056Request.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+        ext056Request.set("EXCHNO", 1)
+        ext056Request.set("EXCHID", program.getUser())
+        ext056Query.insert(ext056Request)
       }
     }
   }
 
-  // data OOLINE
-  Closure<?> OOLINEData = { DBContainer ContainerOOLINE ->
-    whloOoline = ContainerOOLINE.get("OBWHLO")
-    return
-  }
-
   // data DRADTR
-  Closure<?> DRADTRData = { DBContainer ContaineDRADTR ->
-    arrivalDate = ContaineDRADTR.getInt("DRETAD")
-    departureDate = ContaineDRADTR.getInt("DRETDD")
+  Closure<?> dradtrReader = { DBContainer dradtrResult ->
+    arrivalDate = dradtrResult.getInt("DRETAD")
+    departureDate = dradtrResult.getInt("DRETDD")
     //packagindDate = ContaineDRADTR.getInt("DRCCUD")
-    dossier = ContaineDRADTR.get("DRUDE1")
-    semaine = ContaineDRADTR.get("DRUDE2")
-    annee = ContaineDRADTR.get("DRUDE3")
+    dossier = dradtrResult.get("DRUDE1")
+    semaine = dradtrResult.get("DRUDE2")
+    annee = dradtrResult.get("DRUDE3")
     logger.debug("dossier : " + dossier)
     logger.debug("semaine : " + semaine)
     logger.debug("annee : " + annee)
 
-    DBAction queryDradtrLiv = database.table("DRADTR").index("00").selection("DRDLIX","DRCCUD").build()
-    DBContainer dradtrLiv = queryDradtrLiv.getContainer()
-    dradtrLiv.set("DRCONO", currentCompany)
-    dradtrLiv.set("DRTLVL", 2)
-    dradtrLiv.set("DRCONN", 0)
+    DBAction dradtrLivQuery = database.table("DRADTR").index("00").selection("DRDLIX","DRCCUD").build()
+    DBContainer dradtrLivRequest = dradtrLivQuery.getContainer()
+    dradtrLivRequest.set("DRCONO", currentCompany)
+    dradtrLivRequest.set("DRTLVL", 2)
+    dradtrLivRequest.set("DRCONN", 0)
     logger.debug("dradtrLiv dlixMhdish : " + dlixMhdish)
-    dradtrLiv.set("DRDLIX", dlixMhdish)
+    dradtrLivRequest.set("DRDLIX", dlixMhdish)
 
-    if(queryDradtrLiv.read(dradtrLiv)){
-      packagindDate = dradtrLiv.getInt("DRCCUD")
+    if(dradtrLivQuery.read(dradtrLivRequest)){
+      packagindDate = dradtrLivRequest.getInt("DRCCUD")
 
-      ship = dradtrLiv.get("DRDLIX")
+      ship = dradtrLivRequest.get("DRDLIX")
       logger.debug("Empotage : " + packagindDate + " pour DLIX : " + ship)
     }
     return
@@ -340,28 +338,28 @@ public class LstShipment2 extends ExtendM3Transaction {
   /**
    * Get MHDISL data
    */
-  Closure<?> MHDISLData = { DBContainer ContainerMHDISL ->
+  Closure<?> mhdislReader = { DBContainer mhdislResult ->
 
-    double lineQty = ContainerMHDISL.get("URTRQT")
+    double lineQty = mhdislResult.get("URTRQT")
 
     qty += lineQty
     logger.debug("In MHDISLData, URTRQT = ${lineQty} and qty = ${qty}" )
 
-    itno = ContainerMHDISL.get("URITNO")
-    orno = ContainerMHDISL.get("URRIDN")
-    line = ContainerMHDISL.get("URRIDL")
+    itno = mhdislResult.get("URITNO")
+    orno = mhdislResult.get("URRIDN")
+    line = mhdislResult.get("URRIDL")
     //qty = ContainerMHDISL.get("URTRQT")
     qty = new BigDecimal(qty).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
 
-    DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMGRWE","MMVOL3").build()
-    DBContainer MITMAS = queryMitmas.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", itno)
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMGRWE","MMVOL3").build()
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", itno)
 
-    if(queryMitmas.read(MITMAS)){
+    if(mitmasQuery.read(mitmasRequest)){
 
-      double grweMitmas = MITMAS.get("MMGRWE")
-      double vol3Mitmas = MITMAS.get("MMVOL3")
+      double grweMitmas = mitmasRequest.get("MMGRWE")
+      double vol3Mitmas = mitmasRequest.get("MMVOL3")
 
       grweMitmas = new BigDecimal(grweMitmas).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
       vol3Mitmas = new BigDecimal(vol3Mitmas).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
@@ -380,15 +378,15 @@ public class LstShipment2 extends ExtendM3Transaction {
       vol3 = new BigDecimal(vol3).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
     }
 
-    DBAction queryOoline = database.table("OOLINE").index("00").selection("OBLNAM").build()
-    DBContainer OOLINE = queryOoline.getContainer()
-    OOLINE.set("OBCONO", currentCompany)
-    OOLINE.set("OBORNO", orno)
-    OOLINE.set("OBPONR", line)
-    OOLINE.set("OBPOSX", 0)
+    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBLNAM").build()
+    DBContainer oolineRequest = oolineQuery.getContainer()
+    oolineRequest.set("OBCONO", currentCompany)
+    oolineRequest.set("OBORNO", orno)
+    oolineRequest.set("OBPONR", line)
+    oolineRequest.set("OBPOSX", 0)
 
-    if(queryOoline.read(OOLINE)){
-      double lnamOoline = OOLINE.get("OBLNAM")
+    if(oolineQuery.read(oolineRequest)){
+      double lnamOoline = oolineRequest.get("OBLNAM")
       lnamOoline = new BigDecimal(lnamOoline).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
       if(previousDlixMhdish.equals(dlixMhdish)){
         lnam += lnamOoline
@@ -399,16 +397,16 @@ public class LstShipment2 extends ExtendM3Transaction {
       lnam = new BigDecimal(lnam).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
     }
 
-    DBAction queryMitaun = database.table("MITAUN").index("00").selection("MUCOFA").build()
-    DBContainer MITAUN = queryMitaun.getContainer()
-    MITAUN.set("MUCONO", currentCompany)
-    MITAUN.set("MUITNO", itno)
-    MITAUN.set("MUAUTP", 1)
-    MITAUN.set("MUALUN", "COL")
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itno)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", "COL")
 
-    if(queryMitaun.read(MITAUN)){
+    if(mitaunQuery.read(mitaunRequest)){
       logger.debug("In MITMAS, lineQty is ${lineQty}")
-      double cofa = MITAUN.get("MUCOFA")
+      double cofa = mitaunRequest.get("MUCOFA")
       logger.debug("in MITAUN before NbOfCols, qty = ${qty} and cofa = ${cofa}, so qty / cofa = " + qty / cofa + " for dlix = ${dlixMhdish} , ORNO: ${orno}, LINE: ${line}, itno: ${itno}")
       if(previousDlixMhdish.equals(dlixMhdish)){
         nbOfCols += lineQty / cofa
@@ -424,19 +422,19 @@ public class LstShipment2 extends ExtendM3Transaction {
   /**
    * Get EXT056 data
    */
-  Closure<?> outData = { DBContainer containerEXT056 ->
-    String dossierEXT056 = containerEXT056.get("EXUCA4")
-    String semaineEXT056 = containerEXT056.get("EXUCA5")
-    String anneeEXT056 = containerEXT056.get("EXUCA6")
-    String indexEXT056 = containerEXT056.getLong("EXDLIX")
-    String shipmentEXT056 = containerEXT056.get("EXCONN")
-    String arrivalDateEXT056 = containerEXT056.get("EXETAD")
-    String departureDateEXT056 = containerEXT056.get("EXETDD")
-    String packagindDateEXT056 = containerEXT056.get("EXCCUD")
-    String colsEXT056 = containerEXT056.get("EXCOLS")
-    String grweEXT056 = containerEXT056.get("EXGRWE")
-    String vol3EXT056 = containerEXT056.get("EXVOL3")
-    String lnamEXT056 = containerEXT056.get("EXLNAM")
+  Closure<?> ext056Reader = { DBContainer ext056Result ->
+    String dossierEXT056 = ext056Result.get("EXUCA4")
+    String semaineEXT056 = ext056Result.get("EXUCA5")
+    String anneeEXT056 = ext056Result.get("EXUCA6")
+    String indexEXT056 = ext056Result.getLong("EXDLIX")
+    String shipmentEXT056 = ext056Result.get("EXCONN")
+    String arrivalDateEXT056 = ext056Result.get("EXETAD")
+    String departureDateEXT056 = ext056Result.get("EXETDD")
+    String packagindDateEXT056 = ext056Result.get("EXCCUD")
+    String colsEXT056 = ext056Result.get("EXCOLS")
+    String grweEXT056 = ext056Result.get("EXGRWE")
+    String vol3EXT056 = ext056Result.get("EXVOL3")
+    String lnamEXT056 = ext056Result.get("EXLNAM")
 
     logger.debug("in OutDatas : Cols = ${colsEXT056}" )
 
@@ -453,12 +451,5 @@ public class LstShipment2 extends ExtendM3Transaction {
     mi.outData.put("VOL3", vol3EXT056)
     mi.outData.put("LNAM", lnamEXT056)
     mi.write()
-  }
-
-  /**
-   * Delete callback
-   */
-  Closure<?> deleteCallBack = { LockedResult lockedResult ->
-    lockedResult.delete()
   }
 }

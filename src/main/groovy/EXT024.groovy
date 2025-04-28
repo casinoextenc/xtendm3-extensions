@@ -258,8 +258,6 @@ public class EXT024 extends ExtendM3Batch {
    * @parameter flag
    * */
   private void createExt011Record(DBContainer recordExt010, String flag) {
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    Long lmts = timeOfCreation.toInstant(ZoneOffset.UTC).toEpochMilli()
     DBAction ext011Query = database.table("EXT011")
       .index("00")
       .selection(
@@ -295,7 +293,6 @@ public class EXT024 extends ExtendM3Batch {
     ext011Request.set("EXRGTM", recordExt010.get("EXRGTM"))
     ext011Request.set("EXCHNO", recordExt010.get("EXCHNO"))
     ext011Request.set("EXCHID", recordExt010.get("EXCHID"))
-    ext011Request.set("EXLMTS", lmts)
     ext011Request.set("EXFLAG", flag)
     ext011Query.insert(ext011Request)
   }

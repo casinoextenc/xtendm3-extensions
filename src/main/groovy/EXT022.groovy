@@ -474,7 +474,7 @@ public class EXT022 extends ExtendM3Batch {
     }
     cscd = ""
     csno = ""
-    //if(CSCD != 0 || CSNO != 0) {
+
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("MITFAC").index("00").selection("M9ORCO", "M9CSNO").build()
     DBContainer MITFAC = query.getContainer()
@@ -488,7 +488,7 @@ public class EXT022 extends ExtendM3Batch {
     }
     //}
     popn = ""
-    //if(POPN != 0){
+
     ExpressionFactory expressionMITPOP = database.getExpressionFactory("MITPOP")
     expressionMITPOP = expressionMITPOP.eq("MPREMK", "SIGMA6")
     DBAction queryMITPOP = database.table("MITPOP").index("00").matching(expressionMITPOP).selection("MPPOPN").build()
@@ -1203,7 +1203,7 @@ public class EXT022 extends ExtendM3Batch {
     // Retrieve EXT030
     Closure<?> outDataEXT030 = { DBContainer ext030Result ->
       constraintIsOK = false
-      return//todo ca le fait ????
+      return
     }
     if (!ext030Query.readAll(ext030Request, 3, 10000, outDataEXT030)) {
     }

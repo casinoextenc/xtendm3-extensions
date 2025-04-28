@@ -155,13 +155,10 @@ public class EXT045 extends ExtendM3Batch {
       EXT042.set("EXCHID", program.getUser())
       query.insert(EXT042)
     }
-
     allContacts = "1"
     schedule = "1"
-
     logMessage("INFO", "Customer ${cuno} - Calendar ${calendar} - Assortment ${tAssortment} - All contacts ${allContacts} - Schedule ${schedule}")
     executeEXT820MISubmitBatch(currentCompany as String, "EXT040", cuno, calendar, allContacts, schedule, "", "", "", "", "")
-
   }
 
   /**

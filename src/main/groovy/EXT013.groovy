@@ -100,13 +100,13 @@ public class EXT013 extends ExtendM3Batch {
   private Integer totSsligneError
   private double volTot
   private Integer totCol
-  private Integer totEquivPal
+  private Double totEquivPal
   private double totBrut
   private double totNet
   private double totVal
   private double volTotRej
   private Integer totColRej
-  private Integer totEquivPalRej
+  private Double totEquivPalRej
   private double totBrutRej
   private double totNetRej
   private double totValRej
@@ -429,7 +429,7 @@ public class EXT013 extends ExtendM3Batch {
     String sNewe = String.format("%.3f", dNewe)
     double dTotVal = new BigDecimal(totVal).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sTotVal = String.format("%.3f", dTotVal)
-    Integer dtotEquivPal = totEquivPal
+    Double dtotEquivPal = totEquivPal
     totIntegre = "Volume total;" + sVol3
     totIntegres = totIntegres += totIntegre + "\r\n"
     totIntegre = "Total Colis;" + totCol
@@ -452,7 +452,7 @@ public class EXT013 extends ExtendM3Batch {
     String sTotNetRej = String.format("%.3f", dTotNetRej)
     double dTotValRej = new BigDecimal(totValRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sTotValRej = String.format("%.3f", dTotValRej)
-    Integer dTotEquivPalRej = totEquivPalRej
+    Double dTotEquivPalRej = totEquivPalRej
     totRejete = "Volume total;" + sVolTotRej
     totRejetes = totRejetes += totRejete + "\r\n"
     totRejete = "Total Colis;" + totColRej
@@ -692,8 +692,8 @@ public class EXT013 extends ExtendM3Batch {
         double valeur = new BigDecimal(nepr * orqt).setScale(3, RoundingMode.HALF_UP).doubleValue()
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_UP).doubleValue()
-        Integer equivPal = (int) Math.ceil(dequivPal)
-        blocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + "0" + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + equivPal + ";" + typeError + ";" + commItem
+
+        blocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + "0" + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + dequivPal + ";" + typeError + ";" + commItem
         bloclines += blocline + "\r\n"
         totLignesintegrees--
         totLignesRejeteesBloquantes++
@@ -711,14 +711,14 @@ public class EXT013 extends ExtendM3Batch {
         double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_UP).doubleValue()
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
-        Integer equivPal = (int) Math.ceil(dequivPal)
+
         if (errorCode != "0") {
           logger.debug("nonBlocline errorCode " + errorCode)
           nonBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + String.format("%.2f", dequivPal) + ";" + typeError + ";" + commItem
           nonBloclines += nonBlocline + "\r\n"
         }
         totLignesErreursInformation++
-        totEquivPal = totEquivPal + equivPal
+        totEquivPal = totEquivPal + dequivPal
         totVal = totVal + valeur
         double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_UP).doubleValue()
         int equivColArrondie = (int) Math.round(equivCol)
@@ -729,11 +729,11 @@ public class EXT013 extends ExtendM3Batch {
         double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_UP).doubleValue()
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
-        Integer equivPal = (int) Math.ceil(dequivPal)
-        replacedBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + equivPal + ";" + typeError + ";" + commItem
+
+        replacedBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + dequivPal + ";" + typeError + ";" + commItem
         replacedBloclines += replacedBlocline + "\r\n"
         totLignesSubstituees++
-        totEquivPal = totEquivPal + equivPal
+        totEquivPal = totEquivPal + dequivPal
         double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
         int equivColArrondie = (int) Math.round(equivCol)
         totCol = totCol + equivColArrondie

@@ -1,23 +1,18 @@
-/**
- * README
- * This extension is used by MEC
- *
- * Name : EXT420MI.DltPickingList
- * Description : The DltPickingList transaction calls MWS420 option 4.
- * Date         Changed By   Description
- * 20250202     FLEBARS      LOG14 - Picking
- * 20250416     ARENARD      The code has been checked
- */
+/****************************************************************************************
+ Extension Name: EXT420MI.DltPickingList
+ Type: ExtendM3Transaction
+ Script Author: FLEBARS
+ Date: 2025-02-02
+ Description:
+ * The DltPickingList transaction calls MWS420 option 4.
 
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import groovy.json.JsonException
-import groovy.json.JsonSlurper
-import java.util.GregorianCalendar
-import java.util.Calendar
-import java.util.Date
-import java.text.SimpleDateFormat
+ Revision History:
+ Name                    Date        Version    Description of Changes
+ FLEBARS                 2025-02-02  1.0        LOG14 – Picking
+ ARENARD                 2025-04-16  1.1        The code has been checked
+ ARENARD                 2025-04-25  1.2        Program header formatted
+ ******************************************************************************************/
+
 
 public class DltPickingList extends ExtendM3Transaction {
   private final MIAPI mi
@@ -28,14 +23,7 @@ public class DltPickingList extends ExtendM3Transaction {
   private Integer currentCompany
   private String currentDivision
   private final IonAPI ion
-  private String date
-  private String iROUT
-  private String iPLDT
-  private String iELNO
-  private Integer iFPON
-  private Integer iTPON
-  private String iFUA5
-  private String iTUA5
+
 
   public DltPickingList(MIAPI mi, IonAPI ion, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi

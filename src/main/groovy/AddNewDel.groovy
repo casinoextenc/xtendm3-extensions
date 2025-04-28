@@ -22,42 +22,41 @@ public class AddNewDel extends ExtendM3Transaction {
   private final UtilityAPI utility
   private final ExceptionAPI exception
 
-  private long saved_DLIX
   private Integer currentCompany
 
   private HashMap<String, String> blockedIndexes
   private String newDelivery
 
-  private String OOLINE_ORNO
-  private String OOLINE_ITNO
-  private double OOLINE_ORQT
-  private String OOLINE_ALUN
-  private String OOLINE_LTYP
-  private String OOLINE_WHLO
-  private String OOLINE_DWDZ
-  private String OOLINE_DWHZ
-  private String OOLINE_ADID
-  private String OOLINE_PIDE
-  private String OOLINE_DIP4
-  private String OOLINE_DWDT
-  private String OOLINE_PLDT
-  private String OOLINE_SAPR
-  private Integer OOLINE_PONR
-  private Integer OOLINE_POSX
-  private String OOLINE_RORC
-  private String OOLINE_RORN
-  private Integer OOLINE_RORL
-  private Integer OOLINE_RORX
+  private String oolineOrno
+  private String oolineItno
+  private double oolineOrqt
+  private String oolineAlun
+  private String oolineLtyp
+  private String oolineWhlo
+  private String oolineDwdz
+  private String oolineDwhz
+  private String oolineAdid
+  private String oolinePide
+  private String oolineDip4
+  private String oolineDwdt
+  private String oolinePldt
+  private String oolineSapr
+  private Integer oolinePonr
+  private Integer oolinePosx
+  private String oolineRorc
+  private String oolineRorn
+  private Integer oolineRorl
+  private Integer oolineRorx
 
-  private String MITMAS_ITNO
-  private String MITMAS_UNMS
-  private String MITBAL_WHLO
-  private int MITBAL_ALMT
+  private String mitmasItno
+  private String mitmasUnms
+  private String mitbalWhlo
+  private int mitbalAlmt
 
-  private double EXT057_ALQT
-  private int NEW_PONR
-  private int NEW_POSX
-  private LinkedHashMap<String, Object> itemUnits
+  private double ext057Alqt
+  private int newPonr
+  private int newPosx
+  private LinkedHashMap<String, Map<String, String>> itemUnits
 
 
   private boolean completeLineProcess
@@ -79,7 +78,7 @@ public class AddNewDel extends ExtendM3Transaction {
 
 
   /**
-   * TODO DOC
+   * Main Method
    */
   public void main() {
     // Check company
@@ -123,10 +122,8 @@ public class AddNewDel extends ExtendM3Transaction {
       lineProcess()
     }
 
-    /* todo reactivate
-    deleteEXT057()
-    deleteEXT059()
-    */
+    deleteExt057()
+    deleteExt059()
 
     if (in60) {
       exception.throwErrorMIResponseException(msgd)
@@ -154,14 +151,14 @@ public class AddNewDel extends ExtendM3Transaction {
     String key = "${itno}_${alun}"
     if (itemUnits == null) {
       load = true
-      itemUnits = new LinkedHashMap<String, Object>()
+      itemUnits = new LinkedHashMap<String, Map<String, String>>()
     } else if (!itemUnits.containsKey(key)) {
       load = true
     }
     if (load)
       itemUnits.put(key, loadItemUnitData(itno, alun))
 
-    def currentItemUnit = itemUnits.get(key)
+    Map<String, String> currentItemUnit = itemUnits.get(key)
 
     int dmcf = currentItemUnit["DMCF"] as Integer
     double cofa = currentItemUnit["COFA"] as Double
@@ -204,11 +201,11 @@ public class AddNewDel extends ExtendM3Transaction {
    */
   public void palletProcess() {
     logger.debug("Debut splitPalletIntoLines")
-    double currentALQT = 0
+    double currentAlqt = 0
     String currentUCA4 = ""
     String currentUCA5 = ""
     String currentUCA6 = ""
-    String currentCAMU = ""
+    String currentCamu = ""
 
     String orno = ""
     String ponr = ""
@@ -217,7 +214,7 @@ public class AddNewDel extends ExtendM3Transaction {
 
 
     // Read MITALO and add order lines into EXT057
-    DBAction EXT059_query = database.table("EXT059").index("00").selection(
+    DBAction ext059Query = database.table("EXT059").index("00").selection(
       "EXCONO"
       , "EXCAMU"
       , "EXTLIX"
@@ -226,106 +223,106 @@ public class AddNewDel extends ExtendM3Transaction {
       , "EXUCA6"
     ).build()
 
-    DBContainer EXT059_request = EXT059_query.getContainer()
-    EXT059_request.set("EXBJNO", bjno)
-    EXT059_request.set("EXCONO", currentCompany)
+    DBContainer ext059Request = ext059Query.getContainer()
+    ext059Request.set("EXBJNO", bjno)
+    ext059Request.set("EXCONO", currentCompany)
 
 
     // Update EXT057
-    Closure<?> EXT057_updater = { LockedResult EXT057_lockedresult ->
+    Closure<?> ext057Updater = { LockedResult ext057Lockedresult ->
       LocalDateTime timeOfCreation = LocalDateTime.now()
-      int changeNumber = EXT057_lockedresult.get("EXCHNO") as Integer
-      String cams = EXT057_lockedresult.get("EXCAMS") as String
-      double allocatedQuantity = EXT057_lockedresult.get("EXALQT") as Double
-      //double qty_UPA = convertQty(OOLINE_ITNO, "UPA", currentALQT, 0)
-      allocatedQuantity = allocatedQuantity + currentALQT
+      int changeNumber = ext057Lockedresult.get("EXCHNO") as Integer
+      String cams = ext057Lockedresult.get("EXCAMS") as String
+      double allocatedQuantity = ext057Lockedresult.get("EXALQT") as Double
+
+      allocatedQuantity = allocatedQuantity + currentAlqt
 
       logger.debug("palletProcess update EXT057 orno:${orno} ponr:${ponr} posx:${posx} qtyUPA:=${allocatedQuantity}")
-      EXT057_lockedresult.set("EXALQT", allocatedQuantity)
-      EXT057_lockedresult.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      EXT057_lockedresult.setInt("EXCHNO", changeNumber + 1)
+      ext057Lockedresult.set("EXALQT", allocatedQuantity)
+      ext057Lockedresult.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+      ext057Lockedresult.setInt("EXCHNO", changeNumber + 1)
 
-      if (!cams.contains(currentCAMU))
-        EXT057_lockedresult.set("EXCAMS", cams + ";" + currentCAMU)
+      if (!cams.contains(currentCamu))
+        ext057Lockedresult.set("EXCAMS", cams + ";" + currentCamu)
 
-      EXT057_lockedresult.set("EXCHID", program.getUser())
-      EXT057_lockedresult.update()
+      ext057Lockedresult.set("EXCHID", program.getUser())
+      ext057Lockedresult.update()
     }
 
 
     // Retrieve MITALO
-    Closure<?> MITALO_reader = { DBContainer MITALO ->
-      currentALQT = MITALO.get("MQALQT") as double
-      currentCAMU = MITALO.get("MQCAMU") as String
-      orno = MITALO.get("MQRIDN")
-      ponr = MITALO.get("MQRIDL")
-      posx = MITALO.get("MQRIDX")
+    Closure<?> mitaloReader = { DBContainer mitaloResult ->
+      currentAlqt = mitaloResult.get("MQALQT") as double
+      currentCamu = mitaloResult.get("MQCAMU") as String
+      orno = mitaloResult.get("MQRIDN")
+      ponr = mitaloResult.get("MQRIDL")
+      posx = mitaloResult.get("MQRIDX")
 
-      logger.debug("found MITALO - orno:${orno} ponr:${ponr} posx:${posx} camu:${currentCAMU} alqt:${currentALQT}")
+      logger.debug("found MITALO - orno:${orno} ponr:${ponr} posx:${posx} camu:${currentCamu} alqt:${currentAlqt}")
       LocalDateTime timeOfCreation = LocalDateTime.now()
 
-      if (checkOOHEAD(MITALO.get("MQRIDN") as String, currentUCA4, currentUCA5, currentUCA6)) {
+      if (checkOohead(mitaloResult.get("MQRIDN") as String, currentUCA4, currentUCA5, currentUCA6)) {
 
-        getOOLINE_DATA(MITALO.get("MQRIDN") as String, MITALO.get("MQRIDL") as String, MITALO.get("MQRIDX") as String)
-        DBAction EXT057_query = database.table("EXT057").index("00").selection("EXCAMS", "EXALQT", "EXALUN").build()
-        DBContainer EXT057_request = EXT057_query.getContainer()
+        getoolineData(mitaloResult.get("MQRIDN") as String, mitaloResult.get("MQRIDL") as String, mitaloResult.get("MQRIDX") as String)
+        DBAction ext057Query = database.table("EXT057").index("00").selection("EXCAMS", "EXALQT", "EXALUN").build()
+        DBContainer ext057Request = ext057Query.getContainer()
 
-        EXT057_request.set("EXBJNO", bjno)
-        EXT057_request.set("EXCONO", currentCompany)
-        EXT057_request.set("EXORNO", orno)
-        EXT057_request.set("EXPONR", ponr as Integer)
-        EXT057_request.set("EXPOSX", posx as Integer)
-        if (!EXT057_query.read(EXT057_request)) {
-          logger.debug("palletProcess create EXT057 orno:${orno} ponr:${ponr} posx:${posx} currentALQT:=${currentALQT}")
-          EXT057_request.set("EXALQT", currentALQT)
-          EXT057_request.set("EXALUN", "")
-          EXT057_request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-          EXT057_request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-          EXT057_request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-          EXT057_request.setInt("EXCHNO", 1)
-          EXT057_request.set("EXCAMS", currentCAMU)
-          EXT057_request.set("EXCHID", program.getUser())
-          EXT057_request.set("EXDLIX", getDLIX(3, MITALO.get("MQRIDN") as String, MITALO.get("MQRIDL") as int, MITALO.get("MQRIDX") as int))
-          EXT057_query.insert(EXT057_request)
+        ext057Request.set("EXBJNO", bjno)
+        ext057Request.set("EXCONO", currentCompany)
+        ext057Request.set("EXORNO", orno)
+        ext057Request.set("EXPONR", ponr as Integer)
+        ext057Request.set("EXPOSX", posx as Integer)
+        if (!ext057Query.read(ext057Request)) {
+          logger.debug("palletProcess create EXT057 orno:${orno} ponr:${ponr} posx:${posx} currentALQT:=${currentAlqt}")
+          ext057Request.set("EXALQT", currentAlqt)
+          ext057Request.set("EXALUN", "")
+          ext057Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+          ext057Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+          ext057Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+          ext057Request.setInt("EXCHNO", 1)
+          ext057Request.set("EXCAMS", currentCamu)
+          ext057Request.set("EXCHID", program.getUser())
+          ext057Request.set("EXDLIX", getDlix(3, mitaloResult.get("MQRIDN") as String, mitaloResult.get("MQRIDL") as int, mitaloResult.get("MQRIDX") as int))
+          ext057Query.insert(ext057Request)
         } else {
-          EXT057_request.set("EXBJNO", bjno)
-          EXT057_request.set("EXCONO", currentCompany)
-          EXT057_request.set("EXORNO", MITALO.get("MQRIDN"))
-          EXT057_request.set("EXPONR", MITALO.get("MQRIDL"))
-          EXT057_request.set("EXPOSX", MITALO.get("MQRIDX"))
-          if (EXT057_query.readLock(EXT057_request, EXT057_updater)) {
+          ext057Request.set("EXBJNO", bjno)
+          ext057Request.set("EXCONO", currentCompany)
+          ext057Request.set("EXORNO", mitaloResult.get("MQRIDN"))
+          ext057Request.set("EXPONR", mitaloResult.get("MQRIDL"))
+          ext057Request.set("EXPOSX", mitaloResult.get("MQRIDX"))
+          if (ext057Query.readLock(ext057Request, ext057Updater)) {
           }
         }
       }
     }
 
     //Reader EXT059 record
-    Closure<?> EXT059_reader = { DBContainer EXT059_result ->
-      String camu = EXT059_result.get("EXCAMU")
-      logger.debug("EXT059_result " + camu)
-      currentUCA4 = EXT059_result.get("EXUCA4") as String
-      currentUCA5 = EXT059_result.get("EXUCA5") as String
-      currentUCA6 = EXT059_result.get("EXUCA6") as String
+    Closure<?> ext059Reader = { DBContainer ext059Result ->
+      String camu = ext059Result.get("EXCAMU")
+      logger.debug("ext059Result " + camu)
+      currentUCA4 = ext059Result.get("EXUCA4") as String
+      currentUCA5 = ext059Result.get("EXUCA5") as String
+      currentUCA6 = ext059Result.get("EXUCA6") as String
 
       //find corresponding allocation in MITALO by CONO, TTYP = 31 and CAMU
-      ExpressionFactory MITALO_expression = database.getExpressionFactory("MITALO")
-      MITALO_expression = MITALO_expression.eq("MQCAMU", camu)
-      DBAction MITALO_query = database.table("MITALO")
-        .index("10").matching(MITALO_expression)
+      ExpressionFactory mitaloExpression = database.getExpressionFactory("MITALO")
+      mitaloExpression = mitaloExpression.eq("MQCAMU", camu)
+      DBAction mitaloQuery = database.table("MITALO")
+        .index("10").matching(mitaloExpression)
         .selection(
           "MQCAMU",
           "MQRIDN",
           "MQRIDL",
           "MQRIDX", "" +
           "MQALQT").build()
-      DBContainer MITALO = MITALO_query.getContainer()
-      MITALO.set("MQCONO", currentCompany)
-      MITALO.set("MQTTYP", 31)
-      if (MITALO_query.readAll(MITALO, 2, MITALO_reader)) {
+      DBContainer mitaloRequest = mitaloQuery.getContainer()
+      mitaloRequest.set("MQCONO", currentCompany)
+      mitaloRequest.set("MQTTYP", 31)
+      if (mitaloQuery.readAll(mitaloRequest, 2, 10000, mitaloReader)) {
       }
     }
 
-    if (!EXT059_query.readAll(EXT059_request, 2, EXT059_reader)) {
+    if (!ext059Query.readAll(ext059Request, 2, 10000, ext059Reader)) {
       in60 = true
       msgd = "Aucune données pour le job " + bjno
     }
@@ -338,22 +335,22 @@ public class AddNewDel extends ExtendM3Transaction {
    * @param ridl
    * @param ridx
    */
-  public long getDLIX(int rorc, String ridn, int ridl, int ridx) {
+  public long getDlix(int rorc, String ridn, int ridl, int ridx) {
     long dlix = 0
 
-    DBAction MHDISL_query = database.table("MHDISL").index("10").build()
-    DBContainer MHDISL_request = MHDISL_query.getContainer()
-    MHDISL_request.set("URCONO", currentCompany)
-    MHDISL_request.set("URRORC", rorc)
-    MHDISL_request.set("URRIDN", ridn)
-    MHDISL_request.set("URRIDL", ridl)
-    MHDISL_request.set("URRIDX", ridx)
+    DBAction mhdislQuery = database.table("MHDISL").index("10").build()
+    DBContainer mhdislRequest = mhdislQuery.getContainer()
+    mhdislRequest.set("URCONO", currentCompany)
+    mhdislRequest.set("URRORC", rorc)
+    mhdislRequest.set("URRIDN", ridn)
+    mhdislRequest.set("URRIDL", ridl)
+    mhdislRequest.set("URRIDX", ridx)
 
-    Closure<?> closure_MHDISL = { DBContainer MHDISL_result ->
+    Closure<?> mhdislReader = { DBContainer mhdislResult ->
       if (dlix == 0)
-        dlix = MHDISL_result.get("URDLIX") as long
+        dlix = mhdislResult.get("URDLIX") as long
     }
-    if (!MHDISL_query.readAll(MHDISL_request, 5, closure_MHDISL)) {
+    if (!mhdislQuery.readAll(mhdislRequest, 5, 10000, mhdislReader)) {
       mi.error("L'enregistrement n'existe pas")
       return 0
     }
@@ -368,15 +365,11 @@ public class AddNewDel extends ExtendM3Transaction {
   public void lineTransfer() {
     logger.debug("Method lineTransfer")
     newDelivery = ""
-    ExpressionFactory expression_EXT057 = database.getExpressionFactory("EXT057")
-    /*TODO DEL
-    if (completeLineProcess) {
-      expression_EXT057 = expression_EXT057.eq("EXALQT", "0")
-    } else {
-      expression_EXT057 = expression_EXT057.ne("EXALQT", "0")
-    }*/
-    DBAction query_EXT057 = database.table("EXT057").index("10")
-      .matching(expression_EXT057)
+    ExpressionFactory ext057Expression = database.getExpressionFactory("EXT057")
+
+
+    DBAction ext057Query = database.table("EXT057").index("10")
+      .matching(ext057Expression)
       .selection("EXCONO",
         "EXORNO",
         "EXPONR",
@@ -385,9 +378,9 @@ public class AddNewDel extends ExtendM3Transaction {
         "EXALQT",
         "EXALUN",
         "EXTLIX").build()
-    DBContainer EXT057 = query_EXT057.getContainer()
-    EXT057.set("EXBJNO", bjno)
-    if (!query_EXT057.readAll(EXT057, 1, outData_EXT057_lineTransfer)) {
+    DBContainer ext057request = ext057Query.getContainer()
+    ext057request.set("EXBJNO", bjno)
+    if (!ext057Query.readAll(ext057request, 1, 10000,ext057ReaderLineTransfer)) {
     }
   }
 
@@ -395,11 +388,11 @@ public class AddNewDel extends ExtendM3Transaction {
    * TODO Comment
    */
   public void prepareTransfer() {
-    ExpressionFactory expression_EXT057 = database.getExpressionFactory("EXT057")
-    DBAction query_EXT057 = database
+    ExpressionFactory ext057Expression = database.getExpressionFactory("EXT057")
+    DBAction ext057Query = database
       .table("EXT057")
       .index("10")
-      .matching(expression_EXT057)
+      .matching(ext057Expression)
       .selection("EXCONO",
         "EXORNO",
         "EXPONR",
@@ -410,9 +403,9 @@ public class AddNewDel extends ExtendM3Transaction {
         "EXCAMS",
         "EXALUN")
       .build()
-    DBContainer EXT057 = query_EXT057.getContainer()
-    EXT057.set("EXBJNO", bjno)
-    if (!query_EXT057.readAll(EXT057, 1, outData_EXT057_prepareTransfer)) {
+    DBContainer ext057Request = ext057Query.getContainer()
+    ext057Request.set("EXBJNO", bjno)
+    if (!ext057Query.readAll(ext057Request, 1, 10000,ext057ReaderPrepareTransfer)) {
     }
   }
 
@@ -457,7 +450,7 @@ public class AddNewDel extends ExtendM3Transaction {
     //
     //  Get datas from original MHDISH
     //
-    DBAction MHDISH_query = database.table("MHDISH")
+    DBAction mhdishQuery = database.table("MHDISH")
       .index("00")
       .selection(
         "OQCONO"
@@ -470,29 +463,29 @@ public class AddNewDel extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer MHDISH_request = MHDISH_query.getContainer()
-    MHDISH_request.set("OQCONO", currentCompany)
-    MHDISH_request.set("OQINOU", 1)
-    MHDISH_request.set("OQDLIX", dlix as Long)
+    DBContainer mhdishRequest = mhdishQuery.getContainer()
+    mhdishRequest.set("OQCONO", currentCompany)
+    mhdishRequest.set("OQINOU", 1)
+    mhdishRequest.set("OQDLIX", dlix as Long)
 
-    if (MHDISH_query.read(MHDISH_request)) {
-      cona = MHDISH_request.get("OQCONA") as String
-      coaa = MHDISH_request.get("OQCOAA") as String
-      agky = MHDISH_request.get("OQAGKY") as String
-      dcc1 = MHDISH_request.get("OQDCC1") as String
+    if (mhdishQuery.read(mhdishRequest)) {
+      cona = mhdishRequest.get("OQCONA") as String
+      coaa = mhdishRequest.get("OQCOAA") as String
+      agky = mhdishRequest.get("OQAGKY") as String
+      dcc1 = mhdishRequest.get("OQDCC1") as String
     }
 
     //
     //  Load relative indexes
     //
-    ExpressionFactory MHDISH2_expression = database.getExpressionFactory("MHDISH")
-    MHDISH2_expression = MHDISH2_expression.eq("OQCOAA", coaa)
-    MHDISH2_expression = MHDISH2_expression.and(MHDISH2_expression.eq("OQAGKY", agky))
-    MHDISH2_expression = MHDISH2_expression.and(MHDISH2_expression.eq("OQDCC1", dcc1))
-    MHDISH2_expression = MHDISH2_expression.and(MHDISH2_expression.lt("OQPGRS", '90'))
+    ExpressionFactory mhdish2Expression = database.getExpressionFactory("MHDISH")
+    mhdish2Expression = mhdish2Expression.eq("OQCOAA", coaa)
+    mhdish2Expression = mhdish2Expression.and(mhdish2Expression.eq("OQAGKY", agky))
+    mhdish2Expression = mhdish2Expression.and(mhdish2Expression.eq("OQDCC1", dcc1))
+    mhdish2Expression = mhdish2Expression.and(mhdish2Expression.lt("OQPGRS", '90'))
 
-    DBAction MHDISH2_query = database.table("MHDISH")
-      .matching(MHDISH2_expression)
+    DBAction mhdish2Query = database.table("MHDISH")
+      .matching(mhdish2Expression)
       .index("50")
       .selection(
         "OQCONO"
@@ -503,14 +496,14 @@ public class AddNewDel extends ExtendM3Transaction {
         , "OQDLIX"
       ).build()
     logger.debug("loadRelativeIndexes dlix:${dlix} tlix:${tlix}")
-    DBContainer MHDISH2_request = MHDISH_query.getContainer()
-    MHDISH2_request.set("OQCONO", currentCompany)
-    MHDISH_request.set("OQINOU", 1)
-    MHDISH_request.set("OQCONA", cona)
+    DBContainer mhdish2Request = mhdishQuery.getContainer()
+    mhdish2Request.set("OQCONO", currentCompany)
+    mhdishRequest.set("OQINOU", 1)
+    mhdishRequest.set("OQCONA", cona)
 
 
-    Closure<?> MHDISH2_reader = { DBContainer MHDISH2_result ->
-      String curdlix = MHDISH2_result.get("OQDLIX") as String
+    Closure<?> mhdish2Reader = { DBContainer mhdish2Result ->
+      String curdlix = mhdish2Result.get("OQDLIX") as String
       logger.debug("curdlix:${curdlix}")
       if (curdlix != tlix) {
         blockedIndexes.put(curdlix, curdlix)
@@ -519,7 +512,7 @@ public class AddNewDel extends ExtendM3Transaction {
     }
 
     //Launch query
-    if (!MHDISH2_query.readAll(MHDISH2_request, 3, MHDISH2_reader)) {
+    if (!mhdish2Query.readAll(mhdish2Request, 3, 10000, mhdish2Reader)) {
     }
   }
 
@@ -539,26 +532,26 @@ public class AddNewDel extends ExtendM3Transaction {
    * Read EXT057 data
    * and call MWS411MI/MoveDelLn
    */
-  Closure<?> outData_EXT057_lineTransfer = { DBContainer EXT057 ->
-    String dlix = EXT057.get("EXDLIX")
-    String tlix = EXT057.get("EXTLIX")
+  Closure<?> ext057ReaderLineTransfer = { DBContainer ext057Result ->
+    String dlix = ext057Result.get("EXDLIX")
+    String tlix = ext057Result.get("EXTLIX")
     String rorc = "3"
-    String ridn = EXT057.get("EXORNO")
-    String ridl = EXT057.get("EXPONR")
-    String ridx = EXT057.get("EXPOSX")
-    double alqt = EXT057.get("EXALQT") as double
-    String alun = EXT057.get("EXALUN")
+    String ridn = ext057Result.get("EXORNO")
+    String ridl = ext057Result.get("EXPONR")
+    String ridx = ext057Result.get("EXPOSX")
+    double alqt = ext057Result.get("EXALQT") as double
+    String alun = ext057Result.get("EXALUN")
 
 
 
-    if (getOOLINE_DATA(ridn, ridl, ridx)) {
+    if (getoolineData(ridn, ridl, ridx)) {
       logger.debug("closure outData_EXT057_lineTransfer : DLIX=${dlix}, TLIX=${tlix} RIDN=${ridn} RIDL=${ridl} RIDX=${ridx}")
       if (alqt != 0)
-        alqt = convertQty(OOLINE_ITNO, alun, 0, alqt)
+        alqt = convertQty(this.oolineOrno, alun, 0, alqt)
 
-      logger.debug("TETS DDD alqt:${alqt} orqt:${OOLINE_ORQT}")
+      logger.debug("TETS DDD alqt:${alqt} orqt:${oolineOrqt}")
 
-      if (alqt == OOLINE_ORQT || alqt == 0) {
+      if (alqt == oolineOrqt || alqt == 0) {
         String theDLIX = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
         blockRelativeIndexes(dlix, theDLIX)
         executeMWS411MIMoveDelLn(dlix, rorc, ridn, ridl, ridx, theDLIX)
@@ -575,9 +568,9 @@ public class AddNewDel extends ExtendM3Transaction {
    * @param uca6
    * @return
    */
-  public checkOOHEAD(String orno, String uca4, String uca5, String uca6) {
+  public checkOohead(String orno, String uca4, String uca5, String uca6) {
     logger.debug("check OOHEAD orno=${orno} uca4=${uca4} uca5=${uca5} uca6=${uca6}")
-    DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection(
+    DBAction ooheadQuery = database.table("OOHEAD").index("00").selection(
       "OAOBLC",
       "OAHOCD",
       "OAJNA",
@@ -586,18 +579,18 @@ public class AddNewDel extends ExtendM3Transaction {
       "OAUCA5",
       "OAUCA6",
       "OACHID").build()
-    DBContainer OOHEAD_request = OOHEAD_query.getContainer()
-    OOHEAD_request.set("OACONO", currentCompany)
-    OOHEAD_request.set("OAORNO", orno)
-    if (OOHEAD_query.read(OOHEAD_request)) {
-      String oaoblc = OOHEAD_request.get("OAOBLC") as String
-      String oahocd = OOHEAD_request.get("OAHOCD") as String
-      String oajna = OOHEAD_request.get("OAJNA") as String
-      String oajnu = OOHEAD_request.get("OAJNU") as String
-      String oachid = OOHEAD_request.get("OACHID") as String
-      String oauca4 = OOHEAD_request.get("OAUCA4") as String
-      String oauca5 = OOHEAD_request.get("OAUCA5") as String
-      String oauca6 = OOHEAD_request.get("OAUCA6") as String
+    DBContainer ooheadRequest = ooheadQuery.getContainer()
+    ooheadRequest.set("OACONO", currentCompany)
+    ooheadRequest.set("OAORNO", orno)
+    if (ooheadQuery.read(ooheadRequest)) {
+      String oaoblc = ooheadRequest.get("OAOBLC") as String
+      String oahocd = ooheadRequest.get("OAHOCD") as String
+      String oajna = ooheadRequest.get("OAJNA") as String
+      String oajnu = ooheadRequest.get("OAJNU") as String
+      String oachid = ooheadRequest.get("OACHID") as String
+      String oauca4 = ooheadRequest.get("OAUCA4") as String
+      String oauca5 = ooheadRequest.get("OAUCA5") as String
+      String oauca6 = ooheadRequest.get("OAUCA6") as String
       if (oaoblc.equals("1") || oahocd.equals("1")) {
         in60 = true
         msgd = "La commande ${orno} est bloquée par ${oachid} programme ${oajna} / ${oajnu}"
@@ -614,29 +607,29 @@ public class AddNewDel extends ExtendM3Transaction {
   /**
    * Load OOLINE Informations
    */
-  public boolean getOOLINE_DATA(String orno, String ponr, String posx) {
-    logger.debug(String.format("method getOOLINE_DATA : ORNO=%s, PONR=%s, POSX=%s ", orno, ponr, posx))
-    if (OOLINE_ORNO == orno && OOLINE_PONR && ponr && OOLINE_POSX == posx) {
+  public boolean getoolineData(String orno, String ponr, String posx) {
+    logger.debug(String.format("method getoolineDATA : ORNO=%s, PONR=%s, POSX=%s ", orno, ponr, posx))
+    if (oolineOrno == orno && oolinePonr && ponr && oolinePosx == posx) {
       return true
     }
 
 
-    logger.debug(String.format("method getOOLINE_DATA : ORNO=%s, PONR=%s, POSX=%s ", orno, ponr, posx))
-    DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection(
+    logger.debug(String.format("method getoolineDATA : ORNO=%s, PONR=%s, POSX=%s ", orno, ponr, posx))
+    DBAction ooheadQuery = database.table("OOHEAD").index("00").selection(
       "OAOBLC",
       "OAHOCD",
       "OAJNA",
       "OAJNU",
       "OACHID").build()
-    DBContainer OOHEAD_request = OOHEAD_query.getContainer()
-    OOHEAD_request.set("OACONO", currentCompany)
-    OOHEAD_request.set("OAORNO", orno)
-    if (OOHEAD_query.read(OOHEAD_request)) {
-      String oaoblc = OOHEAD_request.get("OAOBLC") as String
-      String oahocd = OOHEAD_request.get("OAHOCD") as String
-      String oajna = (OOHEAD_request.get("OAJNA") as String).trim()
-      String oajnu = (OOHEAD_request.get("OAJNU") as String).trim()
-      String oachid = (OOHEAD_request.get("OACHID") as String).trim()
+    DBContainer ooheadRequest = ooheadQuery.getContainer()
+    ooheadRequest.set("OACONO", currentCompany)
+    ooheadRequest.set("OAORNO", orno)
+    if (ooheadQuery.read(ooheadRequest)) {
+      String oaoblc = ooheadRequest.get("OAOBLC") as String
+      String oahocd = ooheadRequest.get("OAHOCD") as String
+      String oajna = (ooheadRequest.get("OAJNA") as String).trim()
+      String oajnu = (ooheadRequest.get("OAJNU") as String).trim()
+      String oachid = (ooheadRequest.get("OACHID") as String).trim()
       if (oaoblc.equals("1") || oahocd.equals("1")) {
         in60 = true
         msgd = "La commande ${orno} est bloquée par ${oachid} programme ${oajna} / ${oajnu}"
@@ -645,8 +638,8 @@ public class AddNewDel extends ExtendM3Transaction {
       }
     }
 
-    logger.debug(String.format("method read line getOOLINE_DATA : ORNO=%s, PONR=%s, POSX=%s ", orno, ponr, posx))
-    DBAction OOLINE_query = database.table("OOLINE").index("00").selection(
+    logger.debug(String.format("method read line getoolineDATA : ORNO=%s, PONR=%s, POSX=%s ", orno, ponr, posx))
+    DBAction oolinequery = database.table("OOLINE").index("00").selection(
       "OBORNO",
       "OBPONR",
       "OBPOSX",
@@ -668,43 +661,43 @@ public class AddNewDel extends ExtendM3Transaction {
       "OBPLDT",
       "OBSAPR").build()
 
-    DBContainer OOLINE = OOLINE_query.getContainer()
-    OOLINE.set("OBCONO", currentCompany)
-    OOLINE.set("OBORNO", orno)
-    OOLINE.set("OBPONR", Integer.parseInt(ponr))
-    OOLINE.set("OBPOSX", Integer.parseInt(posx))
-    if (OOLINE_query.read(OOLINE)) {
-      OOLINE_ORNO = OOLINE.get("OBORNO")
-      OOLINE_PONR = OOLINE.get("OBPONR") as Integer
-      OOLINE_POSX = OOLINE.get("OBPOSX") as Integer
-      OOLINE_RORC = OOLINE.get("OBRORC")
-      OOLINE_RORN = OOLINE.get("OBRORN")
-      OOLINE_RORL = OOLINE.get("OBRORL") as Integer
-      OOLINE_RORX = OOLINE.get("OBRORX") as Integer
-      OOLINE_ITNO = OOLINE.get("OBITNO")
-      OOLINE_ORQT = OOLINE.get("OBORQT") as Double
-      OOLINE_ALUN = OOLINE.get("OBALUN")
-      OOLINE_LTYP = OOLINE.get("OBLTYP")
-      OOLINE_WHLO = OOLINE.get("OBWHLO")
-      OOLINE_DWDZ = OOLINE.get("OBDWDZ")
-      OOLINE_DWHZ = OOLINE.get("OBDWHZ")
-      OOLINE_ADID = OOLINE.get("OBADID")
-      OOLINE_PIDE = OOLINE.get("OBPIDE")
-      OOLINE_DIP4 = OOLINE.get("OBDIP4")
-      OOLINE_DWDT = OOLINE.get("OBDWDT")
-      OOLINE_PLDT = OOLINE.get("OBPLDT")
-      OOLINE_SAPR = OOLINE.get("OBSAPR")
-      logger.debug("OOLINE_RORL:${OOLINE_RORL} OOLINE_RORC:${OOLINE_RORC}")
+    DBContainer oolineRequest = oolinequery.getContainer()
+    oolineRequest.set("OBCONO", currentCompany)
+    oolineRequest.set("OBORNO", orno)
+    oolineRequest.set("OBPONR", Integer.parseInt(ponr))
+    oolineRequest.set("OBPOSX", Integer.parseInt(posx))
+    if (oolinequery.read(oolineRequest)) {
+      oolineOrno = oolineRequest.get("OBORNO")
+      oolinePonr = oolineRequest.get("OBPONR") as Integer
+      oolinePosx = oolineRequest.get("OBPOSX") as Integer
+      oolineRorc = oolineRequest.get("OBRORC")
+      oolineRorn = oolineRequest.get("OBRORN")
+      oolineRorl = oolineRequest.get("OBRORL") as Integer
+      oolineRorx = oolineRequest.get("OBRORX") as Integer
+      this.oolineOrno = oolineRequest.get("OBITNO")
+      oolineOrqt = oolineRequest.get("OBORQT") as Double
+      oolineAlun = oolineRequest.get("OBALUN")
+      oolineLtyp = oolineRequest.get("OBLTYP")
+      oolineWhlo = oolineRequest.get("OBWHLO")
+      oolineDwdz = oolineRequest.get("OBDWDZ")
+      oolineDwhz = oolineRequest.get("OBDWHZ")
+      oolineAdid = oolineRequest.get("OBADID")
+      oolinePide = oolineRequest.get("OBPIDE")
+      oolineDip4 = oolineRequest.get("OBDIP4")
+      oolineDwdt = oolineRequest.get("OBDWDT")
+      oolinePldt = oolineRequest.get("OBPLDT")
+      oolineSapr = oolineRequest.get("OBSAPR")
+      logger.debug("oolineRORL:${oolineRorl} oolineRORC:${oolineRorc}")
       return true
     }
-    logger.debug(String.format("closure getOOLINE_DATA NOT FOUND : cono=%s ORNO=%s, PONR=%s, POSX=%s ", currentCompany + "", orno, ponr, posx))
+    logger.debug(String.format("closure getoolineDATA NOT FOUND : cono=%s ORNO=%s, PONR=%s, POSX=%s ", currentCompany + "", orno, ponr, posx))
     return false
   }
   /**
    * Execute MWS411MI.MoveDelLn
    */
   private executeMWS411MIMoveDelLn(String dlix, String rorc, String ridn, String ridl, String ridx, String tlix) {
-    def parameters = ["DLIX": dlix, "RORC": rorc, "RIDN": ridn, "RIDL": ridl, "RIDX": ridx, "TLIX": tlix]
+    Map<String, String> parameters = ["DLIX": dlix, "RORC": rorc, "RIDN": ridn, "RIDL": ridl, "RIDX": ridx, "TLIX": tlix]
     logger.debug("call executeMWS411MIMoveDelLn : DLIX:${dlix}, RORC=${rorc}, RIDN:${ridn}, RIDL=${ridl}, RIDX=${ridx}, TLIX=${tlix}")
     Closure<?> handler = { Map<String, String> response ->
       if (response.TLIX != null)
@@ -736,18 +729,18 @@ public class AddNewDel extends ExtendM3Transaction {
       return
     }
 
-    DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX", "OQBLOP").build()
-    DBContainer MHDISH = query_MHDISH.getContainer()
-    MHDISH.set("OQCONO", currentCompany)
-    MHDISH.set("OQINOU", 1)
-    MHDISH.set("OQDLIX", index as Long)
+    DBAction mhdishQuery = database.table("MHDISH").index("00").selection("OQDLIX", "OQBLOP").build()
+    DBContainer mhdishRequest = mhdishQuery.getContainer()
+    mhdishRequest.set("OQCONO", currentCompany)
+    mhdishRequest.set("OQINOU", 1)
+    mhdishRequest.set("OQDLIX", index as Long)
 
-    Closure<?> MHDISH_updater = { LockedResult MHDISH_lockedResult ->
-      MHDISH_lockedResult.set("OQBLOP", blop)
-      MHDISH_lockedResult.update()
+    Closure<?> mhdishUpdater = { LockedResult mdishLockedResult ->
+      mdishLockedResult.set("OQBLOP", blop)
+      mdishLockedResult.update()
     }
 
-    if (query_MHDISH.readLock(MHDISH, MHDISH_updater)) {
+    if (mhdishQuery.readLock(mhdishRequest, mhdishUpdater)) {
     }
   }
 
@@ -755,22 +748,22 @@ public class AddNewDel extends ExtendM3Transaction {
    * Loop ON EXT057
    *
    */
-  Closure<?> outData_EXT057_prepareTransfer = { DBContainer EXT057 ->
-    logger.debug(String.format("closure outData_EXT057_prepareTransfer : ORNO=%s, PONR=%s, POSX=%s ", EXT057.get("EXORNO"), EXT057.get("EXPONR"), EXT057.get("EXPOSX")))
-    String orno = EXT057.get("EXORNO") as String
-    String ponr = EXT057.get("EXPONR") as String
-    String posx = EXT057.get("EXPOSX") as String
-    double alqt = EXT057.get("EXALQT") as Double
-    String alun = EXT057.get("EXALUN") as String
+  Closure<?> ext057ReaderPrepareTransfer = { DBContainer ext057Result ->
+    logger.debug(String.format("closure outData_EXT057_prepareTransfer : ORNO=%s, PONR=%s, POSX=%s ", ext057Result.get("EXORNO"), ext057Result.get("EXPONR"), ext057Result.get("EXPOSX")))
+    String orno = ext057Result.get("EXORNO") as String
+    String ponr = ext057Result.get("EXPONR") as String
+    String posx = ext057Result.get("EXPOSX") as String
+    double alqt = ext057Result.get("EXALQT") as Double
+    String alun = ext057Result.get("EXALUN") as String
 
 
-    if (getOOLINE_DATA(EXT057.getString("EXORNO"), "" + EXT057.get("EXPONR"), "" + EXT057.get("EXPOSX"))) {
+    if (getoolineData(ext057Result.getString("EXORNO"), "" + ext057Result.get("EXPONR"), "" + ext057Result.get("EXPOSX"))) {
       // CONVERT CONVERSION PAL to UMNS
-      EXT057_ALQT = convertQty(OOLINE_ITNO, alun, 0, alqt)
-      logger.debug("RETEST DDD alqt:${EXT057_ALQT} orqt:${OOLINE_ORQT}")
+      ext057Alqt = convertQty(this.oolineOrno, alun, 0, alqt)
+      logger.debug("RETEST DDD alqt:${ext057Alqt} orqt:${oolineOrqt}")
 
-      if (OOLINE_ORQT != EXT057_ALQT)
-        transferLINE_Partial(EXT057.get("EXDLIX") as String, EXT057.get("EXTLIX") as String, EXT057.get("EXCAMS") as String)
+      if (oolineOrqt != ext057Alqt)
+        transferLinePartial(ext057Result.get("EXDLIX") as String, ext057Result.get("EXTLIX") as String, ext057Result.get("EXCAMS") as String)
     }
   }
 
@@ -778,12 +771,12 @@ public class AddNewDel extends ExtendM3Transaction {
   /**
    * break link between CO & PO
    */
-  public void transferLINE_Partial(String dlix, String tlix, String cams) {
+  public void transferLinePartial(String dlix, String tlix, String cams) {
     logger.debug("method breakLinkedOrders")
 
     //Save MITPLO and MITALO RECORDS
     LinkedList<Object> mitplos = new LinkedList<Object>()
-    DBAction MITPLO_query = database.table("MITPLO").index("10").selection(
+    DBAction mitploQuery = database.table("MITPLO").index("10").selection(
       "MOWHLO"
       , "MOITNO"
       , "MOPLDT"
@@ -795,36 +788,36 @@ public class AddNewDel extends ExtendM3Transaction {
       , "MORIDI"
       , "MOSTAT"
       , "MOALQT").build()
-    DBContainer MITPLO_request = MITPLO_query.getContainer()
-    MITPLO_request.set("MOCONO", currentCompany)
-    MITPLO_request.set("MOORCA", "311")
-    MITPLO_request.set("MORIDN", OOLINE_ORNO)
-    MITPLO_request.set("MORIDL", OOLINE_PONR)
-    MITPLO_request.set("MORIDX", OOLINE_POSX)
+    DBContainer mitploRequest = mitploQuery.getContainer()
+    mitploRequest.set("MOCONO", currentCompany)
+    mitploRequest.set("MOORCA", "311")
+    mitploRequest.set("MORIDN", oolineOrno)
+    mitploRequest.set("MORIDL", oolinePonr)
+    mitploRequest.set("MORIDX", oolinePosx)
 
-    Closure<?> MITPLO_reader = { DBContainer MITPLO_result ->
+    Closure<?> mitploReader = { DBContainer mitploResult ->
       //Define return object structure
-      def mitplo_data = [
-        "MOWHLO"  : "" + MITPLO_result.get("MOWHLO")
-        , "MOITNO": "" + MITPLO_result.get("MOITNO")
-        , "MOPLDT": "" + MITPLO_result.get("MOPLDT")
-        , "MOTIHM": "" + MITPLO_result.get("MOTIHM")
-        , "MOORCA": "" + MITPLO_result.get("MOORCA")
-        , "MORIDN": "" + MITPLO_result.get("MORIDN")
-        , "MORIDL": "" + MITPLO_result.get("MORIDL")
-        , "MORIDX": "" + MITPLO_result.get("MORIDX")
-        , "MORIDI": "" + MITPLO_result.get("MORIDI")
-        , "MOSTAT": "" + MITPLO_result.get("MOSTAT")
-        , "MOALQT": "" + MITPLO_result.get("MOALQT")
+      Map<String, String> mitploData = [
+        "MOWHLO"  : "" + mitploResult.get("MOWHLO")
+        , "MOITNO": "" + mitploResult.get("MOITNO")
+        , "MOPLDT": "" + mitploResult.get("MOPLDT")
+        , "MOTIHM": "" + mitploResult.get("MOTIHM")
+        , "MOORCA": "" + mitploResult.get("MOORCA")
+        , "MORIDN": "" + mitploResult.get("MORIDN")
+        , "MORIDL": "" + mitploResult.get("MORIDL")
+        , "MORIDX": "" + mitploResult.get("MORIDX")
+        , "MORIDI": "" + mitploResult.get("MORIDI")
+        , "MOSTAT": "" + mitploResult.get("MOSTAT")
+        , "MOALQT": "" + mitploResult.get("MOALQT")
       ]
-      mitplos.add(mitplo_data)
+      mitplos.add(mitploData)
     }
-    MITPLO_query.readAll(MITPLO_request, 5, MITPLO_reader)
+    mitploQuery.readAll(mitploRequest, 5, 10000, mitploReader)
 
 
     //Save MITALO RECORDS
-    LinkedList<Object> mitalos = new LinkedList<Object>()
-    DBAction MITALO_query = database.table("MITALO").index("10").selection(
+    LinkedList<Map<String, String>> mitalos = new LinkedList<Map<String, String>>()
+    DBAction mitaloQuery = database.table("MITALO").index("10").selection(
       "MQWHLO",
       "MQITNO",
       "MQWHSL",
@@ -832,89 +825,89 @@ public class AddNewDel extends ExtendM3Transaction {
       "MQCAMU",
       "MQREPN",
       "MQALQT").build()
-    DBContainer MITALO_request = MITALO_query.getContainer()
-    MITALO_request.set("MQCONO", currentCompany)
-    MITALO_request.set("MQTTYP", 31)
-    MITALO_request.set("MQRIDN", OOLINE_ORNO)
-    MITALO_request.set("MQRIDO", 0)
-    MITALO_request.set("MQRIDL", OOLINE_PONR)
-    MITALO_request.set("MQRIDX", OOLINE_POSX)
+    DBContainer mitaloQueryrequest = mitaloQuery.getContainer()
+    mitaloQueryrequest.set("MQCONO", currentCompany)
+    mitaloQueryrequest.set("MQTTYP", 31)
+    mitaloQueryrequest.set("MQRIDN", oolineOrno)
+    mitaloQueryrequest.set("MQRIDO", 0)
+    mitaloQueryrequest.set("MQRIDL", oolinePonr)
+    mitaloQueryrequest.set("MQRIDX", oolinePosx)
 
-    Closure<?> MITALO_reader = { DBContainer MITALO_result ->
+    Closure<?> mitaloReader = { DBContainer mitaloResult ->
       //Define return object structure
-      def mitalo_data = [
-        "MQWHLO"  : "" + MITALO_result.get("MQWHLO")
-        , "MQITNO": "" + MITALO_result.get("MQITNO")
-        , "MQWHSL": "" + MITALO_result.get("MQWHSL")
-        , "MQBANO": "" + MITALO_result.get("MQBANO")
-        , "MQCAMU": "" + MITALO_result.get("MQCAMU")
-        , "MQTTYP": "" + MITALO_result.get("MQTTYP")
-        , "MQRIDN": "" + MITALO_result.get("MQRIDN")
-        , "MQRIDO": "" + MITALO_result.get("MQRIDO")
-        , "MQRIDL": "" + MITALO_result.get("MQRIDL")
-        , "MQRIDX": "" + MITALO_result.get("MQRIDX")
-        , "MQRIDI": "" + MITALO_result.get("MQRIDI")
-        , "MQPLSX": "" + MITALO_result.get("MQPLSX")
-        , "MQSOFT": "" + MITALO_result.get("MQSOFT")
-        , "MQALQT": "" + MITALO_result.get("MQALQT")
+      Map<String, String> mitaloData = [
+        "MQWHLO"  : "" + mitaloResult.get("MQWHLO")
+        , "MQITNO": "" + mitaloResult.get("MQITNO")
+        , "MQWHSL": "" + mitaloResult.get("MQWHSL")
+        , "MQBANO": "" + mitaloResult.get("MQBANO")
+        , "MQCAMU": "" + mitaloResult.get("MQCAMU")
+        , "MQTTYP": "" + mitaloResult.get("MQTTYP")
+        , "MQRIDN": "" + mitaloResult.get("MQRIDN")
+        , "MQRIDO": "" + mitaloResult.get("MQRIDO")
+        , "MQRIDL": "" + mitaloResult.get("MQRIDL")
+        , "MQRIDX": "" + mitaloResult.get("MQRIDX")
+        , "MQRIDI": "" + mitaloResult.get("MQRIDI")
+        , "MQPLSX": "" + mitaloResult.get("MQPLSX")
+        , "MQSOFT": "" + mitaloResult.get("MQSOFT")
+        , "MQALQT": "" + mitaloResult.get("MQALQT")
       ]
-      mitalos.add(mitalo_data)
+      mitalos.add(mitaloData)
     }
 
-    MITALO_query.readAll(MITALO_request, 6, MITALO_reader)
+    mitaloQuery.readAll(mitaloQueryrequest, 6, 10000, mitaloReader)
 
 
-    logger.debug("OOLINE_RORL:${OOLINE_RORL} OOLINE_RORC:${OOLINE_RORC}")
+    logger.debug("oolineRORL:${oolineRorl} oolineRORC:${oolineRorc}")
     // Break link with purchase order
-    if (OOLINE_RORC.trim() == "2") {
+    if (oolineRorc.trim() == "2") {
       // Remove link from purchase order line
-      executePPS200MIUpdLine(OOLINE_RORN, "" + OOLINE_RORL, "" + OOLINE_RORX, "0", "0", "0", "0")
+      executePPS200MIUpdLine(oolineRorn, "" + oolineRorl, "" + oolineRorx, "0", "0", "0", "0")
     }
 
     //deallocation
-    if (MITBAL_ALMT != 6 && MITBAL_ALMT != 7)
-      executeMMS120MIDeAllocateOrLne("31", OOLINE_ORNO, "" + OOLINE_PONR, "" + OOLINE_POSX, "M")
+    if (mitbalAlmt != 6 && mitbalAlmt != 7)
+      executeMMS120MIDeAllocateOrLne("31", oolineOrno, "" + oolinePonr, "" + oolinePosx, "M")
 
     //Reduce Qty on original line
     logger.debug("calc new orqa ")
-    double new_orqa = convertQty(OOLINE_ITNO, OOLINE_ALUN, OOLINE_ORQT - EXT057_ALQT, 0)
-    logger.debug("calc new orqa ${new_orqa}")
+    double newOrqa = convertQty(this.oolineOrno, oolineAlun, oolineOrqt - ext057Alqt, 0)
+    logger.debug("calc new orqa ${newOrqa}")
     blockRelativeIndexes(dlix, dlix)
-    executeOIS100MIChgLineBatchEnt(OOLINE_ORNO, "" + OOLINE_PONR, "" + OOLINE_POSX, OOLINE_RORN, new_orqa as String)
+    executeOIS100MIChgLineBatchEnt(oolineOrno, "" + oolinePonr, "" + oolinePosx, oolineRorn, newOrqa as String)
     unblockingIndexes()
 
     //recreate link with po line
-    if (OOLINE_RORC.trim() == "2") {
-      executePPS200MIUpdLine(OOLINE_RORN, "" + OOLINE_RORL, "" + OOLINE_RORX, "3", OOLINE_ORNO, "" + OOLINE_PONR, "" + OOLINE_POSX)
+    if (oolineRorc.trim() == "2") {
+      executePPS200MIUpdLine(oolineRorn, "" + oolineRorl, "" + oolineRorx, "3", oolineOrno, "" + oolinePonr, "" + oolinePosx)
     }
     //Create new co line
-    if (EXT057_ALQT > 0) {
-      String theDLIX = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
-      blockRelativeIndexes(dlix, theDLIX)
-      NEW_PONR = 0
-      NEW_POSX = 0
+    if (ext057Alqt > 0) {
+      String theDlix = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
+      blockRelativeIndexes(dlix, theDlix)
+      newPonr = 0
+      newPosx = 0
       logger.debug("calc new line orqa ")
-      executeOIS100MIAddOrderLine(OOLINE_ORNO, OOLINE_ITNO, EXT057_ALQT as String, 'UVC', "0", OOLINE_WHLO, OOLINE_DWDZ, OOLINE_DWHZ, OOLINE_ADID, OOLINE_PIDE, OOLINE_DIP4, OOLINE_DWDT, OOLINE_PLDT, OOLINE_SAPR)
+      executeOIS100MIAddOrderLine(oolineOrno, this.oolineOrno, ext057Alqt as String, 'UVC', "0", oolineWhlo, oolineDwdz, oolineDwhz, oolineAdid, oolinePide, oolineDip4, oolineDwdt, oolinePldt, oolineSapr)
       unblockingIndexes()
     }
 
     //realoc
-    double qte_original = OOLINE_ORQT
-    double qte_new_line = EXT057_ALQT
-    double qte_old_line = OOLINE_ORQT - EXT057_ALQT
+    double qteOriginal = oolineOrqt
+    double qteNewLine = ext057Alqt
+    double qteOldLine = oolineOrqt - ext057Alqt
 
-    if (MITBAL_ALMT != 6 && MITBAL_ALMT != 7) {
-      for (def mitalo in mitalos) {
-        String mitalo_itno = mitalo["MQITNO"] as String
-        String mitalo_bano = mitalo["MQBANO"] as String
-        String mitalo_camu = mitalo["MQCAMU"] as String
-        double mitalo_alqt = mitalo["MQALQT"] as Double
+    if (mitbalAlmt != 6 && mitbalAlmt != 7) {
+      for (Map<String, String> mitalo in mitalos) {
+        String mitaloItno = mitalo["MQITNO"] as String
+        String mitaloBano = mitalo["MQBANO"] as String
+        String mitaloCamu = mitalo["MQCAMU"] as String
+        double mitaloAlqt = mitalo["MQALQT"] as Double
 
         double alqt = 0
-        logger.debug("affectation itno:${mitalo_itno} bano:${mitalo_bano} camu:${mitalo_camu} qte_old_line:${qte_old_line} qte_new_line:${qte_new_line} cams:${cams}")
-        if (qte_old_line > 0 && (!cams.contains(mitalo_camu) || cams.trim() == "")) {
-          alqt = qte_old_line <= mitalo_alqt ? qte_old_line : mitalo_alqt
-          logger.debug("affectation oldline itno:${mitalo_itno} bano:${mitalo_bano} camu:${mitalo_camu} qte_old_line:${qte_old_line} qte_new_line:${qte_new_line} cams:${cams}")
+        logger.debug("affectation itno:${mitaloItno} bano:${mitaloBano} camu:${mitaloCamu} qte_old_line:${qteOldLine} qte_new_line:${qteNewLine} cams:${cams}")
+        if (qteOldLine > 0 && (!cams.contains(mitaloCamu) || cams.trim() == "")) {
+          alqt = qteOldLine <= mitaloAlqt ? qteOldLine : mitaloAlqt
+          logger.debug("affectation oldline itno:${mitaloItno} bano:${mitaloBano} camu:${mitaloCamu} qte_old_line:${qteOldLine} qte_new_line:${qteNewLine} cams:${cams}")
           executeMMS120MIUpdDetAlloc(
             mitalo["MQWHLO"] as String
             , mitalo["MQITNO"] as String
@@ -923,15 +916,15 @@ public class AddNewDel extends ExtendM3Transaction {
             , mitalo["MQCAMU"] as String
             , alqt as String
             , "31"
-            , OOLINE_ORNO
-            , OOLINE_PONR as String
-            , OOLINE_POSX as String)
-          qte_old_line -= alqt
-          mitalo_alqt -= alqt
+            , oolineOrno
+            , oolinePonr as String
+            , oolinePosx as String)
+          qteOldLine -= alqt
+          mitaloAlqt -= alqt
         }
-        if (qte_new_line > 0 &&  (cams.contains(mitalo_camu) || cams.trim() == "")) {
-          alqt = qte_new_line <= mitalo_alqt ? qte_new_line : mitalo_alqt
-          logger.debug("affectation newline itno:${mitalo_itno} bano:${mitalo_bano} camu:${mitalo_camu} qte_old_line:${qte_old_line} qte_new_line:${qte_new_line} cams:${cams}")
+        if (qteNewLine > 0 &&  (cams.contains(mitaloCamu) || cams.trim() == "")) {
+          alqt = qteNewLine <= mitaloAlqt ? qteNewLine : mitaloAlqt
+          logger.debug("affectation newline itno:${mitaloItno} bano:${mitaloBano} camu:${mitaloCamu} qte_old_line:${qteOldLine} qte_new_line:${qteNewLine} cams:${cams}")
           if (alqt > 0) {
             executeMMS120MIUpdDetAlloc(
               mitalo["MQWHLO"] as String
@@ -941,10 +934,10 @@ public class AddNewDel extends ExtendM3Transaction {
               , mitalo["MQCAMU"] as String
               , alqt as String
               , "31"
-              , OOLINE_ORNO
-              , NEW_PONR as String
-              , NEW_POSX as String)
-            mitalo_alqt -= alqt
+              , oolineOrno
+              , newPonr as String
+              , newPosx as String)
+            mitaloAlqt -= alqt
           }
         }
       }
@@ -962,7 +955,7 @@ public class AddNewDel extends ExtendM3Transaction {
    */
   private executeMMS120MIDeAllocateOrLne(String TTYP, String RIDN, String RIDL, String RIDX, String MAAL) {
     logger.debug("executeMMS120MIDeAllocateOrLne ${RIDN} ${RIDL} ${RIDX}")
-    def parameters = ["TTYP": TTYP, "RIDN": RIDN, "RIDL": RIDL, "RIDX": RIDX, "MAAL": MAAL]
+    Map<String, String> parameters = ["TTYP": TTYP, "RIDN": RIDN, "RIDL": RIDL, "RIDX": RIDX, "MAAL": MAAL]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         logger.debug("executeMMS120MIDeAllocateOrLne error TTYP:${TTYP}, RIDN:${RIDN}, RIDL:${RIDL}, RIDX:${RIDX}, MAAL:${MAAL}")
@@ -984,19 +977,11 @@ public class AddNewDel extends ExtendM3Transaction {
    * @return
    */
   private executePPS200MIUpdLine(String PUNO, String PNLI, String PNLS, String RORC, String RORN, String RORL, String RORX) {
-    /* LINE DISABLED BECAUSE PPS200MI non compatible EXTENDSM3
-     * def parameters = ["PUNO": PUNO, "PNLI": PNLI, "PNLS": PNLS, "RORC": RORC, "RORN": RORN, "RORL": RORL, "RORX": RORX]
-     Closure<?> handler = { Map<String, String> response ->
-     if (response.error != null) {
-     return mi.error("Failed PPS200MI.UpdLine: "+ response.errorMessage)
-     }
-     }
-     miCaller.call("PPS200MI", "UpdLine", parameters, handler)*/
     //CALL PPS200MI tru IONAPI
     logger.debug("executePPS200MIUpdLine : ligne OA ${PUNO} ${PNLI} ${PNLS} ligne CDV ${RORC} ${RORL} ${RORX}")
-    def endpoint = "/M3/m3api-rest/v2/execute/PPS200MI/UpdLine"
-    def headers = ["Accept": "application/json"]
-    def queryParameters = [
+    String endpoint = "/M3/m3api-rest/v2/execute/PPS200MI/UpdLine"
+    Map<String, String> headers = ["Accept": "application/json"]
+    Map<String, String> queryParameters = [
       "cono": "" + currentCompany,
       "PUNO": PUNO,
       "PNLI": PNLI,
@@ -1030,7 +1015,7 @@ public class AddNewDel extends ExtendM3Transaction {
    * @return
    */
   private executeOIS100MIChgLineBatchEnt(String ORNO, String PONR, String POSX, String UCA2, String ORQA) {
-    def parameters = ["ORNO": ORNO, "PONR": PONR, "POSX": POSX, "UCA2": UCA2, "ORQA": ORQA]
+    Map<String, String> parameters = ["ORNO": ORNO, "PONR": PONR, "POSX": POSX, "UCA2": UCA2, "ORQA": ORQA]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Failed OIS100MI.ChgLineBatchEnt: " + response.errorMessage)
@@ -1058,7 +1043,7 @@ public class AddNewDel extends ExtendM3Transaction {
    * @return
    */
   private executeOIS100MIAddOrderLine(String ORNO, String ITNO, String ORQT, String ALUN, String LTYP, String WHLO, String DWDZ, String DWHZ, String ADID, String PIDE, String DIP4, String DWDT, String PLDT, String SAPR) {
-    def parameters = [
+    Map<String, String> parameters = [
       "ORNO": ORNO,
       "ITNO": ITNO,
       "ORQT": ORQT,
@@ -1081,9 +1066,9 @@ public class AddNewDel extends ExtendM3Transaction {
       if (response.error != null) {
         return mi.error("Failed OIS100MI.AddOrderLine: " + response.errorMessage)
       } else {
-        NEW_PONR = response.PONR as int
-        NEW_POSX = response.POSX as int
-        logger.debug("OIS100.AddOrderLine " + NEW_PONR)
+        newPonr = response.PONR as int
+        newPosx = response.POSX as int
+        logger.debug("OIS100.AddOrderLine " + newPonr)
       }
     }
     miCaller.call("OIS100MI", "AddOrderLine", parameters, handler)
@@ -1104,7 +1089,7 @@ public class AddNewDel extends ExtendM3Transaction {
    * @return
    */
   private executeMMS120MIUpdDetAlloc(String whlo, String itno, String whsl, String bano, String camu, String alqt, String ttyp, String ridn, String ridl, String ridx) {
-    def parameters = ["WHLO": whlo, "ITNO": itno, "WHSL": whsl, "BANO": bano, "CAMU": camu, "ALQT": alqt, "TTYP": ttyp, "RIDN": ridn, "RIDL": ridl, "RIDX": ridx]
+    Map<String, String> parameters = ["WHLO": whlo, "ITNO": itno, "WHSL": whsl, "BANO": bano, "CAMU": camu, "ALQT": alqt, "TTYP": ttyp, "RIDN": ridn, "RIDL": ridl, "RIDX": ridx]
     logger.debug("executeMMS120MIUpdDetAlloc ORNO=${ridn} PONR=${ridl} POSX=${ridx} ALQT=${alqt} WHLO=${whlo} BANO=${bano} CAMU=${camu}")
 
     Closure<?> handler = { Map<String, String> response ->
@@ -1118,43 +1103,46 @@ public class AddNewDel extends ExtendM3Transaction {
   /**
    *
    */
-  public void deleteEXT057() {
+  public void deleteExt057() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction EXT057_query = database.table("EXT057").index("00").build()
-    DBContainer EXT057_request = EXT057_query.getContainer()
-    EXT057_request.set("EXBJNO", bjno)
+    DBAction ext057Query = database.table("EXT057").index("00").build()
+    DBContainer ext057Request = ext057Query.getContainer()
+    ext057Request.set("EXBJNO", bjno)
 
-    Closure<?> EXT057_deleter = { LockedResult EXT057_result ->
-      EXT057_result.delete()
+    Closure<?> ext057LReader = { DBContainer ext057Result ->
+      Closure<?> ext057Deleter = { LockedResult ext057Lockresult ->
+        ext057Lockresult.delete()
+      }
+      ext057Query.readLock(ext057Result, ext057Deleter)
     }
-
-
-    if (!EXT057_query.readAllLock(EXT057_request, 1, EXT057_deleter)) {
+    if (!ext057Query.readAll(ext057Request, 1, 10000, ext057LReader)) {//todo wtf
     }
   }
 
   /**
    *
    */
-  public void deleteEXT059() {
+  public void deleteExt059() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    DBAction EXT059_query = database.table("EXT059").index("00").build()
-    DBContainer EXT059_request = EXT059_query.getContainer()
-    EXT059_request.set("EXBJNO", bjno)
+    DBAction ext059Query = database.table("EXT059").index("00").build()
+    DBContainer ext059Request = ext059Query.getContainer()
+    ext059Request.set("EXBJNO", bjno)
 
-    Closure<?> EXT059_deleter = { LockedResult EXT059_result ->
-      EXT059_result.delete()
+    Closure<?> ext059LReader = { DBContainer ext059Result ->
+      Closure<?> ext059deleter = { LockedResult ext059LockResult ->
+        ext059LockResult.delete()
+      }
+      ext059Query.readLock(ext059Result, ext059deleter)
     }
 
-
-    if (!EXT059_query.readAllLock(EXT059_request, 1, EXT059_deleter)) {
+    if (!ext059Query.readAll(ext059Request, 1, 10000, ext059LReader)) {
     }
   }
   /**
    *
    */
-  def loadItemUnitData(String itno, String alun) {
-    def returnValue = [
+  Map<String, String> loadItemUnitData(String itno, String alun) {
+    Map<String, String> returnValue = [
       "ITNO"  : itno
       , "ALUN": alun
       , "DMCF": ""
@@ -1162,9 +1150,9 @@ public class AddNewDel extends ExtendM3Transaction {
       , "DCCD": ""
     ]
 
-    if (itno != MITMAS_ITNO) {
+    if (itno != mitmasItno) {
       String unms = ""
-      DBAction MITMAS_query = database.table("MITMAS")
+      DBAction mitmasQuery = database.table("MITMAS")
         .index("00")
         .selection(
           "MMCONO"
@@ -1173,22 +1161,22 @@ public class AddNewDel extends ExtendM3Transaction {
         )
         .build()
 
-      DBContainer MITMAS_request = MITMAS_query.getContainer()
-      MITMAS_request.set("MMCONO", currentCompany)
-      MITMAS_request.set("MMITNO", itno)
-      if (MITMAS_query.read(MITMAS_request)) {
-        unms = MITMAS_request.get("MMUNMS")
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", itno)
+      if (mitmasQuery.read(mitmasRequest)) {
+        unms = mitmasRequest.get("MMUNMS")
       }
       returnValue["ITNO"] = itno
       returnValue["UNMS"] = unms
-      MITMAS_ITNO = itno
-      MITMAS_UNMS = unms
+      mitmasItno = itno
+      mitmasUnms = unms
     }
 
     if (alun == "UVC"){
-      returnValue["ITNO"] = MITMAS_ITNO
-      returnValue["UNMS"] = MITMAS_UNMS
-      returnValue["ALUN"] = MITMAS_UNMS
+      returnValue["ITNO"] = mitmasItno
+      returnValue["UNMS"] = mitmasUnms
+      returnValue["ALUN"] = mitmasUnms
       returnValue["DMCF"] = "1"
       returnValue["COFA"] = "1"
       returnValue["DCCD"] = "1"
@@ -1196,9 +1184,9 @@ public class AddNewDel extends ExtendM3Transaction {
     }
 
 
-    if (itno != MITMAS_ITNO || OOLINE_WHLO != MITBAL_WHLO) {
+    if (itno != mitmasItno || oolineWhlo != mitbalWhlo) {
       int almt = 0
-      DBAction MITBAL_query = database.table("MITBAL")
+      DBAction mitbalQuery = database.table("MITBAL")
         .index("00")
         .selection(
           "MBCONO"
@@ -1209,22 +1197,22 @@ public class AddNewDel extends ExtendM3Transaction {
         .build()
 
 
-      DBContainer MITBAL_request = MITBAL_query.getContainer()
-      MITBAL_request.set("MBCONO", currentCompany)
-      MITBAL_request.set("MBWHLO", OOLINE_WHLO)
-      MITBAL_request.set("MBITNO", itno)
-      if (MITBAL_query.read(MITBAL_request)) {
-        almt = MITBAL_request.get("MBALMT") as Integer
+      DBContainer mitbalRequest = mitbalQuery.getContainer()
+      mitbalRequest.set("MBCONO", currentCompany)
+      mitbalRequest.set("MBWHLO", oolineWhlo)
+      mitbalRequest.set("MBITNO", itno)
+      if (mitbalQuery.read(mitbalRequest)) {
+        almt = mitbalRequest.get("MBALMT") as Integer
       }
-      MITBAL_WHLO = OOLINE_WHLO
-      MITBAL_ALMT = almt
+      mitbalWhlo = oolineWhlo
+      mitbalAlmt = almt
     }
 
-    if (alun == MITMAS_UNMS) {
+    if (alun == mitmasUnms) {
       return null
     }
 
-    DBAction MITAUN_query = database.table("MITAUN")
+    DBAction mitaunQuery = database.table("MITAUN")
       .index("00")
       .selection(
         "MUCONO"
@@ -1237,17 +1225,17 @@ public class AddNewDel extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer MITAUN_request = MITAUN_query.getContainer()
-    MITAUN_request.set("MUCONO", currentCompany)
-    MITAUN_request.set("MUITNO", itno)
-    MITAUN_request.set("MUAUTP", 1)
-    MITAUN_request.set("MUALUN", alun)
-    if (MITAUN_query.read(MITAUN_request)) {
-      int dmcf = MITAUN_request.get("MUDMCF") as Integer
-      double cofa = MITAUN_request.get("MUCOFA") as Double
-      int dccd = MITAUN_request.get("MUDCCD") as Integer
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itno)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUALUN", alun)
+    if (mitaunQuery.read(mitaunRequest)) {
+      int dmcf = mitaunRequest.get("MUDMCF") as Integer
+      double cofa = mitaunRequest.get("MUCOFA") as Double
+      int dccd = mitaunRequest.get("MUDCCD") as Integer
 
-      logger.debug("loadItemUnitData mitaun found " + MITAUN_request.get("MUDMCF") + " " + MITAUN_request.get("MUCOFA"))
+      logger.debug("loadItemUnitData mitaun found " + mitaunRequest.get("MUDMCF") + " " + mitaunRequest.get("MUCOFA"))
       returnValue["ALUN"] = alun as String
       returnValue["DMCF"] = dmcf as String
       returnValue["COFA"] = cofa as String

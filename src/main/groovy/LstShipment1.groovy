@@ -1,14 +1,17 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstShipment1
- * Description : batch template
- * Date         Changed By   Description
- * 20230511     SEAR         LOG28 - Creation of files and containers
- * 20241010     MLECLERCQ    LOG28 - Added palets count per container
- */
+/****************************************************************************************
+ Extension Name : EXT050MI.LstShipment1
+ Type : ExtendM3Transaction
+ Author : SEAR
+ Description
+ This extension is used by Mashup
+ List files and containers
 
+ Description : List pallet
+ Date         Changed By   Description
+ 20230511     SEAR         LOG28 - Creation of files and containers
+ 20241010     MLECLERCQ    LOG28 - Added palets count per container
+ 20250428     FLEBARS      Code review for infor validation
+ ******************************************************************************************/
 import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

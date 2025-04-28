@@ -1,12 +1,17 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstShipment2
- * Description : List shipment
- * Date         Changed By   Description
- * 20230601     SEAR         LOG28 - Creation of files and containers
- */
+/****************************************************************************************
+ Extension Name : EXT050MI.LstShipment2
+ Type : ExtendM3Transaction
+ Author : SEAR
+ Description
+ This extension is used by Mashup
+ List files and containers
+
+ Description : List pallet
+ Date         Changed By   Description
+ 20230601     SEAR         LOG28 - Creation of files and containers
+ 20250428     FLEBARS      Code review for infor validation
+ ******************************************************************************************/
+
 
 import java.math.RoundingMode
 import java.time.LocalDateTime

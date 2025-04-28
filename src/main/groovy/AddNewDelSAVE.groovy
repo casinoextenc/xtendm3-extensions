@@ -124,8 +124,8 @@ public class AddNewDel extends ExtendM3Transaction {
       lineProcess()
     }
 
-    deleteEXT057()
-    deleteEXT059()
+    deleteExt057()
+    deleteExt059()
 
     if (in60) {
       exception.throwErrorMIResponseException(msgd)
@@ -259,7 +259,7 @@ public class AddNewDel extends ExtendM3Transaction {
       logger.debug("found MITALO - orno:${orno} ponr:${ponr} posx:${posx} camu:${currentCAMU} alqt:${currentALQT}")
       LocalDateTime timeOfCreation = LocalDateTime.now()
 
-      if (checkOOHEAD(MITALO.get("MQRIDN") as String, currentUCA4, currentUCA5, currentUCA6)) {
+      if (checkOohead(MITALO.get("MQRIDN") as String, currentUCA4, currentUCA5, currentUCA6)) {
 
         getoolineData(MITALO.get("MQRIDN") as String, MITALO.get("MQRIDL") as String, MITALO.get("MQRIDX") as String)
         DBAction ext057Query = database.table("EXT057").index("00").selection("EXCAMS", "EXALQT", "EXALUN").build()
@@ -280,7 +280,7 @@ public class AddNewDel extends ExtendM3Transaction {
           ext057Request.setInt("EXCHNO", 1)
           ext057Request.set("EXCAMS", currentCAMU)
           ext057Request.set("EXCHID", program.getUser())
-          ext057Request.set("EXDLIX", getDLIX(3, MITALO.get("MQRIDN") as String, MITALO.get("MQRIDL") as int, MITALO.get("MQRIDX") as int))
+          ext057Request.set("EXDLIX", getDlix(3, MITALO.get("MQRIDN") as String, MITALO.get("MQRIDL") as int, MITALO.get("MQRIDX") as int))
           ext057Query.insert(ext057Request)
         } else {
           ext057Request.set("EXBJNO", bjno)

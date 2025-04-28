@@ -1,12 +1,17 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.GetShipDelText
- * Description : Get shipment delivery text
- * Date         Changed By   Description
- * 20230526     SEAR         LOG28 - Creation of files and containers
- */
+/****************************************************************************************
+ Extension Name: EXT050MI.GetShipDelText
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-26
+ Description:
+ * Get shipment delivery text
+
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ SEAR                    2023-05-26       1.0              LOG28 - Creation of files and containers
+ ARENARD                 2025-04-28       1.1              Extension has been fixed
+ ******************************************************************************************/
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -50,6 +55,7 @@ public class GetShipDelText extends ExtendM3Transaction {
 
     if(!"DCONSI00".equalsIgnoreCase(file.trim()) && !"MHDISH00".equalsIgnoreCase(file.trim())) {
       mi.error("paramètre file doit être DCONSI00 ou MHDISH00")
+      return
     }
 
 

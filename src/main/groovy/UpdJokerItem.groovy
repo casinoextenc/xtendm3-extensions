@@ -1,12 +1,18 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.UpdJokerItem
- * Description : Update Joker item
- * Date         Changed By   Description
- * 20210125     SEAR         QUAX01 - Constraints matrix
- */
+/****************************************************************************************
+ Extension Name : EXT050MI.UpdJokerItem
+ Type : ExtendM3Transaction
+ Author : SEAR
+ Description
+ This extension is used by Mashup
+ List files and containers
+
+ Description : List pallet
+ Date         Changed By   Description
+ 20230601     SEAR         LOG28 - Creation of files and containers
+ 20250428     FLEBARS      Code review for infor validation
+ ******************************************************************************************/
+
+
 import java.time.LocalDateTime
 
 public class UpdJokerItem extends ExtendM3Transaction {

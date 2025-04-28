@@ -59,14 +59,7 @@ public class UpdShipDelText extends ExtendM3Transaction {
       DCONSI.set("DACONO", currentCompany)
       DCONSI.set("DACONN", kfldFile)
       if(queryDconsi.read(DCONSI)){
-        Closure<?> updateDCONSI = { LockedResult lockedResultDCONSI ->
-          lockedResultDCONSI.set("DATXID", txid)
-          lockedResultDCONSI.set("DALMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-          lockedResultDCONSI.setInt("DACHNO", ((Integer)lockedResultDCONSI.get("DACHNO") + 1))
-          lockedResultDCONSI.set("DACHID", program.getUser())
-          lockedResultDCONSI.update()
-        }
-        queryDconsi.readLock(DCONSI, updateDCONSI)
+        executeCRS980MISetTextID("DCONSI00", txid as String, currentCompany as String, DCONSI.get("DACONN") as String)
       }
     }
 
@@ -87,4 +80,21 @@ public class UpdShipDelText extends ExtendM3Transaction {
       }
     }
   }
+  /**
+   * This method is used to set the text ID in the CRS980MI file.
+   * @param FILE The file name.
+   * @param TXID The transaction ID.
+   * @param KV01 The first key value.
+   * @param KV02 The second key value.
+   */
+  private executeCRS980MISetTextID(String FILE, String TXID, String KV01, String KV02) {
+    Map<String, String> parameters = ["FILE": FILE, "TXID": TXID, "KV01": KV01, "KV02": KV02]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+      } else {
+      }
+    }
+    miCaller.call("CRS980MI", "SetTextID", parameters, handler)
+  }
+
 }

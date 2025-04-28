@@ -1,15 +1,20 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstMastFilOrdL2
- * Description : List master file order line
- * Date         Changed By   Description
- * 20230516     SEAR         LOG28 - Creation of files and containers
- * 20230818     MLECLERCQ    LOG28 - EXT050 ZAAM = OOLINE LNAM
- * 20240324     MLECLERCQ    LOG28 - Filtres Qualité
- * 20241011     MLECLERCQ    LOG28 - added nb of cols
- */
+/****************************************************************************************
+ Extension Name: EXT050MI.LstMastFilOrdL2
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-16
+ Description:
+ * List master file order line
+
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ SEAR                    2023-05-16       1.0              LOG28 - Creation of files and containers
+ MLECLERCQ               2023-08-18       1.1              LOG28 - EXT050 ZAAM = OOLINE LNAM
+ MLECLERCQ               2024-03-24       1.2              LOG28 - Filtres Qualité
+ MLECLERCQ               2024-10-11       1.3              LOG28 - added nb of cols
+ ARENARD                 2025-04-28       1.4              Extension has been fixed
+ ******************************************************************************************/
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.math.RoundingMode
@@ -67,7 +72,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
   private boolean allocMethod
   private Long lineIndex
   private int connMhdish
-  private String rscdMhdish //20230821 MLQ
+  private String rscdMhdish
   private double nbOfCols
   private double nbOfPals
 
@@ -75,8 +80,8 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
   private boolean hasBeer = false
   private boolean hasWine = false
-  private boolean isDPH = false
-  private boolean isISO = false
+  private boolean isDph = false
+  private boolean isIso = false
   private boolean isPhyto = false
   private boolean isSanit = false
   private boolean isPetFood = false
@@ -141,6 +146,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     MITWHL.set("MWWHLO", whloInput)
     if (!queryMitwhl.read(MITWHL)) {
       mi.error("Le dépôt " + whloInput + " n'existe pas")
+      return
     }
 
     // check customer number
@@ -189,11 +195,11 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     DBContainer containerOOHEAD = queryOohead.getContainer()
     containerOOHEAD.set("OACONO", currentCompany)
 
-    if (!queryOohead.readAll(containerOOHEAD, 1, nbMaxRecord, OOHEADData)) {
+    if (!queryOohead.readAll(containerOOHEAD, 1, nbMaxRecord, ooheadData)) {
     }
 
     // list out data
-    DBAction ListqueryEXT051 = database.table("EXT051")
+    DBAction listQueryEXT051 = database.table("EXT051")
       .index("10")
       .selection(
         "EXBJNO",
@@ -216,24 +222,24 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
         "EXZAAM",
         "EXDLIX",
         "EXCONN",
-        "EXRSCD", //20230821 MLQ
+        "EXRSCD",
         "EXCOLS",
         "EXPALS"
       )
       .build()
 
-    DBContainer ListContainerEXT051 = ListqueryEXT051.getContainer()
-    ListContainerEXT051.set("EXBJNO", jobNumber)
+    DBContainer listContainerEXT051 = listQueryEXT051.getContainer()
+    listContainerEXT051.set("EXBJNO", jobNumber)
 
     //Record exists
-    if (!ListqueryEXT051.readAll(ListContainerEXT051, 1, nbMaxRecord, outData)) {
+    if (!listQueryEXT051.readAll(listContainerEXT051, 1, nbMaxRecord, outData)) {
     }
 
     // delete workfile
-    DBAction DelQuery = database.table("EXT051").index("00").build()
-    DBContainer DelcontainerEXT051 = DelQuery.getContainer()
-    DelcontainerEXT051.set("EXBJNO", jobNumber)
-    if (!DelQuery.readAllLock(DelcontainerEXT051, 1, deleteCallBack)) {
+    DBAction delQuery = database.table("EXT051").index("00").build()
+    DBContainer delContainerEXT051 = delQuery.getContainer()
+    delContainerEXT051.set("EXBJNO", jobNumber)
+    if (!delQuery.readAllLock(delContainerEXT051, 1, deleteCallBack)) {
       mi.error("L'enregistrement n'existe pas en EXT051")
       return
     }
@@ -245,7 +251,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
    * @param filterResults
    * @return
    */
-  Closure<?> OOHEADData = { DBContainer containerOOHEAD ->
+  Closure<?> ooheadData = { DBContainer containerOOHEAD ->
 
     int company = containerOOHEAD.get("OACONO")
     commande = containerOOHEAD.get("OAORNO")
@@ -262,7 +268,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     DBContainer OOLINE = queryOoline.getContainer()
     OOLINE.set("OBCONO", company)
     OOLINE.set("OBORNO", commande)
-    if (queryOoline.readAll(OOLINE, 2, nbMaxRecord, OOLINEData)) {
+    if (queryOoline.readAll(OOLINE, 2, nbMaxRecord, oolineData)) {
     }
 
 
@@ -273,24 +279,24 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
   /**
    * Retrieve OOLINE data
-   * @param containerOOLINE
+   * @param containerOoline
    */
-  Closure<?> OOLINEData = { DBContainer ContainerOOLINE ->
-    whloOoline = ContainerOOLINE.get("OBWHLO")
-    cunoOoline = ContainerOOLINE.get("OBCUNO")
-    ornoOoline = ContainerOOLINE.get("OBORNO")
-    ponrOoline = ContainerOOLINE.get("OBPONR")
-    posxOoline = ContainerOOLINE.get("OBPOSX")
-    spunOoline = ContainerOOLINE.get("OBSPUN")
-    cofsOoline = ContainerOOLINE.get("OBCOFS")
-    orqtOoline = ContainerOOLINE.get("OBORQT")
-    alqtOoline = ContainerOOLINE.get("OBALQT")
-    saprOoline = ContainerOOLINE.get("OBSAPR")
-    dmcsOoline = ContainerOOLINE.get("OBDMCS")
-    ltypOoline = ContainerOOLINE.get("OBLTYP")
-    orstOoline = ContainerOOLINE.get("OBORST")
-    lnamOoline = ContainerOOLINE.get("OBLNAM")
-    itemNumber = ContainerOOLINE.get("OBITNO")
+  Closure<?> oolineData = { DBContainer containerOoline ->
+    whloOoline = containerOoline.get("OBWHLO")
+    cunoOoline = containerOoline.get("OBCUNO")
+    ornoOoline = containerOoline.get("OBORNO")
+    ponrOoline = containerOoline.get("OBPONR")
+    posxOoline = containerOoline.get("OBPOSX")
+    spunOoline = containerOoline.get("OBSPUN")
+    cofsOoline = containerOoline.get("OBCOFS")
+    orqtOoline = containerOoline.get("OBORQT")
+    alqtOoline = containerOoline.get("OBALQT")
+    saprOoline = containerOoline.get("OBSAPR")
+    dmcsOoline = containerOoline.get("OBDMCS")
+    ltypOoline = containerOoline.get("OBLTYP")
+    orstOoline = containerOoline.get("OBORST")
+    lnamOoline = containerOoline.get("OBLNAM")
+    itemNumber = containerOoline.get("OBITNO")
 
     sameWarehouse = false
     sameIndex = false
@@ -323,7 +329,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       MHDISL.set("URRORC", 3)
       MHDISL.set("URRIDN", ornoOoline)
       MHDISL.set("URRIDL", ponrOoline)
-      if (queryMhdisl.readAll(MHDISL, 4, nbMaxRecord, DataMHDISL)) {
+      if (queryMhdisl.readAll(MHDISL, 4, nbMaxRecord, dataMhdisl)) {
       }
     } else {
       DBAction queryMhdisl = database.table("MHDISL").index("10").selection("URDLIX").build()
@@ -332,7 +338,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       MHDISL.set("URRORC", 3)
       MHDISL.set("URRIDN", ornoOoline)
       MHDISL.set("URRIDL", ponrOoline)
-      if (queryMhdisl.readAll(MHDISL, 4, nbMaxRecord, DataMHDISL)) {
+      if (queryMhdisl.readAll(MHDISL, 4, nbMaxRecord, dataMhdisl)) {
       }
     }
 
@@ -341,7 +347,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       sameIndex = true
     }
     logger.debug("ornoOoline + PONR = " + ornoOoline + ";" + ponrOoline)
-    logger.debug("ItemNumber = " + itemNumber)
+    logger.debug("itemNumber = " + itemNumber)
     logger.debug("whloOoline = " + whloOoline)
     logger.debug("foundLineIndex = " + foundLineIndex)
     connMhdish = 0
@@ -354,7 +360,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       MHDISH.set("OQDLIX", lineIndex)
       if (queryMhdish.read(MHDISH)) {
         connMhdish = MHDISH.get("OQCONN")
-        rscdMhdish = MHDISH.get("OQRSCD") //20230821 MLQ
+        rscdMhdish = MHDISH.get("OQRSCD")
       }
     }
 
@@ -448,7 +454,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
           "EXZAAM",
           "EXDLIX",
           "EXCONN",
-          "EXRSCD", //20230821 MLQ
+          "EXRSCD",
           "EXCOLS",
           "EXPALS",
           "EXRGDT",
@@ -493,7 +499,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
         containerEXT051.set("EXZAAM", lnamOoline)
         containerEXT051.set("EXDLIX", lineIndex)
         containerEXT051.set("EXCONN", connMhdish)
-        containerEXT051.set("EXRSCD", rscdMhdish) //20230821 MLQ
+        containerEXT051.set("EXRSCD", rscdMhdish)
         containerEXT051.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
         containerEXT051.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
         containerEXT051.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -509,7 +515,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
    * Retrieve MHDISL data
    * @param containerMHDISL
    */
-  Closure<?> DataMHDISL = { DBContainer containerMHDISL ->
+  Closure<?> dataMhdisl = { DBContainer containerMHDISL ->
     lineIndex = containerMHDISL.getLong("URDLIX")
     sameIndex = true
     foundLineIndex = true
@@ -561,10 +567,10 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     String amountEXT051 = containerEXT051.get("EXZAAM")
     String indexEXT051 = containerEXT051.get("EXDLIX")
     String shipmentEXT051 = containerEXT051.get("EXCONN")
-    String priorityEXT051 = containerEXT051.get("EXRSCD") //20230821 MLQ
+    String priorityEXT051 = containerEXT051.get("EXRSCD")
     String colsEXT051 = containerEXT051.get("EXCOLS")
     String palsEXT051 = containerEXT051.get("EXPALS")
-    String posxEXT051 = containerEXT051.get("EXPOSX") as Integer //20230821 MLQ
+    String posxEXT051 = containerEXT051.get("EXPOSX") as Integer
 
     boolean isRecordValid = false
 
@@ -620,7 +626,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
       mi.outData.put("ZAAM", amountEXT051)
       mi.outData.put("DLIX", indexEXT051)
       mi.outData.put("CONN", shipmentEXT051)
-      mi.outData.put("RSCD", priorityEXT051) //20230821 MLQ
+      mi.outData.put("RSCD", priorityEXT051)
       mi.outData.put("COLS", colsEXT051)
       mi.outData.put("PALS", palsEXT051)
       mi.outData.put("POSX", posxEXT051)
@@ -673,8 +679,6 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
 
       //TODO : remove hard values
       if(cfi4 == "S" || cfi4 == "T"){
-        /*hasBeer = true
-        hasWine = false*/
 
         filterResults["BIER"] = true
       }else if(cfi4 == "1" || cfi4 == "2" || cfi4 == "3" || cfi4 == "4" || cfi4 == "5" || cfi4 == "6" || cfi4 == "9"

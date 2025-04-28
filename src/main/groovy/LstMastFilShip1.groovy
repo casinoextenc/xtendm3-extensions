@@ -1,13 +1,18 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstMastFilShip1
- * Description : List master file shipment
- * Date         Changed By   Description
- * 20230511     SEAR         LOG28 - Creation of files and containers
- * 20230818     MLECLERCQ    LOG28 - Correction ZNBC filter for 0 <> null
- */
+/****************************************************************************************
+ Extension Name: EXT050MI.LstMastFilShip1
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-11
+ Description:
+ * List master file shipment
+
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ SEAR                    2023-05-11       1.0              LOG28 - Creation of files and containers
+ MLECLERCQ               2023-08-18       1.1              LOG28 - Correction ZNBC filter for 0 <> null
+ ARENARD                 2025-04-28       1.2              Extension has been fixed
+ ******************************************************************************************/
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -16,18 +21,11 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
 
   int currentCompany
 
-  private String parm
-  private boolean validOrder
-  private boolean sameWarehouse
-  private boolean sameZNBC
-  private String whloOoline
   private String whloInput
   private String uca4Input
   private String uca5Input
@@ -77,8 +75,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     }
 
     // Get OOLINE
-    String tmpORNO = ""
-    // TODO AMELIORER FILTRE
+    String tmpOrno = ""
     logger.debug("ameliorer filtre")
     ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
     oolineExp = oolineExp.eq("OBWHLO", whloInput)
@@ -90,7 +87,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
 
     Closure<?> oolineReader = { DBContainer oolineResult ->
       String orno = oolineResult.get("OBORNO")
-      if (orno != tmpORNO){
+      if (orno != tmpOrno){
         Map<String, String> ooheadData = getOOHEAD(orno)
         if(ooheadData){
           String ooheadUca4 = ooheadData["OAUCA4"] as String
@@ -122,7 +119,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
           }
         }
 
-        tmpORNO = orno
+        tmpOrno = orno
       }
     }
 
@@ -130,7 +127,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     }
 
     // list out data
-    DBAction ListqueryEXT050 = database.table("EXT050")
+    DBAction listQueryEXT050 = database.table("EXT050")
       .index("00")
       .selection(
         "EXUCA4",
@@ -140,8 +137,8 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
       )
       .build()
 
-    DBContainer ListContainerEXT050 = ListqueryEXT050.getContainer()
-    ListContainerEXT050.set("EXBJNO", jobNumber)
+    DBContainer listContainerEXT050 = listQueryEXT050.getContainer()
+    listContainerEXT050.set("EXBJNO", jobNumber)
 
     Closure<?> outData = { DBContainer containerEXT050 ->
       String dossierEXT050 = containerEXT050.get("EXUCA4")
@@ -156,19 +153,19 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     }
 
     //Record exists
-    if (!ListqueryEXT050.readAll(ListContainerEXT050, 1, nbMaxRecord, outData)){
+    if (!listQueryEXT050.readAll(listContainerEXT050, 1, nbMaxRecord, outData)){
     }
 
     // delete workfile
-    DBAction DelQuery = database.table("EXT050").index("00").build()
-    DBContainer DelcontainerEXT050 = DelQuery.getContainer()
-    DelcontainerEXT050.set("EXBJNO", jobNumber)
+    DBAction delQuery = database.table("EXT050").index("00").build()
+    DBContainer delContainerEXT050 = delQuery.getContainer()
+    delContainerEXT050.set("EXBJNO", jobNumber)
 
     Closure<?> deleteCallBack = { LockedResult lockedResult ->
       lockedResult.delete()
     }
 
-    if(!DelQuery.readAllLock(DelcontainerEXT050, 1, deleteCallBack)){
+    if(!delQuery.readAllLock(delContainerEXT050, 1, deleteCallBack)){
     }
   }
 
@@ -240,14 +237,14 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     DRADTR.set("DRCONO", currentCompany)
     DRADTR.set("DRTLVL", 1)
 
-    Closure<?> DRADTRData = { DBContainer ContainerDRADTR ->
-      String conn = ContainerDRADTR.get("DRCONN") as String
+    Closure<?> dradtrData = { DBContainer containerDradtr ->
+      String conn = containerDradtr.get("DRCONN") as String
       if (!listCONN.contains(conn)) {
         listCONN.add(conn)
         znbcDradtr++
       }
     }
-    if(queryDradtr.readAll(DRADTR, 2, nbMaxRecord, DRADTRData)){
+    if(queryDradtr.readAll(DRADTR, 2, nbMaxRecord, dradtrData)){
     }
     return znbcDradtr
   }

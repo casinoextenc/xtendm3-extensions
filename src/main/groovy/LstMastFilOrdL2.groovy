@@ -13,6 +13,7 @@
  MLECLERCQ               2024-03-24       1.2              LOG28 - Filtres Qualité
  MLECLERCQ               2024-10-11       1.3              LOG28 - added nb of cols
  ARENARD                 2025-04-28       1.4              Extension has been fixed
+ FLEBARS                 2025-05-05       1.5              Apply xtendm3 team remarks
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -532,11 +533,11 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
     logger.debug("MUALUNE = ${alun} ,MUCOFA = ${cofa}")
 
     if(alun.equals("COL")){
-      nbOfCols = ALQT / cofa
+      nbOfCols = ALQT / (cofa != 0 ? cofa : 1)
       nbOfCols = new BigDecimal(nbOfCols).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
       logger.debug("nbOfCols = ${nbOfCols} and ALQT = ${ALQT} with COFA = ${cofa}"  )
     }else if(alun.equals("UPA")){
-      nbOfPals = ALQT / cofa
+      nbOfPals = ALQT / (cofa != 0 ? cofa : 1)
       nbOfPals = new BigDecimal(nbOfPals).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
       logger.debug("nbOfPals = ${nbOfPals} and ALQT = ${ALQT} with COFA = ${cofa}")
     }

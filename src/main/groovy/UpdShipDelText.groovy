@@ -6,6 +6,7 @@
  * Description : Update shipment delivery text
  * Date         Changed By   Description
  * 20230526     SEAR         LOG28 - Creation of files and containers
+ * 20250505     FLEBARS      Apply xtendm3 team remarks
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -51,6 +52,7 @@ public class UpdShipDelText extends ExtendM3Transaction {
 
     if(!"DCONSI00".equalsIgnoreCase(file.trim()) && !"MHDISH00".equalsIgnoreCase(file.trim())) {
       mi.error("paramètre file doit être DCONSI00 ou MHDISH00")
+      return
     }
 
     if(file.trim() == "DCONSI00") {

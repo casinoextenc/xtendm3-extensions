@@ -223,8 +223,6 @@ public class UpdRefAssoHist extends ExtendM3Transaction {
    * @parameter DBContainer
    * */
   private void createEXT011Record(DBContainer ext010Request, String flag){
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    Long lmts = timeOfCreation.toInstant(ZoneOffset.UTC).toEpochMilli()
     DBAction ext011Query = database.table("EXT011")
       .index("00")
       .selection(
@@ -260,7 +258,6 @@ public class UpdRefAssoHist extends ExtendM3Transaction {
     ext011Request.set("EXRGTM", ext010Request.get("EXRGTM"))
     ext011Request.set("EXCHNO", ext010Request.get("EXCHNO"))
     ext011Request.set("EXCHID", ext010Request.get("EXCHID"))
-    ext011Request.set("EXLMTS", lmts)
     ext011Request.set("EXFLAG", flag)
     ext011Query.insert(ext011Request)
   }
@@ -315,7 +312,7 @@ public class UpdRefAssoHist extends ExtendM3Transaction {
     if (mitmasQuery.read(mitmasContianer)) {
       String stat = (String) mitmasContianer.get("MMSTAT")
       fuds = (String) mitmasContianer.get("MMFUDS")
-      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)) {//A°20240228
+      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)) {
         errorMessage = "Statut Article ${itno} est invalide"
         return false
       }

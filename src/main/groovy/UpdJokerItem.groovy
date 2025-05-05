@@ -10,6 +10,7 @@
  Date         Changed By   Description
  20230601     SEAR         LOG28 - Creation of files and containers
  20250428     FLEBARS      Code review for infor validation
+ 20250505     FLEBARS      Apply xtendm3 team remarks
  ******************************************************************************************/
 
 
@@ -70,6 +71,7 @@ public class UpdJokerItem extends ExtendM3Transaction {
     //Record exists
     if (!ext055Request.readAll(ListContainerEXT055, 1, nbMaxRecord, ext055Reader)){
       mi.error("Numéro de job " + bjnoInput + " n'existe pas dans la table EXT055")
+      return
     }
 
     //Check if Item exist

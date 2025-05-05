@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20230511     SEAR         LOG28 - Creation of files and containers V1
  * 20240425     MLECLERCQ    LOG28 - Added week and year filters
+ * 20250505     FLEBARS      Aplly xtendm3 teams remarks
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -75,6 +76,7 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
 
     if (uca4Input.length() == 0) {
       mi.error("dossier maitre est obligatoire")
+      return
     }
 
     ExpressionFactory ooheadExpression = database.getExpressionFactory("OOHEAD")
@@ -88,6 +90,7 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
 
     if (!ooheadQuery.readAll(ooheadRequest, 1, nbMaxRecord, ooheadReader)){
       mi.error("aucune commande associée au dossier "+ uca4Input)
+      return
     }
   }
 
@@ -221,7 +224,7 @@ public class LstMastFilOrdL1 extends ExtendM3Transaction {
       if (dmcf.equals("1")) {
         confirmedQuantityUB = confirmedQuantity * mitaunCofa
       } else {
-        confirmedQuantityUB = confirmedQuantity / mitaunCofa
+        confirmedQuantityUB = confirmedQuantity / (mitaunCofa != 0 ? mitaunCofa : 1)
       }
       totConfirmqty =  totConfirmqty + confirmedQuantityUB
     } else {

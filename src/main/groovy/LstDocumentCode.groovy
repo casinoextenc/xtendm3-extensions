@@ -8,6 +8,7 @@
  * 20210125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  * 20240708     FLEBARS      QUAX01 - Controle code pour validation Infor retour controle readAll
+ * 20250429     FLEBARS      Fix readAll on ext035
  */
 public class LstDocumentCode extends ExtendM3Transaction {
   private final MIAPI mi

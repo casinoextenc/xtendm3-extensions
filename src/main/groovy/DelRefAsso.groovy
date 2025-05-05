@@ -100,8 +100,6 @@ public class DelRefAsso extends ExtendM3Transaction {
    * @parameter DBContainer, flag
    * */
   private void createEXT011Record(DBContainer ext010Request, String flag){
-    LocalDateTime timeOfCreation = LocalDateTime.now()
-    Long lmts = timeOfCreation.toInstant(ZoneOffset.UTC).toEpochMilli()
     DBAction ext011Query = database.table("EXT011")
       .index("00")
       .selection(
@@ -137,7 +135,6 @@ public class DelRefAsso extends ExtendM3Transaction {
     ext011Request.set("EXRGTM", ext010Request.get("EXRGTM"))
     ext011Request.set("EXCHNO", ext010Request.get("EXCHNO"))
     ext011Request.set("EXCHID", ext010Request.get("EXCHID"))
-    ext011Request.set("EXLMTS", lmts)
     ext011Request.set("EXFLAG", flag)
     ext011Query.insert(ext011Request)
   }

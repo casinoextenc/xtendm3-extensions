@@ -7,10 +7,10 @@
  * Date         Changed By   Description
  * 20230602     SEAR         LOG28 - Creation of files and containers
  */
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.math.RoundingMode
-import java.text.DecimalFormat
 
 public class LstJokerItem extends ExtendM3Transaction {
   private final MIAPI mi
@@ -21,33 +21,40 @@ public class LstJokerItem extends ExtendM3Transaction {
   private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
-  private String orno_input
   private Integer currentCompany
   private String baseUnit
-  private String ItemNumber
+  private String itnoInput
+  private String cunoInput
+  private String whloInput
+
+  private String faci
+
+  private Integer nrOfRecords
+
+  private String currentItno
+  private String lastReadItno
+  private Integer lastSendCount
+
   private String description
   private double totQuantity
   private double palQuantity
   private String supplier
-  private String faci_OOLINE
-  private String cuno_OOLINE
-  private String whlo_OOLINE
   private int sanitary
   private double free2
   private int dangerous
   private double aval
-  private double MITAUN_cofa
+  private double mitaunCofa
   private int dmcf
-  private double Volume
-  private double Weight
-  private boolean exclude_line
+  private double volume
+  private double weight
   private String orco
   private String popn
   private String suno
   private String ascd
+  private String expi
   private String currentDate
-
   private String jobNumber
+  private LinkedHashMap<String, HashMap<String,String>> outmap
 
   public LstJokerItem(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -61,8 +68,13 @@ public class LstJokerItem extends ExtendM3Transaction {
   public void main() {
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
     currentDate = utility.call("DateUtil", "currentDateY8AsString")
+
+    if(mi.in.get("BJNO") == null){
+      jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
+    }else{
+      jobNumber = mi.in.get("BJNO")
+    }
 
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer)program.getLDAZD().CONO
@@ -71,213 +83,225 @@ public class LstJokerItem extends ExtendM3Transaction {
     }
 
     //Get mi inputs
-    orno_input = (mi.in.get("ORNO") != null ? (String)mi.in.get("ORNO") : "")
+    cunoInput = (mi.in.get("CUNO") != null ? (String)mi.in.get("CUNO") : "")
+    itnoInput = (mi.in.get("ITNO") != null ? (String)mi.in.get("ITNO") : "")
+    whloInput = (mi.in.get("WHLO") != null ? (String)mi.in.get("WHLO") : "")
 
-    // check order number
-    DBAction query_OOHEAD = database.table("OOHEAD").index("00").selection("OAORNO").build()
-    DBContainer OOHEAD = query_OOHEAD.getContainer()
-    OOHEAD.set("OACONO", currentCompany)
-    OOHEAD.set("OAORNO", orno_input)
-    if(!query_OOHEAD.read(OOHEAD)){
-      mi.error("Numéro de commande " + orno_input + " n'existe pas")
+    // check Customer
+    DBAction queryOcusma = database.table("OCUSMA").index("00").selection("OKCUNO").build()
+    DBContainer OCUSMA = queryOcusma.getContainer()
+    OCUSMA.set("OKCONO", currentCompany)
+    OCUSMA.set("OKCUNO", cunoInput)
+    if(!queryOcusma.read(OCUSMA)){
+      mi.error("Client " + cunoInput + " n'existe pas")
       return
     }
 
-    // Retrieve informations from first order line
-    DBAction query_OOLINE = database.table("OOLINE").index("00").selection("OBORNO","OBCUNO","OBWHLO","OBFACI","OBITNO").build()
-    DBContainer OOLINE = query_OOLINE.getContainer()
-    OOLINE.set("OBCONO", currentCompany)
-    OOLINE.set("OBORNO", orno_input)
-    if(query_OOLINE.readAll(OOLINE, 2, 1, OOLINEData)){
+    // check ItemNumber
+    if(!itnoInput.isEmpty()){
+      DBAction queryMitmas = database.table("MITMAS").index("00").selection("MMITNO").build()
+      DBContainer MITMAS = queryMitmas.getContainer()
+      MITMAS.set("MMCONO", currentCompany)
+      MITMAS.set("MMITNO", itnoInput)
+      if(!queryMitmas.read(MITMAS)){
+        mi.error("Article " + itnoInput + " n'existe pas")
+        return
+      }
     }
 
-    // Write selected customer assortment items in EXT055
-    ascd = ""
-    ExpressionFactory expression_OASCUS = database.getExpressionFactory("OASCUS")
-    expression_OASCUS = expression_OASCUS.le("OCFDAT", currentDate)
-    expression_OASCUS = expression_OASCUS.and((expression_OASCUS.ge("OCTDAT", currentDate)).or(expression_OASCUS.eq("OCTDAT", "0")))
-    DBAction OASCUS_query = database.table("OASCUS").index("10").matching(expression_OASCUS).selection("OCFDAT","OCTDAT","OCASCD").build()
-    DBContainer OASCUS = OASCUS_query.getContainer()
-    OASCUS.set("OCCONO", currentCompany)
-    OASCUS.set("OCCUNO", cuno_OOLINE)
-    if (!OASCUS_query.readAll(OASCUS, 2, OASCUSData)) {
+    // check wharehouse and get Facility if wharehouse exists
+    DBAction queryMitwhl = database.table("MITWHL").index("00").selection("MWWHLO","MWFACI").build()
+    DBContainer MITWHL = queryMitwhl.getContainer()
+    MITWHL.set("MWCONO", currentCompany)
+    MITWHL.set("MWWHLO", whloInput)
+    if(!queryMitwhl.read(MITWHL)){
+      mi.error("Dépôt " + whloInput + " n'existe pas")
+      return
+    }else{
+      faci = MITWHL.get("MWFACI").toString().trim()
     }
 
-    // Read EXT055 for  out data
-    DBAction ListqueryEXT055 = database.table("EXT055")
-        .index("00")
-        .selection(
-        "EXBJNO",
-        "EXCONO",
-        "EXITNO",
-        "EXITDS",
-        "EXZAV1",
-        "EXZAV2",
-        "EXZQUV",
-        "EXZPQA",
-        "EXGRWE",
-        "EXVOL3",
-        "EXCOFA"
-        )
-        .build()
+    outmap = new LinkedHashMap()
+    ascd = cunoInput + "0"
+    lastSendCount = 0
+    nrOfRecords = 500
 
-    DBContainer ListContainerEXT055 = ListqueryEXT055.getContainer()
-    ListContainerEXT055.set("EXBJNO", jobNumber)
+    ExpressionFactory expressionOasitn = database.getExpressionFactory("OASITN")
+    expressionOasitn = expressionOasitn.le("OIFDAT", currentDate)
+    expressionOasitn = expressionOasitn.and((expressionOasitn.ge("OITDAT", currentDate)).or(expressionOasitn.eq("OITDAT", "0")))
+    expressionOasitn = expressionOasitn.and((expressionOasitn.gt("OIITNO", itnoInput)))
 
-    //Record exists
-    if (!ListqueryEXT055.readAll(ListContainerEXT055, 1, outData)){
+    DBAction oasitnQuery = database.table("OASITN").index("00").matching(expressionOasitn).selection("OIFDAT","OITDAT","OIITNO").build()
+    DBContainer OASITN = oasitnQuery.getContainer()
+    OASITN.set("OICONO", currentCompany)
+    OASITN.set("OIASCD", ascd)
+
+    logger.debug("NbOfRecord : ${nrOfRecords}")
+    if (!oasitnQuery.readAll(OASITN, 2,nrOfRecords, OASITNData)) {
     }
+    Integer count = 0
+    for(e in outmap){
+      count += 1
+      mi.outData.put("ITNO",e.key)
+
+      for(p in e.value){
+        mi.outData.put(p.key,p.value)
+      }
+      logger.debug("mi output count = ${count}")
+      mi.write()
+    }
+    logger.debug("lastITNO : ${lastReadItno}")
+    mi.outData.put("LAST",lastReadItno)
+    mi.write()
   }
 
-  // data OOLINE
-  Closure<?> OOLINEData = { DBContainer ContainerOOLINE ->
-    cuno_OOLINE = ContainerOOLINE.get("OBCUNO")
-    faci_OOLINE = ContainerOOLINE.get("OBFACI")
-    whlo_OOLINE = ContainerOOLINE.get("OBWHLO")
-    logger.debug("cuno_OOLINE = " + cuno_OOLINE)
-    logger.debug("faci_OOLINE = " + faci_OOLINE)
-    logger.debug("whlo_OOLINE = " + whlo_OOLINE)
-  }
-
-  Closure<?> outData_MITPOP = { DBContainer MITPOP ->
+  /**
+   * Retrieve MITPOP data
+   */
+  Closure<?> outDataMitpop = { DBContainer MITPOP ->
     popn = MITPOP.get("MPPOPN")
   }
 
-  Closure<?> OASCUSData = { DBContainer OASCUS ->
-    ascd = OASCUS.get("OCASCD")
-    // get OASITN
-    ItemNumber = ""
-    ExpressionFactory expression_OASITN = database.getExpressionFactory("OASITN")
-    expression_OASITN = expression_OASITN.le("OIFDAT", currentDate)
-    expression_OASITN = expression_OASITN.and((expression_OASITN.ge("OITDAT", currentDate)).or(expression_OASITN.eq("OITDAT", "0")))
-    DBAction OASITN_query = database.table("OASITN").index("00").matching(expression_OASITN).selection("OIFDAT","OITDAT","OIITNO").build()
-    DBContainer OASITN = OASITN_query.getContainer()
-    OASITN.set("OICONO", currentCompany)
-    OASITN.set("OIASCD", ascd)
-    if (!OASITN_query.readAll(OASITN, 2, OASITNData)) {
-    }
-  }
-
+  /**
+   * Retrieve OASITN data
+   */
   Closure<?> OASITNData = { DBContainer OASITN ->
-    ItemNumber = OASITN.get("OIITNO")
-    logger.debug("ItemNumber------------------------------------- = " + ItemNumber)
+    logger.debug("In closure lastSendCount  = ${lastSendCount} and input lastITNO : ${itnoInput}")
+    if(lastSendCount <= 100){
+      currentItno = OASITN.get("OIITNO")
 
-    exclude_line = false
 
-    // get MITMAS
-    dangerous = 0
-    free2 = 0
-    description = ""
-    supplier = ""
-    Volume = 0
-    Weight = 0
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMITDS","MMHAZI","MMCFI2","MMSUNO","MMVOL3","MMGRWE").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", ItemNumber)
-    if(query_MITMAS.read(MITMAS)){
-      dangerous = MITMAS.getInt("MMHAZI")
-      free2 = MITMAS.getDouble("MMCFI2")
-      description = MITMAS.get("MMITDS")
-      supplier = MITMAS.get("MMSUNO")
-      Volume = MITMAS.getDouble("MMVOL3")
-      Weight = MITMAS.getDouble("MMGRWE")
-    }
-    logger.debug("dangerous = " + dangerous)
-    logger.debug("free2 = " + free2)
-    logger.debug("description = " + description)
-    logger.debug("supplier = " + supplier)
-    logger.debug("Volume = " + Volume)
-    logger.debug("Weight = " + Weight)
+      logger.debug("ItemNumber------------------------------------- = " + currentItno)
 
-    // get MITBAL
-    aval = 0
-    DBAction MITBAL_query = database.table("MITBAL").index("00").selection("MBAVAL").build()
-    DBContainer MITBAL = MITBAL_query.getContainer()
-    MITBAL.set("MBCONO", currentCompany)
-    MITBAL.set("MBWHLO", whlo_OOLINE)
-    MITBAL.set("MBITNO", ItemNumber)
-    if(MITBAL_query.read(MITBAL)){
-      aval = MITBAL.getDouble("MBAVAL")
-    }
-    logger.debug("aval = " + aval)
-    
-    popn = ""
-    ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
-    expression_MITPOP = expression_MITPOP.eq("MPREMK", "SIGMA6")
-    DBAction MITPOP_query = database.table("MITPOP").index("00").matching(expression_MITPOP).selection("MPPOPN").build()
-    DBContainer MITPOP = MITPOP_query.getContainer()
-    MITPOP.set("MPCONO", currentCompany)
-    MITPOP.set("MPALWT", 1)
-    MITPOP.set("MPALWQ", "")
-    MITPOP.set("MPITNO", ItemNumber)
-    if (!MITPOP_query.readAll(MITPOP, 4, outData_MITPOP)) {
-    }
-    logger.debug("popn = " + popn)
+      // get MITMAS
+      dangerous = 0
+      free2 = 0
+      description = ""
+      supplier = ""
+      volume = 0
+      weight = 0
+      ExpressionFactory expressionMitmas = database.getExpressionFactory("OASITN")
+      expressionMitmas = expressionMitmas.eq("MMSTAT", "20")
+      DBAction queryMitmas = database.table("MITMAS").index("00").matching(expressionMitmas).selection("MMITDS","MMHAZI","MMCFI2","MMSUNO","MMVOL3","MMGRWE").build()
+      DBContainer MITMAS = queryMitmas.getContainer()
+      MITMAS.set("MMCONO", currentCompany)
+      MITMAS.set("MMITNO", currentItno)
+      if(queryMitmas.read(MITMAS)){
+        dangerous = MITMAS.getInt("MMHAZI")
+        free2 = MITMAS.getDouble("MMCFI2")
+        description = MITMAS.get("MMITDS")
+        supplier = MITMAS.get("MMSUNO")
+        volume = MITMAS.getDouble("MMVOL3")
+        weight = MITMAS.getDouble("MMGRWE")
+      }
+      logger.debug("dangerous = " + dangerous)
+      logger.debug("free2 = " + free2)
+      logger.debug("description = " + description)
+      logger.debug("supplier = " + supplier)
+      logger.debug("volume = " + volume)
+      logger.debug("weight = " + weight)
 
-    orco = ""
-    DBAction MITFAC_query = database.table("MITFAC").index("00").selection("M9CSNO","M9ORCO").build()
-    DBContainer MITFAC = MITFAC_query.getContainer()
-    MITFAC.set("M9CONO", currentCompany)
-    MITFAC.set("M9FACI", faci_OOLINE)
-    MITFAC.set("M9ITNO", ItemNumber)
-    if(MITFAC_query.read(MITFAC)){
-      orco = MITFAC.get("M9ORCO")
-    }
-    logger.debug("orco = " + orco)
+      if(dangerous != 0 || free2 != 0){
+        lastReadItno = currentItno
+        return
+      }
 
-    sanitary = 0
-    DBAction EXT032_query = database.table("EXT032").index("00").selection("EXZSAN").build()
-    DBContainer EXT032 = EXT032_query.getContainer()
-    EXT032.set("EXCONO", currentCompany)
-    EXT032.set("EXPOPN", popn)
-    EXT032.set("EXSUNO", supplier)
-    EXT032.set("EXORCO", orco)
-    if(EXT032_query.read(EXT032)){
-      sanitary = EXT032.get("EXZSAN")
-    }
-    logger.debug("sanitary = " + sanitary)
+      // get MITBAL
+      aval = 0
+      DBAction mitbalQuery = database.table("MITBAL").index("00").selection("MBAVAL","MBALQT").build()
+      DBContainer MITBAL = mitbalQuery.getContainer()
+      MITBAL.set("MBCONO", currentCompany)
+      MITBAL.set("MBWHLO", whloInput)
+      MITBAL.set("MBITNO", currentItno)
+      if(mitbalQuery.read(MITBAL)){
+        double alqt = MITBAL.getDouble("MBALQT")
+        double mbaval = MITBAL.getDouble("MBAVAL")
 
-    if (sanitary > 0 || aval <= 0 || free2 > 0 || dangerous != 0) {
-      exclude_line = true
-    }
-    
-    logger.debug("exclude_line----------- = " + exclude_line)
-    
-    // write in EXT055
-    if (!exclude_line) {
+        aval = mbaval - alqt
+      }
+      logger.debug("aval = " + aval)
+
+      if(aval <= 0){
+        lastReadItno = currentItno
+        return
+      }
+
+      nrOfRecords = 10000
+      popn = ""
+      ExpressionFactory expressionMitpop = database.getExpressionFactory("MITPOP")
+      expressionMitpop = expressionMitpop.eq("MPREMK", "SIGMA6")
+      DBAction mitpopQuery = database.table("MITPOP").index("00").matching(expressionMitpop).selection("MPPOPN").build()
+      DBContainer MITPOP = mitpopQuery.getContainer()
+      MITPOP.set("MPCONO", currentCompany)
+      MITPOP.set("MPALWT", 1)
+      MITPOP.set("MPALWQ", "")
+      MITPOP.set("MPITNO", currentItno)
+      if (!mitpopQuery.readAll(MITPOP, 4, nrOfRecords, outDataMitpop)) {
+      }
+      logger.debug("popn = " + popn)
+
+      orco = ""
+      DBAction mitfacQuery = database.table("MITFAC").index("00").selection("M9CSNO","M9ORCO").build()
+      DBContainer MITFAC = mitfacQuery.getContainer()
+      MITFAC.set("M9CONO", currentCompany)
+      MITFAC.set("M9FACI", faci)
+      MITFAC.set("M9ITNO", currentItno)
+      if(mitfacQuery.read(MITFAC)){
+        orco = MITFAC.get("M9ORCO")
+      }
+      logger.debug("orco = " + orco)
+
+      sanitary = 0
+      DBAction ext032Query = database.table("EXT032").index("00").selection("EXZSAN").build()
+      DBContainer EXT032 = ext032Query.getContainer()
+      EXT032.set("EXCONO", currentCompany)
+      EXT032.set("EXPOPN", popn)
+      EXT032.set("EXSUNO", supplier)
+      EXT032.set("EXORCO", orco)
+      if(ext032Query.read(EXT032)){
+        sanitary = EXT032.get("EXZSAN")
+      }
+      logger.debug("sanitary = " + sanitary)
+
+      if(sanitary > 0){
+        lastReadItno = currentItno
+        return
+      }
 
       DBAction queryMITAUN00 = database.table("MITAUN").index("00").selection(
-          "MUCONO",
-          "MUITNO",
-          "MUAUTP",
-          "MUALUN",
-          "MUCOFA",
-          "MUDMCF"
-          ).build()
+        "MUCONO",
+        "MUITNO",
+        "MUAUTP",
+        "MUALUN",
+        "MUCOFA",
+        "MUDMCF"
+      ).build()
 
       palQuantity = aval
       logger.debug("palQuantity : " + palQuantity)
       DBContainer containerMITAUN = queryMITAUN00.getContainer()
       containerMITAUN.set("MUCONO", currentCompany)
-      containerMITAUN.set("MUITNO", ItemNumber)
+      containerMITAUN.set("MUITNO", currentItno)
       containerMITAUN.set("MUAUTP", 1)
       containerMITAUN.set("MUALUN", "UPA")
       if (queryMITAUN00.read(containerMITAUN)) {
-        MITAUN_cofa = containerMITAUN.getDouble("MUCOFA")
+        mitaunCofa = containerMITAUN.getDouble("MUCOFA")
         dmcf = containerMITAUN.getInt("MUDMCF")
         if (dmcf == 1) {
-          palQuantity = aval / MITAUN_cofa
+          palQuantity = aval / mitaunCofa
         } else {
-          palQuantity = aval * MITAUN_cofa
+          palQuantity = aval * mitaunCofa
         }
       }
 
-
       logger.debug("after palQuantity : " + palQuantity)
+
+      expi = ''
+      getLot()
+
       DBAction queryEXT055 = database.table("EXT055")
-          .index("00")
-          .selection(
+        .index("00")
+        .selection(
           "EXBJNO",
           "EXCONO",
           "EXITNO",
@@ -288,18 +312,19 @@ public class LstJokerItem extends ExtendM3Transaction {
           "EXZPQA",
           "EXGRWE",
           "EXVOL3",
+          "EXEXPI",
           "EXRGDT",
           "EXRGTM",
           "EXLMDT",
           "EXCHNO",
           "EXCHID"
-          )
-          .build()
+        )
+        .build()
 
       DBContainer containerEXT055 = queryEXT055.getContainer()
       containerEXT055.set("EXBJNO", jobNumber)
       containerEXT055.set("EXCONO", currentCompany)
-      containerEXT055.set("EXITNO", ItemNumber)
+      containerEXT055.set("EXITNO", currentItno)
 
       //Record exists
       if (queryEXT055.read(containerEXT055)) {
@@ -309,10 +334,11 @@ public class LstJokerItem extends ExtendM3Transaction {
           lockedResultEXT055.set("EXZAV2", palQuantity)
           lockedResultEXT055.set("EXZQUV", 0)
           lockedResultEXT055.set("EXZPQA", 0)
-          lockedResultEXT055.set("EXGRWE", Weight)
-          lockedResultEXT055.set("EXVOL3", Volume)
-          lockedResultEXT055.set("EXCOFA", MITAUN_cofa)
-          logger.debug("MITAUN_cofa : " + MITAUN_cofa)
+          lockedResultEXT055.set("EXGRWE", weight)
+          lockedResultEXT055.set("EXVOL3", volume)
+          lockedResultEXT055.set("EXCOFA", mitaunCofa)
+          lockedResultEXT055.set("EXEXPI", expi)
+          logger.debug("mitaunCofa : " + mitaunCofa)
           lockedResultEXT055.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
           lockedResultEXT055.setInt("EXCHNO", ((Integer)lockedResultEXT055.get("EXCHNO") + 1))
           lockedResultEXT055.set("EXCHID", program.getUser())
@@ -322,16 +348,16 @@ public class LstJokerItem extends ExtendM3Transaction {
       } else {
         containerEXT055.set("EXBJNO", jobNumber)
         containerEXT055.set("EXCONO", currentCompany)
-        containerEXT055.set("EXITNO", ItemNumber)
+        containerEXT055.set("EXITNO", currentItno)
         containerEXT055.set("EXITDS", description)
         containerEXT055.set("EXZAV1", aval)
         containerEXT055.set("EXZAV2", palQuantity)
         containerEXT055.set("EXZQUV", 0)
         containerEXT055.set("EXZPQA", 0)
-        containerEXT055.set("EXGRWE", Weight)
-        containerEXT055.set("EXVOL3", Volume)
-        logger.debug("MITAUN_cofa : " + MITAUN_cofa)
-        containerEXT055.set("EXCOFA", MITAUN_cofa)
+        containerEXT055.set("EXGRWE", weight)
+        containerEXT055.set("EXVOL3", volume)
+        containerEXT055.set("EXCOFA", mitaunCofa)
+        containerEXT055.set("EXEXPI", expi)
         containerEXT055.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
         containerEXT055.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
         containerEXT055.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -339,33 +365,90 @@ public class LstJokerItem extends ExtendM3Transaction {
         containerEXT055.set("EXCHID", program.getUser())
         queryEXT055.insert(containerEXT055)
       }
+
+      HashMap<String,String> params = new HashMap<>()
+
+      double palQty = new BigDecimal(Double.toString(palQuantity)).setScale(3, RoundingMode.HALF_UP).doubleValue()
+
+      logger.debug("before outDatas, expi = ${expi}")
+
+      //outmap.put("ITNO", currentItno)
+      params.put("ITDS", description)
+      params.put("ZAV1", aval.toString())
+      params.put("ZAV2", palQty.toString())
+      params.put("ZQUV", 0.toString())
+      params.put("ZPQA", 0.toString())
+      params.put("GRWE", weight.toString())
+      params.put("VOL3", volume.toString())
+      params.put("COFA", mitaunCofa.toString())
+      params.put("EXPI", expi)
+      params.put("BJNO", jobNumber)
+
+      outmap.put(currentItno,params)
+
+      lastReadItno = currentItno
+      lastSendCount++
+      logger.debug("Added, with last Sens Count = ${lastSendCount}")
     }
   }
 
+  /**
+   * Get lot
+   */
+  public void getLot(){
+    DBAction queryMITLOC = database.table("MITLOC").index("00").selection("MLBANO").build()
+    DBContainer MITLOC = queryMITLOC.getContainer()
+    MITLOC.set("MLCONO", currentCompany)
+    MITLOC.set("MLWHLO", whloInput)
+    MITLOC.set("MLITNO", currentItno)
 
-  Closure<?> outData = { DBContainer containerEXT055 ->
-    String ItemNumberEXT055 = containerEXT055.get("EXITNO")
-    String descriptionEXT055 = containerEXT055.get("EXITDS")
-    String dispoUvcEXT055 = containerEXT055.get("EXZAV1")
-    String dispoPalEXT055 = containerEXT055.get("EXZAV2")
-    String quantiteUvcEXT055 = containerEXT055.get("EXZQUV")
-    String quantitePalEXT055 = containerEXT055.get("EXZPQA")
-    String poidsEXT055 = containerEXT055.get("EXGRWE")
-    String volumeEXT055 = containerEXT055.get("EXVOL3")
-    String jobEXT055 = containerEXT055.get("EXBJNO")
-    String cofaEXT055 = containerEXT055.get("EXCOFA")
+    if(queryMITLOC.readAll(MITLOC, 2, 1000, MITLOCData)){
+    }
+  }
 
-    mi.outData.put("ITNO", ItemNumberEXT055)
-    mi.outData.put("ITDS", descriptionEXT055)
-    mi.outData.put("ZAV1", dispoUvcEXT055)
-    mi.outData.put("ZAV2", dispoPalEXT055)
-    mi.outData.put("ZQUV", quantiteUvcEXT055)
-    mi.outData.put("ZPQA", quantitePalEXT055)
-    mi.outData.put("GRWE", poidsEXT055)
-    mi.outData.put("VOL3", volumeEXT055)
-    mi.outData.put("BJNO", jobEXT055)
-    mi.outData.put("COFA", cofaEXT055)
-    mi.write()
+  /**
+   * Retrieve MITLOC data
+   */
+  Closure<?> MITLOCData = { DBContainer MITLOC ->
+    String previousBano = ''
+    String currentBano = MITLOC.get("MLBANO").toString().trim()
+
+    logger.debug("MITLOC bano = ${currentBano}")
+
+    if(!currentBano.equals(previousBano)){
+      logger.debug("currentBano: ${currentBano} not same as previousBano : ${previousBano} , previousBano will become ${currentBano}")
+      previousBano = currentBano
+
+      getExpiration(currentBano)
+    }
+  }
+
+  /**
+   * Get expiration
+   */
+  public void getExpiration(bano){
+    DBAction queryMILOMA = database.table("MILOMA").index("00").selection("LMEXPI").build()
+    DBContainer MILOMA = queryMILOMA.getContainer()
+    MILOMA.set("LMCONO", currentCompany)
+    MILOMA.set("LMITNO", currentItno)
+    MILOMA.set("LMBANO", bano)
+
+    if(queryMILOMA.read(MILOMA)){
+      if(expi.equals("")){
+        expi = MILOMA.get('LMEXPI').toString().trim()
+      }else{
+
+        logger.debug("before check, expi = ${expi}")
+
+        String expiMiloma = MILOMA.get('LMEXPI').toString().trim()
+        if(!expiMiloma.equals(expi) && !expiMiloma.equals("0")){
+          if(expiMiloma.compareTo(expi) < 0 || expi.equals("0")){
+            expi = expiMiloma
+
+          }
+          logger.debug("expi and expiMiloma were different, now expi is : ${expi}")
+        }
+      }
+    }
   }
 }
-

@@ -22,6 +22,7 @@ public class SearchTablEntry extends ExtendM3Transaction {
   private String iLncd
   private String iTx15
   private String iTx40
+  private Integer nbMaxRecord = 10000
 
   public SearchTablEntry(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -87,11 +88,12 @@ public class SearchTablEntry extends ExtendM3Transaction {
     csytabRequest.set("CTDIVI", this.iDivi)
     csytabRequest.set("CTSTCO", this.iStco)
     csytabRequest.set("CTLNCD", this.iLncd)
-    if (!csytabQuery.readAll(csytabRequest, 4, csytabReader)) {
+    if (!csytabQuery.readAll(csytabRequest, 4, nbMaxRecord, csytabReader)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
+  // Write outData
   Closure<?> csytabReader = { DBContainer csytabResult ->
     String cono = csytabResult.get("CTCONO")
     String divi = csytabResult.get("CTDIVI")

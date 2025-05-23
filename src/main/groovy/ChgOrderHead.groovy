@@ -43,8 +43,8 @@ public class ChgOrderHead extends ExtendM3Transaction {
     String uca4 = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
     String uca5 = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
     String uca6 = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
-    DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection("OAORNO").build()
-    DBContainer OOHEAD = OOHEAD_query.getContainer()
+    DBAction ooheadQuery = database.table("OOHEAD").index("00").selection("OAORNO").build()
+    DBContainer OOHEAD = ooheadQuery.getContainer()
     OOHEAD.set("OACONO", currentCompany)
     OOHEAD.set("OAORNO", orno)
 
@@ -64,7 +64,7 @@ public class ChgOrderHead extends ExtendM3Transaction {
       lockedResult.update()
     }
 
-    if(!OOHEAD_query.readLock(OOHEAD, updateCallBack)) {
+    if(!ooheadQuery.readLock(OOHEAD, updateCallBack)) {
       mi.error("Le numéro de commande " + orno + " n'existe pas")
     }
   }

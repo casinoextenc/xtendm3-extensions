@@ -1,13 +1,11 @@
 /**
  * Name : EXT012MI.AddOrUpdGDA
- * 
- * Description : 
- * This API method to add records in specific table  Planning GDA
- * 
- * 
+ * Description :
+ * APP02 Planning GDA This API method to add or update records in specific table
  * Date         Changed By    Description
  * 20221122     FLEBARS       Creation
  * 20230801     FLEBARS       Suppression du controle de statut client
+ * 20240911     FLEBARS       Revue code pour validation
  */
 
 import java.time.LocalDateTime
@@ -35,8 +33,8 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
   /**
    * Get mi inputs
    * Check input values
-   * Check if record not exists in 
-   * Serialize in 
+   * Check if record not exists in
+   * Serialize in
    */
   public void main() {
     currentCompany = (int)program.getLDAZD().CONO
@@ -72,8 +70,8 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
     }
 
     if (hrgd != 0){
-      String formatted_hrgd = String.format("%06d", hrgd)
-      boolean checkTime = (Boolean)utility.call("DateUtil", "isDateValid", "20000101" + formatted_hrgd, "yyyyMMddHHmmss")
+      String formattedHrgd = String.format("%06d", hrgd)
+      boolean checkTime = (Boolean)utility.call("DateUtil", "isDateValid", "20000101" + formattedHrgd, "yyyyMMddHHmmss")
       if (!checkTime){
         mi.error("Heure de ramassage ${hrgd} est invalide")
         return
@@ -88,9 +86,9 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
     }
 
     //Check if record exists
-    DBAction queryEXT012 = database.table("EXT012")
-        .index("00")
-        .selection(
+    DBAction ext012Query = database.table("EXT012")
+      .index("00")
+      .selection(
         "EXCONO",
         "EXASGD",
         "EXCUNO",
@@ -103,47 +101,47 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
-    DBContainer containerEXT012 = queryEXT012.getContainer()
-    containerEXT012.set("EXCONO", currentCompany)
-    containerEXT012.set("EXCUNO", cuno)
-    containerEXT012.set("EXSUNO", suno)
-    containerEXT012.set("EXASGD", asgd)
-    containerEXT012.set("EXDRGD", drgd)
-    containerEXT012.set("EXHRGD", hrgd)
-    containerEXT012.set("EXDLGD", dlgd)
+    DBContainer ext012Request = ext012Query.getContainer()
+    ext012Request.set("EXCONO", currentCompany)
+    ext012Request.set("EXCUNO", cuno)
+    ext012Request.set("EXSUNO", suno)
+    ext012Request.set("EXASGD", asgd)
+    ext012Request.set("EXDRGD", drgd)
+    ext012Request.set("EXHRGD", hrgd)
+    ext012Request.set("EXDLGD", dlgd)
 
     //Record exists
-    if (queryEXT012.read(containerEXT012)) {
-      Closure<?> updateEXT012 = { LockedResult lockedResultEXT012 ->
-        lockedResultEXT012.set("EXASGD", asgd)
-        lockedResultEXT012.set("EXCUNO", cuno)
-        lockedResultEXT012.set("EXSUNO", suno)
-        lockedResultEXT012.set("EXDRGD", drgd)
-        lockedResultEXT012.set("EXHRGD", hrgd)
-        lockedResultEXT012.set("EXDLGD", dlgd)
-        lockedResultEXT012.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-        lockedResultEXT012.setInt("EXCHNO", ((Integer)lockedResultEXT012.get("EXCHNO") + 1))
-        lockedResultEXT012.set("EXCHID", program.getUser())
-        lockedResultEXT012.update()
+    if (ext012Query.read(ext012Request)) {
+      Closure<?> ext012Updater = { LockedResult ext012LockedResult ->
+        ext012LockedResult.set("EXASGD", asgd)
+        ext012LockedResult.set("EXCUNO", cuno)
+        ext012LockedResult.set("EXSUNO", suno)
+        ext012LockedResult.set("EXDRGD", drgd)
+        ext012LockedResult.set("EXHRGD", hrgd)
+        ext012LockedResult.set("EXDLGD", dlgd)
+        ext012LockedResult.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+        ext012LockedResult.setInt("EXCHNO", ((Integer)ext012LockedResult.get("EXCHNO") + 1))
+        ext012LockedResult.set("EXCHID", program.getUser())
+        ext012LockedResult.update()
       }
-      queryEXT012.readLock(containerEXT012, updateEXT012)
+      ext012Query.readLock(ext012Request, ext012Updater)
     } else {
-      containerEXT012.set("EXCONO", currentCompany)
-      containerEXT012.set("EXASGD", asgd)
-      containerEXT012.set("EXCUNO", cuno)
-      containerEXT012.set("EXSUNO", suno)
-      containerEXT012.set("EXDRGD", drgd)
-      containerEXT012.set("EXHRGD", hrgd)
-      containerEXT012.set("EXDLGD", dlgd)
-      containerEXT012.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
-      containerEXT012.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
-      containerEXT012.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-      containerEXT012.set("EXCHNO", 1)
-      containerEXT012.set("EXCHID", program.getUser())
-      queryEXT012.insert(containerEXT012)
+      ext012Request.set("EXCONO", currentCompany)
+      ext012Request.set("EXASGD", asgd)
+      ext012Request.set("EXCUNO", cuno)
+      ext012Request.set("EXSUNO", suno)
+      ext012Request.set("EXDRGD", drgd)
+      ext012Request.set("EXHRGD", hrgd)
+      ext012Request.set("EXDLGD", dlgd)
+      ext012Request.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
+      ext012Request.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
+      ext012Request.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+      ext012Request.set("EXCHNO", 1)
+      ext012Request.set("EXCHID", program.getUser())
+      ext012Query.insert(ext012Request)
     }
   }
 
@@ -152,24 +150,21 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
    * Customer must exists
    * Stat must be 20
    * Cutp must be 0
-   * 
+   *
    * @parameter Customer
    * @return true if ok false otherwise
    * */
   private boolean checkCustomer(String cuno){
-    DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection(
-        "OKCONO", "OKCUNO", "OKSTAT", "OKCUTP").build()
+    DBAction ocusmaQuery = database.table("OCUSMA").index("00").selection(
+      "OKCONO", "OKCUNO", "OKSTAT", "OKCUTP").build()
 
-    DBContainer containerOCUSMA = queryOCUSMA.getContainer()
-    containerOCUSMA.set("OKCONO", currentCompany)
-    containerOCUSMA.set("OKCUNO", cuno)
-    if (queryOCUSMA.read(containerOCUSMA)) {
-      String stat = (String)containerOCUSMA.get("OKSTAT")
-      int cutp = (Integer)containerOCUSMA.get("OKCUTP")
-      /*if (!stat.equals("20")){
-        errorMessage = "Statut Client ${stat} est invalide"
-        return false
-      }*/
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUNO", cuno)
+    if (ocusmaQuery.read(ocusmaRequest)) {
+      String stat = (String)ocusmaRequest.get("OKSTAT")
+      int cutp = (Integer)ocusmaRequest.get("OKCUTP")
+
       if (cutp != 0){
         errorMessage = "Type Client ${cutp} est invalide"
         return false
@@ -186,24 +181,23 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
    * Supplier must exists
    * Status must be 20
    * Supplier group must equal input sucl
-   * 
+   *
    * @parameter Supplier
    * @parameter Supplier Group
    * @return true if ok false otherwise
    * */
   private boolean checkSupplier(String suno){
-    DBAction queryCIDMAS = database.table("CIDMAS").index("00").selection(
-        "IDCONO", "IDSUNO", "IDSTAT").build()
-    DBContainer containerCIDMAS = queryCIDMAS.getContainer()
+    DBAction cidmasQuery = database.table("CIDMAS").index("00").selection(
+      "IDCONO", "IDSUNO", "IDSTAT").build()
+    DBContainer cidmasRequest = cidmasQuery.getContainer()
 
-    DBAction queryCIDVEN = database.table("CIDVEN").index("00").selection(
-        "IICONO", "IISUNO", "IISUCL").build()
-    DBContainer containerCIDVEN = queryCIDVEN.getContainer()
+    DBAction cidvenQuery = database.table("CIDVEN").index("00").selection(
+      "IICONO", "IISUNO", "IISUCL").build()
 
-    containerCIDMAS.set("IDCONO", currentCompany)
-    containerCIDMAS.set("IDSUNO", suno)
-    if (queryCIDMAS.read(containerCIDMAS)) {
-      String stat = (String)containerCIDMAS.get("IDSTAT")
+    cidmasRequest.set("IDCONO", currentCompany)
+    cidmasRequest.set("IDSUNO", suno)
+    if (cidmasQuery.read(cidmasRequest)) {
+      String stat = (String)cidmasRequest.get("IDSTAT")
       if (!stat.equals("20")){
         errorMessage = "Statut fournisseur ${stat} est invalide"
         return false
@@ -212,8 +206,6 @@ public class AddOrUpdGDA extends ExtendM3Transaction {
       errorMessage = "Fournisseur ${suno} n'existe pas"
       return false
     }
-
-
     return true
   }
 }

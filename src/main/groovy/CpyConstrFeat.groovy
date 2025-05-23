@@ -5,7 +5,7 @@
  * Name : EXT033MI.CpyConstrFeat
  * Description : Copy records to the EXT033 table.
  * Date         Changed By   Description
- * 20230125     SEAR         QUAX01 - Constraints matrix 
+ * 20230125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 import java.time.LocalDateTime

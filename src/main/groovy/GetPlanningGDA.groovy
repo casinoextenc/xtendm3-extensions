@@ -1,12 +1,12 @@
 /**
- * Name : EXT010MI.AddRefAsso
- * 
- * Description : 
- * This API method to add records in specific table EXT010 Customer Assortment
- * 
- * 
+ * Name : EXT012MI.GetPlanningGDA
+ *
+ * Description :
+ * This API method to get Planning GDA
+ *
+ *
  * Date         Changed By    Description
- * 20230308     SEAR       Creation
+ * 20230308     SEAR          APP02 - Planning GDA
  */
 public class GetPlanningGDA extends ExtendM3Transaction {
   private final MIAPI mi
@@ -17,6 +17,7 @@ public class GetPlanningGDA extends ExtendM3Transaction {
 
   private int currentCompany
   private String errorMessage
+  private Integer nbMaxRecord = 10000
 
 
   public GetPlanningGDA(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
@@ -42,11 +43,11 @@ public class GetPlanningGDA extends ExtendM3Transaction {
     String suno = (String)(mi.in.get("SUNO") != null ? mi.in.get("SUNO") : "")
     int drgd = (Integer)(mi.in.get("DRGD") != null ? mi.in.get("DRGD") : 0)
     int hrgd = (Integer)(mi.in.get("HRGD") != null ? mi.in.get("HRGD") : 0)
-    
+
 
     DBAction queryEXT012 = database.table("EXT012")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXCONO",
         "EXCUNO",
         "EXSUNO",
@@ -59,48 +60,45 @@ public class GetPlanningGDA extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
-        
-    DBContainer containerEXT012 = queryEXT012.getContainer()
-    containerEXT012.set("EXCONO", currentCompany)
-    containerEXT012.set("EXCUNO", cuno)
-    containerEXT012.set("EXSUNO", suno)
-    containerEXT012.set("EXASGD", asgd)
-    containerEXT012.set("EXDRGD", drgd)
-    containerEXT012.set("EXHRGD", hrgd)
+      )
+      .build()
+
+    DBContainer containerExt012 = queryEXT012.getContainer()
+    containerExt012.set("EXCONO", currentCompany)
+    containerExt012.set("EXCUNO", cuno)
+    containerExt012.set("EXSUNO", suno)
+    containerExt012.set("EXASGD", asgd)
+    containerExt012.set("EXDRGD", drgd)
+    containerExt012.set("EXHRGD", hrgd)
 
     //Record exists
-    if (!queryEXT012.readAll(containerEXT012, 6, outData)){
+    if (!queryEXT012.read(containerExt012)){
       mi.error("L'enregistrement n'existe pas")
       return
+    } else {
+      String customerCode = containerExt012.get("EXCUNO")
+      String supplierCode = containerExt012.get("EXSUNO")
+      String Assortment = containerExt012.get("EXASGD")
+      String pickupDate = containerExt012.get("EXDRGD")
+      String pickuptHour = containerExt012.get("EXHRGD")
+      String deliveryDate = containerExt012.get("EXDLGD")
+      String entryDate = containerExt012.get("EXRGDT")
+      String entryTime = containerExt012.get("EXRGTM")
+      String changeDate = containerExt012.get("EXLMDT")
+      String changeNumber = containerExt012.get("EXCHNO")
+      String changedBy = containerExt012.get("EXCHID")
+      mi.outData.put("CUNO", customerCode)
+      mi.outData.put("SUNO", supplierCode)
+      mi.outData.put("ASGD", Assortment)
+      mi.outData.put("DRGD", pickupDate)
+      mi.outData.put("HRGD", pickuptHour)
+      mi.outData.put("DLGD", deliveryDate)
+      mi.outData.put("RGDT", entryDate)
+      mi.outData.put("RGTM", entryTime)
+      mi.outData.put("LMDT", changeDate)
+      mi.outData.put("CHNO", changeNumber)
+      mi.outData.put("CHID", changedBy)
+      mi.write()
     }
   }
-  Closure<?> outData = { DBContainer containerEXT012 ->
-    String customerCode = containerEXT012.get("EXCUNO")
-    String supplierCode = containerEXT012.get("EXSUNO")
-    String Assortment = containerEXT012.get("EXASGD")
-    String pickupDate = containerEXT012.get("EXDRGD")
-    String pickuptHour = containerEXT012.get("EXHRGD")
-    String deliveryDate = containerEXT012.get("EXDLGD")
-    String entryDate = containerEXT012.get("EXRGDT")
-    String entryTime = containerEXT012.get("EXRGTM")
-    String changeDate = containerEXT012.get("EXLMDT")
-    String changeNumber = containerEXT012.get("EXCHNO")
-    String changedBy = containerEXT012.get("EXCHID")
-    mi.outData.put("CUNO", customerCode)
-    mi.outData.put("SUNO", supplierCode)
-    mi.outData.put("ASGD", Assortment)
-    mi.outData.put("DRGD", pickupDate)
-    mi.outData.put("HRGD", pickuptHour)
-    mi.outData.put("DLGD", deliveryDate)
-    mi.outData.put("RGDT", entryDate)
-    mi.outData.put("RGTM", entryTime)
-    mi.outData.put("LMDT", changeDate)
-    mi.outData.put("CHNO", changeNumber)
-    mi.outData.put("CHID", changedBy)
-    mi.write()
-  }
-
-
 }

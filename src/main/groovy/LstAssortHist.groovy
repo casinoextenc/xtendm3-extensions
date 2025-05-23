@@ -13,6 +13,7 @@ public class LstAssortHist extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final UtilityAPI utility
+  private Integer nbMaxRecord = 10000
 
   public LstAssortHist(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -73,11 +74,12 @@ public class LstAssortHist extends ExtendM3Transaction {
     DBAction ext021Query = database.table("EXT021").index("00").matching(ext021Expression).selection("EXCONO", "EXASCD", "EXCUNO", "EXFDAT", "EXTYPE", "EXCHB1", "EXDATA", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID", "EXTX60").build()
     DBContainer ext021Request = ext021Query.getContainer()
     ext021Request.setInt("EXCONO", currentCompany)
-    if (!ext021Query.readAll(ext021Request, 1, 10000, ext021Reader)) {
+    if (!ext021Query.readAll(ext021Request, 1, nbMaxRecord, ext021Reader)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
+  // Retrieve EXT021
   Closure<?> ext021Reader = {
     DBContainer ext021Result ->
       String cono = ext021Result.get("EXCONO")

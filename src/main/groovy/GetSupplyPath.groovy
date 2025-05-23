@@ -26,6 +26,9 @@ import java.time.format.DateTimeFormatter
  *
  * Date         Changed By    Description
  * 20221115     FLEBARS       Creation EXT-CMD02
+ * 20240616     FLEBARS       Chemin d appro interactif
+ * 20250331     FLEBARS       Evolution type de flux 10
+ * 20250415     ARENARD       The code has been checked
  */
 public class GetSupplyPath extends ExtendM3Transaction {
   private final MIAPI mi
@@ -36,14 +39,14 @@ public class GetSupplyPath extends ExtendM3Transaction {
   private final MICallerAPI miCaller
 
   private int currentCompany
-  private LinkedList<Object> responses
+  private LinkedList<Map<String, String>> responses
   private String errorMessage = ""
-  private boolean checkSIGMA6 = false
+  private boolean checkSigma6 = false
 
 
   //Rounding parameters
-  private def dtaGlobalRoundingParameters
-  private def dtaCustomer
+  private Map<String, String> globalRoundingParametersData
+  private Map<String, String> customerData
   private String cudate
 
   public GetSupplyPath(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility, MICallerAPI miCaller) {
@@ -90,11 +93,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
   public void main() {
     //INITIALIZE VARIABLES
     currentCompany = (int) program.getLDAZD().CONO
-    responses = new LinkedList<Object>()
+    responses = new LinkedList<Map<String, String>>()
 
     LocalDate currentDate = LocalDate.now()
     cudate = currentDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-
 
     //Get API INPUTS
     String cuno = (String) mi.in.get("CUNO")
@@ -109,21 +111,21 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
 
     //Load global rounding parameters
-    dtaGlobalRoundingParameters = getGlobalRoundingParameters()
+    globalRoundingParametersData = getGlobalRoundingParameters()
 
     //Load customer data & rounding parameters
-    dtaCustomer = getCustomerData(cuno)
-    if (dtaCustomer == null) {
+    customerData = getCustomerData(cuno)
+    if (customerData == null) {
       mi.error("Client ${cuno} n'existe pas")
       return
     }
-    if (!"20".equals(dtaCustomer["STAT"])) {
+    if (!"20".equals(customerData["STAT"])) {
       mi.error("Client ${cuno} n'est pas valide")
       return
     }
 
-    String order_fltp = getOrderTypeFlow(ortp)
-    if (order_fltp == null || order_fltp == "") {
+    String orderFltp = getOrderTypeFlow(ortp)
+    if (orderFltp == null || orderFltp == "") {
       mi.error("Type d'ordre non trouvé")
       return
     }
@@ -136,14 +138,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
       return
     }
 
-
-
     boolean found = false
     String itno = null
 
     //IF ORDER FLTP = 20
-    if ("20".equals(order_fltp)) {
-      def dtaFindItem = findItem(cuno, popn, order_fltp, alun)
+    if ("20".equals(orderFltp)) {
+      Map<String, String> dtaFindItem = findItem(cuno, popn, orderFltp, alun)
       if (this.errorMessage != "") {
         mi.error(this.errorMessage)
         return
@@ -151,7 +151,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       if (dtaFindItem != null) {
         found = true
         itno = dtaFindItem["ITNO"].toString()
-        addResponse(1, order_fltp, itno, fwhl, 1, (String) dtaFindItem["SUNO"], orqa, "", "", (String) dtaFindItem["HIE2"], (String) dtaFindItem["ASGD"])
+        addResponse(1, orderFltp, itno, fwhl, 1, (String) dtaFindItem["SUNO"], orqa, "", "", (String) dtaFindItem["HIE2"], (String) dtaFindItem["ASGD"])
       }
     } else {
       //ELSE ORDER FLTP != 20
@@ -159,30 +159,28 @@ public class GetSupplyPath extends ExtendM3Transaction {
       //  10 warehouse flow type
       //  40 direct supplier flow type
       //  30 warehouse supplier flow type
-      String active_fltp = ""
+      String activeFltp = ""
       for (int step = 0; step < 3; step++) {
         if (!found) {
           switch (step) {
             case 0:
-              active_fltp = "10"
+              activeFltp = "10"
               break
             case 1:
-              active_fltp = "40"
+              activeFltp = "40"
               break
             case 2:
-              active_fltp = "30"
+              activeFltp = "30"
               break
             default:
               break
           }
 
-          def dtaFindItem = findItem(cuno, popn, active_fltp, alun)
+          Map<String, String> dtaFindItem = findItem(cuno, popn, activeFltp, alun)
           if (this.errorMessage != "") {
             mi.error(this.errorMessage)
             return
           }
-
-
           if (dtaFindItem != null) {
             itno = dtaFindItem["ITNO"]
             String hie2 = dtaFindItem["HIE2"]
@@ -193,59 +191,77 @@ public class GetSupplyPath extends ExtendM3Transaction {
             String fvdt = dtaFindItem["FVDT"]
             String lvdt = dtaFindItem["LVDT"]
             String asgd = dtaFindItem["ASGD"]
+
             double cofa = dtaFindItem["COFA"] as double
             int dmcf = dtaFindItem["DMCF"] as int
             int dccd = dtaFindItem["DCCD"] as int
 
+            //Convert orqa as unms
+            orqa = dmcf == 1 ? orqa * cofa : orqa / cofa
+            orqa = new BigDecimal(Double.toString(orqa)).setScale(dccd, RoundingMode.HALF_UP).doubleValue()
+            logger.debug("orqa:${orqa} alun:${alun} cofa:${cofa} dmcf:${dmcf} dccd:${dccd}")
+
             //Depending flow type
             //10 warehouse flow type
-            if ("10".equals(active_fltp)) {
-              def dtaMITBAL = getItemDataFromMITBAL(fwhl, itno)
-              if (dtaMITBAL != null) {
-                String cpcd = dtaMITBAL["CPCD"] as String
-                if (cpcd == "100") {
+            if ("10".equals(activeFltp)) {
+              Map<String, String> mitbalData = getItemDataFromMitbal(fwhl, itno)
+              if (mitbalData != null) {
+                String cpcd = mitbalData["CPCD"] as String
+                double tomu = Double.parseDouble(mitbalData["TOMU"].toString())
+                boolean checkQty = true
+                logger.debug("tomu:${tomu} orqa:${orqa}")
+                if (tomu != 0) {//controle mutliples TOMU = 0
+                  if (tomu >= 0) {
+                    double roundedOrqa = orqa
+                    Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
+                    if (dtaRoundQty != null) {
+                      roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+                    }
+                    logger.debug("tomu:${tomu} roundedOrqa:${roundedOrqa}")
+                    if (roundedOrqa % tomu != 0)
+                      checkQty = false
+                  }
+                }
+
+                if (cpcd == "100" && checkQty) {
                   found = true
-                  addResponse(1, active_fltp, itno, fwhl, 0, "", orqa, "", "", hie2, asgd)
+                  addResponse(1, activeFltp, itno, fwhl, 0, "", orqa, "", "", hie2, asgd)
+                } else if (cpcd != "100") {
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "cpcd non correspondant", "", hie2, asgd)
                 } else {
-                  addResponse(0, active_fltp, itno, fwhl, 0, "", orqa, "cpcd non correspondant", "", hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "qté non divisible par multiple dépôt ${tomu}", "", hie2, asgd)
                 }
               } else {
-                addResponse(0, active_fltp, itno, fwhl, 0, "", orqa, "n'existe pas dans le dépôt", "", hie2, asgd)
+                addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "n'existe pas dans le dépôt", "", hie2, asgd)
               }
-            } else if ("40".equals(active_fltp)) {
+            } else if ("40".equals(activeFltp)) {
               //40 direct supplier flow type
-              def dtaMITVEN = getItemDataFromMITVEN(suld, itno)
+              Map<String, String> dtaMITVEN = getItemDataFromMitven(suld, itno)
               if (dtaMITVEN != null) {
-                //A°FLEBARS 20240709 START
-                orqa = dmcf == 1 ? orqa * cofa : orqa / cofa
-                orqa = new BigDecimal(Double.toString(orqa)).setScale(dccd, RoundingMode.HALF_UP).doubleValue()
-
-
-                //A°FLEBARS 20240709 END
                 String stat = dtaMITVEN["ISRS"].toString()
                 String rem1 = ""
-                double rounded_orqa = orqa
+                double roundedOrqa = orqa
                 double loqt = Double.parseDouble(dtaMITVEN["LOQT"].toString())
-                def dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
+                Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
                 if (dtaRoundQty != null) {
-                  rounded_orqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+                  roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
                   rem1 = (String) dtaRoundQty["REMK"]
                 }
-                if ("20".equals(stat) && orqa >= loqt) {
+                if ("20".equals(stat) && roundedOrqa >= loqt) {
                   found = true
-                  addResponse(1, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "", rem1, hie2, asgd)
+                  addResponse(1, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "", rem1, hie2, asgd)
                 } else if (!"20".equals(stat)) {
-                  addResponse(0, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "article fournisseur non actif", rem1, hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "article fournisseur non actif", rem1, hie2, asgd)
                 } else if (orqa < loqt) {
-                  addResponse(0, active_fltp, itno, fwhl, 1, suld, rounded_orqa, "qté commandé ${orqa} dépasse mini commande ${loqt}", rem1, hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "qté commandé ${orqa} dépasse mini commande ${loqt}", rem1, hie2, asgd)
                 }
               } else {
-                addResponse(0, active_fltp, itno, fwhl, 1, suld, orqa, "article fournisseur non trouvé", "", hie2, asgd)
+                addResponse(0, activeFltp, itno, fwhl, 1, suld, orqa, "article fournisseur non trouvé", "", hie2, asgd)
               }
-            } else if ("30".equals(active_fltp)) {
+            } else if ("30".equals(activeFltp)) {
               //30 warehouse supplier flow type
               found = true
-              addResponse(1, active_fltp, itno, fwhl, 1, sule, orqa, "", "", hie2, asgd)
+              addResponse(1, activeFltp, itno, fwhl, 1, sule, orqa, "", "", hie2, asgd)
             }
           }
         }
@@ -254,77 +270,83 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
     //CHECK REPLACEMENT ITEM
     if (found) {
-      def dtaRITN = null
-      if ("1".equals(dtaCustomer["CHB8"]))
+      Map<String, String> dtaRITN = null
+      if ("1".equals(customerData["CHB8"]))
         dtaRITN = getReplacementItem(cuno, itno, orqa, ortp, whlo, modl)
 
 
       if (dtaRITN != null) {
-        String r_itno = dtaRITN["RITN"]
-        String r_hie2 = dtaRITN["HIE2"]
-        def dtaCUGEX1 = getItemDataFromCUGEX1MITMAS(itno)
-        String r_fltp = dtaCUGEX1["FLTP"]
-        String r_whlo = fwhl
-        int r_ltyp = 0
-        String r_suno = ""
-        String r_asgd = ""
-        double r_orqa = orqa
-        String r_remk = ""
-        if ("10".equals(r_fltp)) {
-          r_ltyp = 0
-          r_suno = ""
-          r_remk = "remplace article:${itno}"
-        } else if ("20".equals(r_fltp)) {
-          r_ltyp = 1
-          r_suno = dtaRITN["SUNO"]
-          r_remk = "remplace article:${itno}"
-        } else if ("30".equals(r_fltp)) {
-          def dtaEXT010 = getItemDataFromEXT010(cuno, itno)
+        String rItno = dtaRITN["RITN"]
+        String rHie2 = dtaRITN["HIE2"]
+        Map<String, String> dtaCUGEX1 = getItemDataFromCugex1Mitmas(itno)
+        if (dtaCUGEX1 == null) {
+          return
+        }
+        String rFltp = dtaCUGEX1["FLTP"]
+        String rWhlo = fwhl
+        int rLtyp = 0
+        String rSuno = ""
+        String rAsgd = ""
+        double rOrqa = orqa
+        String rRemk = ""
+        if ("10".equals(rFltp)) {
+          rLtyp = 0
+          rSuno = ""
+          rRemk = "remplace article:${itno}"
+        } else if ("20".equals(rFltp)) {
+          rLtyp = 1
+          rSuno = dtaRITN["SUNO"]
+          rRemk = "remplace article:${itno}"
+        } else if ("30".equals(rFltp)) {
+          Map<String, String> dtaEXT010 = getItemDataFromExt010(cuno, itno)
           if (dtaEXT010 != null) {
-            r_suno = dtaEXT010["SULE"]
-            r_asgd = dtaEXT010["ASGD"]
+            rSuno = dtaEXT010["SULE"]
+            rAsgd = dtaEXT010["ASGD"]
           }
-          r_ltyp = 1
-          r_remk = "remplace article:${itno}"
-        } else if ("40".equals(r_fltp)) {
-          def dtaEXT010 = getItemDataFromEXT010(cuno, itno)
+          rLtyp = 1
+          rRemk = "remplace article:${itno}"
+        } else if ("40".equals(rFltp)) {
+          Map<String, String> dtaEXT010 = getItemDataFromExt010(cuno, itno)
           if (dtaEXT010 != null) {
-            r_suno = dtaEXT010["SULD"]
+            rSuno = dtaEXT010["SULD"]
           }
-          r_ltyp = 1
-          r_remk = "remplace article:${itno}"
+          rLtyp = 1
+          rRemk = "remplace article:${itno}"
         }
 
         //Update flag on last response
-        int last_index = responses.size() - 1
-        def lastResponse = responses.get(last_index)
-        lastResponse["FLAG"] = 0
-        lastResponse["REMK"] = "Remplacé par ${r_itno}"
-        responses.set(last_index, lastResponse)
+        int lastIndex = responses.size() - 1
+        Map<String, String> lastResponse = responses.get(lastIndex)
+        lastResponse["FLAG"] = "" + 0
+        lastResponse["REMK"] = "Remplacé par " + itno
+        responses.set(lastIndex, lastResponse)
 
 
         //Round
-        def dtaRoundQty = roundQty(r_itno, r_hie2, orqa, flg1)
-        double rounded_orqa = orqa
-        String rnd_remk = ""
+        Map<String, String> dtaRoundQty = roundQty(rItno, rHie2, orqa, flg1)
+        double roundedOrqa = orqa
+        String rndRemk = ""
 
         if (dtaRoundQty != null) {
-          rounded_orqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
-          rnd_remk = (String) dtaRoundQty["REMK"]
+          roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+          rndRemk = (String) dtaRoundQty["REMK"]
         }
-        addResponse(1, r_fltp, r_itno, r_whlo, r_ltyp, r_suno, rounded_orqa, r_remk, rnd_remk, r_hie2, r_asgd)
+        addResponse(1, rFltp, rItno, rWhlo, rLtyp, rSuno, roundedOrqa, rRemk, rndRemk, rHie2, rAsgd)
       } else {
         //Round Qty for last response
-        int last_index = responses.size() - 1
-        def lastResponse = responses.get(last_index)
+        int lastIndex = responses.size() - 1
+        Map<String, String> lastResponse = responses.get(lastIndex)
         if ("1".equals((String) lastResponse["FLAG"]) && !"40".equals((String) lastResponse["FLTP"])) {
-          double t_orqa = Double.parseDouble((String) lastResponse["ORQA"])
-          String t_itno = (String) lastResponse["ITNO"]
-          String t_hie2 = (String) lastResponse["HIE2"]
-          def dtaRoundQty = roundQty(t_itno, t_hie2, t_orqa, flg1)
+          logger.debug("lastResponse:${lastResponse}")
+          double tOrqa = Double.parseDouble((String) lastResponse["ORQA"])
+          String tItno = (String) lastResponse["ITNO"]
+          String tHie2 = (String) lastResponse["HIE2"]
+          //todo c'est la
+
+          Map<String, String> dtaRoundQty = roundQty(tItno, tHie2, tOrqa, flg1)
           lastResponse["ORQA"] = (String) dtaRoundQty["ORQA"]
           lastResponse["REMK"] = (String) lastResponse["REMK"] + " " + (String) dtaRoundQty["REMK"]
-          responses.set(last_index, lastResponse)
+          responses.set(lastIndex, lastResponse)
         }
       }
     }
@@ -334,7 +356,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
     // input flag = 1 and responses
     //send responses
     if (flag == 1 && responses.size() > 0) {
-      for (def response in responses) {
+      for (Map<String, String> response in responses) {
         mi.outData.put("FLAG", (String) response["FLAG"])
         mi.outData.put("FLTP", (String) response["FLTP"])
         mi.outData.put("ITNO", (String) response["ITNO"])
@@ -350,19 +372,24 @@ public class GetSupplyPath extends ExtendM3Transaction {
     } else if (responses.size() > 0) {
       // input flag = 0 and responses
       //send last response
-      int last_index = responses.size() - 1
-      def response = responses.get(last_index)
-      mi.outData.put("FLAG", (String) response["FLAG"])
-      mi.outData.put("FLTP", (String) response["FLTP"])
-      mi.outData.put("ITNO", (String) response["ITNO"])
-      mi.outData.put("LTYP", (String) response["LTYP"])
-      mi.outData.put("SUNO", (String) response["SUNO"])
-      mi.outData.put("WHLO", (String) response["WHLO"])
-      mi.outData.put("ORQA", (String) response["ORQA"])
-      mi.outData.put("REMK", (String) response["REMK"])
-      mi.outData.put("REM1", (String) response["REM1"])
-      mi.outData.put("ASGD", (String) response["ASGD"])
-      mi.write()
+      int lastIndex = responses.size() - 1
+      Map<String, String> response = responses.get(lastIndex)
+      String ff = response["FLAG"] as String
+      if ("1".equals(ff.trim())) {
+        mi.outData.put("FLAG", (String) response["FLAG"])
+        mi.outData.put("FLTP", (String) response["FLTP"])
+        mi.outData.put("ITNO", (String) response["ITNO"])
+        mi.outData.put("LTYP", (String) response["LTYP"])
+        mi.outData.put("SUNO", (String) response["SUNO"])
+        mi.outData.put("WHLO", (String) response["WHLO"])
+        mi.outData.put("ORQA", (String) response["ORQA"])
+        mi.outData.put("REMK", (String) response["REMK"])
+        mi.outData.put("REM1", (String) response["REM1"])
+        mi.outData.put("ASGD", (String) response["ASGD"])
+        mi.write()
+      } else {
+        mi.error("Article non trouvé par le chemin d'approvisionnement ${response["REMK"]}")
+      }
     } else {
       // no reponses
       // send error
@@ -400,12 +427,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param fltp flow type
    * @return null if not found else structured object with ITNO, SULE, SULD, RSCL, CMDE, FVDT, LVDT
    */
-  private def findItem(String cuno, String popn, String fltp, String alun) {
+  private Map<String, String> findItem(String cuno, String popn, String fltp, String alun) {
     //Method variable
     boolean found = false
 
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "ITNO": "",
       "HIE2": "",
       "SUNO": "",
@@ -421,8 +448,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "DCCD": ""
     ]
 
-    //Database access
-    DBAction queryMITPOP00 = database.table("MITPOP").index("20").selection(
+    /**
+     * Define database access
+     * MITPOP20
+     * MPCONO, MPALWT, MPALWQ, MPPOPN, MPE0PA, MPVFDT, MPITNO, MPSEA1
+     */
+    DBAction mitpopQuery = database.table("MITPOP").index("20").selection(
       "MPCONO",
       "MPALWT",
       "MPALWQ",
@@ -434,52 +465,55 @@ public class GetSupplyPath extends ExtendM3Transaction {
     ).build()
 
     //init query on MITPOP
-    DBContainer containerMITPOP = queryMITPOP00.getContainer()
-    containerMITPOP.set("MPCONO", currentCompany)
-    containerMITPOP.set("MPALWT", 1)
-    containerMITPOP.set("MPALWQ", "")
-    containerMITPOP.set("MPPOPN", popn)
+    DBContainer mitpopRequest = mitpopQuery.getContainer()
+    mitpopRequest.set("MPCONO", currentCompany)
+    mitpopRequest.set("MPALWT", 1)
+    mitpopRequest.set("MPALWQ", "")
+    mitpopRequest.set("MPPOPN", popn)
 
-    //loop on MITPOP00 records
-    Closure<?> readMITPOP = { DBContainer resultMITPOP ->
+    /**
+     * Loop on MITPOP20
+     * MPCONO, MPALWT, MPALWQ, MPPOPN, MPE0PA, MPVFDT, MPITNO, MPSEA1
+     */
+    Closure<?> mitpopReader = { DBContainer mitpopResult ->
       if (!found) {
-        String itno = resultMITPOP.getString("MPITNO").trim()
-        def dataCUGEX1 = getItemDataFromCUGEX1MITMAS(itno)
-        if (dataCUGEX1 != null) {
-          String item_fltp = dataCUGEX1["FLTP"].toString()
-          if (item_fltp.equals(fltp)) {
-            def objEXT010 = getItemDataFromEXT010(cuno, itno)
-            if (objEXT010 != null) {
-              Map<String, String> dtaMITMAS = getItemDataFromMITMAS(itno)
-              Map<String, String> dtaMITAUN = getItemDataFromMITAUN(itno, alun)
+        String itno = mitpopResult.getString("MPITNO").trim()
+        Map<String, String> cugex1Data = getItemDataFromCugex1Mitmas(itno)
+        if (cugex1Data != null) {
+          String itemFltp = cugex1Data["FLTP"].toString()
+          if (itemFltp.equals(fltp)) {
+            Map<String, String> ext010Data = getItemDataFromExt010(cuno, itno)
+            if (ext010Data != null) {
+              Map<String, String> mitmasData = getItemDataFromMitmas(itno)
+              Map<String, String> mitaunData = getItemDataFromMitaun(itno, alun)
               responseObject["ITNO"] = itno
-              responseObject["HIE2"] = dtaMITMAS["HIE2"].toString()
-              responseObject["SUNO"] = dtaMITMAS["SUNO"].toString()
-              responseObject["SULE"] = objEXT010["SULE"].toString()
-              responseObject["SULD"] = objEXT010["SULD"].toString()
-              responseObject["RSCL"] = objEXT010["RSCL"].toString()
-              responseObject["CMDE"] = objEXT010["CMDE"].toString()
-              responseObject["FVDT"] = objEXT010["FVDT"].toString()
-              responseObject["LVDT"] = objEXT010["LVDT"].toString()
-              responseObject["ASGD"] = objEXT010["ASGD"].toString()
-              responseObject["COFA"] = dtaMITAUN["COFA"].toString()
-              responseObject["DMCF"] = dtaMITAUN["DMCF"].toString()
-              responseObject["DCCD"] = dtaMITAUN["DCCD"].toString()
+              responseObject["HIE2"] = mitmasData["HIE2"].toString()
+              responseObject["SUNO"] = mitmasData["SUNO"].toString()
+              responseObject["SULE"] = ext010Data["SULE"].toString()
+              responseObject["SULD"] = ext010Data["SULD"].toString()
+              responseObject["RSCL"] = ext010Data["RSCL"].toString()
+              responseObject["CMDE"] = ext010Data["CMDE"].toString()
+              responseObject["FVDT"] = ext010Data["FVDT"].toString()
+              responseObject["LVDT"] = ext010Data["LVDT"].toString()
+              responseObject["ASGD"] = ext010Data["ASGD"].toString()
+              responseObject["COFA"] = mitaunData["COFA"].toString()
+              responseObject["DMCF"] = mitaunData["DMCF"].toString()
+              responseObject["DCCD"] = mitaunData["DCCD"].toString()
               found = true
             }
           }
         }
       }
     }
-    if (queryMITPOP00.readAll(containerMITPOP, 4, readMITPOP) <= 0) {
+    if (mitpopQuery.readAll(mitpopRequest, 4, 10000, mitpopReader) <= 0) {
       this.errorMessage = "SIGMA6 ${popn} inexistant"
     }
-    if (!found && !this.checkSIGMA6) {
-      if (!checkSIGMA6(cuno, popn)) {
+    if (!found && !this.checkSigma6) {
+      if (!checkSigma6(cuno, popn)) {
         this.errorMessage = "SIGMA6 ${popn} non trouvé dans les assortiments client ${cuno}"
       }
     }
-    this.checkSIGMA6 = true
+    this.checkSigma6 = true
 
 
     if (found)
@@ -494,7 +528,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param popn SIGMA6
    * @return null if not exists else structure with SULE, SULD, FVDT, LVDT
    */
-  private def checkSIGMA6(String cuno, String popn) {
+  private boolean checkSigma6(String cuno, String popn) {
     //Define database access
     boolean found = false
     ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
@@ -502,7 +536,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
     ext010Expression = ext010Expression.and(ext010Expression.ge("EXLVDT", cudate))
 
 
-    DBAction queryEXT01010 = database.table("EXT010")
+    DBAction ext01010Query = database.table("EXT010")
       .index("10")
       .matching(ext010Expression)
       .selection(
@@ -522,10 +556,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
 
     //Query DB
-    DBContainer containerEXT010 = queryEXT01010.getContainer()
-    containerEXT010.set("EXCONO", currentCompany)
-    containerEXT010.set("EXCUNO", cuno)
-    containerEXT010.set("EXSIG6", popn)
+    DBContainer ext01Request = ext01010Query.getContainer()
+    ext01Request.set("EXCONO", currentCompany)
+    ext01Request.set("EXCUNO", cuno)
+    ext01Request.set("EXSIG6", popn)
 
     Closure<?> readEXT010 = { DBContainer resultEXT010 ->
       if (!found) {
@@ -533,7 +567,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       }
     }
 
-    queryEXT01010.readAll(containerEXT010, 3, 1,readEXT010)
+    ext01010Query.readAll(ext01Request, 3, 1, readEXT010)
 
     if (found)
       return true
@@ -546,26 +580,27 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get Item Data from MITMAS
    * @param itno
    */
-  private Map<String, String> getItemDataFromMITMAS(String itno) {
+  private Map<String, String> getItemDataFromMitmas(String itno) {
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "SUNO": "",
       "HIE2": "",
     ]
 
-    DBAction queryMITMAS00 = database.table("MITMAS").index("00").selection(
+    DBAction mitmasQuery = database.table("MITMAS").index("00").selection(
       "MMCONO",
       "MMITNO",
       "MMSUNO",
       "MMHIE2"
     ).build()
 
-    DBContainer containerMITMAS = queryMITMAS00.getContainer()
-    containerMITMAS.set("MMCONO", currentCompany)
-    containerMITMAS.set("MMITNO", itno)
-    if (queryMITMAS00.read(containerMITMAS)) {
-      responseObject["SUNO"] = containerMITMAS.getString("MMSUNO").trim()
-      responseObject["HIE2"] = containerMITMAS.getString("MMHIE2").trim()
+
+    DBContainer mitmasRequest = mitmasQuery.getContainer()
+    mitmasRequest.set("MMCONO", currentCompany)
+    mitmasRequest.set("MMITNO", itno)
+    if (mitmasQuery.read(mitmasRequest)) {
+      responseObject["SUNO"] = mitmasRequest.getString("MMSUNO").trim()
+      responseObject["HIE2"] = mitmasRequest.getString("MMHIE2").trim()
       return responseObject
     }
     return null
@@ -576,15 +611,16 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param whlo
    * @param itno
    */
-  private def getItemDataFromMITBAL(String whlo, String itno) {
+  private Map<String, String> getItemDataFromMitbal(String whlo, String itno) {
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "IDDT": "",
       "CPCD": "",
-      "STAT": ""
+      "STAT": "",
+      "TOMU": "0"
     ]
 
-    DBAction queryMITBAL00 = database.table("MITBAL").index("00").selection(
+    DBAction mitbalQuery = database.table("MITBAL").index("00").selection(
       "MBCONO",
       "MBWHLO",
       "MBITNO",
@@ -593,17 +629,42 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "MBIDDT"
     ).build()
 
-    DBContainer containerMITBAL = queryMITBAL00.getContainer()
-    containerMITBAL.set("MBCONO", currentCompany)
-    containerMITBAL.set("MBWHLO", whlo)
-    containerMITBAL.set("MBITNO", itno)
-    if (queryMITBAL00.read(containerMITBAL)) {
-      responseObject["STAT"] = ((String) containerMITBAL.get("MBSTAT")).trim()
-      responseObject["IDDT"] = ((String) containerMITBAL.get("MBIDDT")).trim()
-      responseObject["CPCD"] = ((String) containerMITBAL.get("MBCPCD")).trim()
-      return responseObject
+    DBContainer mitbalRequest = mitbalQuery.getContainer()
+    mitbalRequest.set("MBCONO", currentCompany)
+    mitbalRequest.set("MBWHLO", whlo)
+    mitbalRequest.set("MBITNO", itno)
+    if (mitbalQuery.read(mitbalRequest)) {
+      responseObject["STAT"] = ((String) mitbalRequest.get("MBSTAT")).trim()
+      responseObject["IDDT"] = ((String) mitbalRequest.get("MBIDDT")).trim()
+      responseObject["CPCD"] = ((String) mitbalRequest.get("MBCPCD")).trim()
+    } else {
+      return null
     }
-    return null
+
+    // todo
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1CONO",
+      "F1FILE",
+      "F1PK01",
+      "F1PK02",
+      "F1PK03",
+      "F1PK04",
+      "F1PK05",
+      "F1PK06",
+      "F1PK07",
+      "F1PK08",
+      "F1N096"
+    ).build()
+
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "MITBAL")
+    cugex1Request.set("F1PK01", whlo)
+    cugex1Request.set("F1PK02", itno)
+
+    if (cugex1Query.read(cugex1Request)) {
+      responseObject["TOMU"] = cugex1Request.get("F1N096").toString().trim()
+    }
+    return responseObject
   }
 
   /**
@@ -611,14 +672,14 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param suno
    * @param itno
    */
-  private def getItemDataFromMITVEN(String suno, String itno) {
+  private Map<String, String> getItemDataFromMitven(String suno, String itno) {
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "ISRS": "",
       "LOQT": ""
     ]
 
-    DBAction queryMITVEN00 = database.table("MITVEN").index("00").selection(
+    DBAction mitvenQuery = database.table("MITVEN").index("00").selection(
       "IFCONO",
       "IFITNO",
       "IFPRCS",
@@ -628,13 +689,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "IFLOQT"
     ).build()
 
-    DBContainer containerMITVEN = queryMITVEN00.getContainer()
-    containerMITVEN.set("IFCONO", currentCompany)
-    containerMITVEN.set("IFITNO", itno)
-    containerMITVEN.set("IFSUNO", suno)
-    if (queryMITVEN00.read(containerMITVEN)) {
-      responseObject["ISRS"] = containerMITVEN.get("IFISRS").toString()
-      responseObject["LOQT"] = containerMITVEN.get("IFLOQT").toString()
+    DBContainer mitvenRequest = mitvenQuery.getContainer()
+    mitvenRequest.set("IFCONO", currentCompany)
+    mitvenRequest.set("IFITNO", itno)
+    mitvenRequest.set("IFSUNO", suno)
+    if (mitvenQuery.read(mitvenRequest)) {
+      responseObject["ISRS"] = mitvenRequest.get("IFISRS").toString()
+      responseObject["LOQT"] = mitvenRequest.get("IFLOQT").toString()
       return responseObject
     }
     return null
@@ -646,10 +707,10 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param itno Item
    * @return null if not exists else structure with SULE, SULD, FVDT, LVDT
    */
-  private def getItemDataFromEXT010(String cuno, String itno) {
+  private Map<String, String> getItemDataFromExt010(String cuno, String itno) {
     boolean found = false
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "SULE": "",
       "SULD": "",
       "RSCL": "",
@@ -661,48 +722,49 @@ public class GetSupplyPath extends ExtendM3Transaction {
     ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
     ext010Expression = ext010Expression.le("EXFVDT", cudate)
     ext010Expression = ext010Expression.and(ext010Expression.ge("EXLVDT", cudate))
+    ext010Expression = ext010Expression.and(ext010Expression.eq("EXCMDE", "1"))
 
     //Define database access
-    DBAction queryEXT01002 = database.table("EXT010")
+    DBAction ext010Query = database.table("EXT010")
       .index("02")
       .matching(ext010Expression)
       .selection(
-      "EXCONO",
-      "EXCUNO",
-      "EXITNO",
-      "EXASGD",
-      "EXCDAT",
-      "EXSIG6",
-      "EXSULE",
-      "EXSULD",
-      "EXRSCL",
-      "EXCMDE",
-      "EXFVDT",
-      "EXLVDT"
-    ).build()
+        "EXCONO",
+        "EXCUNO",
+        "EXITNO",
+        "EXASGD",
+        "EXCDAT",
+        "EXSIG6",
+        "EXSULE",
+        "EXSULD",
+        "EXRSCL",
+        "EXCMDE",
+        "EXFVDT",
+        "EXLVDT"
+      ).build()
 
 
     //Query DB
-    DBContainer containerEXT010 = queryEXT01002.getContainer()
-    containerEXT010.set("EXCONO", currentCompany)
-    containerEXT010.set("EXCUNO", cuno)
-    containerEXT010.set("EXITNO", itno)
+    DBContainer ext010Request = ext010Query.getContainer()
+    ext010Request.set("EXCONO", currentCompany)
+    ext010Request.set("EXCUNO", cuno)
+    ext010Request.set("EXITNO", itno)
 
-    Closure<?> readEXT010 = { DBContainer resultEXT010 ->
+    Closure<?> readEXT010ext010Reader = { DBContainer ext010Record ->
       if (!found) {
-        responseObject["ASGD"] = ((String) resultEXT010.get("EXASGD")).trim()
-        responseObject["SULE"] = ((String) resultEXT010.get("EXSULE")).trim()
-        responseObject["SULE"] = ((String) resultEXT010.get("EXSULE")).trim()
-        responseObject["SULD"] = ((String) resultEXT010.get("EXSULD")).trim()
-        responseObject["RSCL"] = ((String) resultEXT010.get("EXRSCL")).trim()
-        responseObject["CMDE"] = ((String) resultEXT010.get("EXCMDE")).trim()
-        responseObject["FVDT"] = ((String) resultEXT010.get("EXFVDT")).trim()
-        responseObject["LVDT"] = ((String) resultEXT010.get("EXLVDT")).trim()
+        responseObject["ASGD"] = ((String) ext010Record.get("EXASGD")).trim()
+        responseObject["SULE"] = ((String) ext010Record.get("EXSULE")).trim()
+        responseObject["SULE"] = ((String) ext010Record.get("EXSULE")).trim()
+        responseObject["SULD"] = ((String) ext010Record.get("EXSULD")).trim()
+        responseObject["RSCL"] = ((String) ext010Record.get("EXRSCL")).trim()
+        responseObject["CMDE"] = ((String) ext010Record.get("EXCMDE")).trim()
+        responseObject["FVDT"] = ((String) ext010Record.get("EXFVDT")).trim()
+        responseObject["LVDT"] = ((String) ext010Record.get("EXLVDT")).trim()
         found = true
       }
     }
 
-    queryEXT01002.readAll(containerEXT010, 3, readEXT010)
+    ext010Query.readAll(ext010Request, 3, 10000, readEXT010ext010Reader)
 
     if (found)
       return responseObject
@@ -714,13 +776,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get Item Data from CUGEX1.MITMAS
    * @param itno
    */
-  private def getItemDataFromCUGEX1MITMAS(String itno) {
+  private Map<String, String> getItemDataFromCugex1Mitmas(String itno) {
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "FLTP": ""
     ]
 
-    DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection("F1CONO",
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1CONO",
       "F1FILE",
       "F1PK01",
       "F1PK02",
@@ -733,13 +795,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "F1A830"
     ).build()
 
-    DBContainer containerCUGEX1 = queryCUGEX100.getContainer()
-    containerCUGEX1.set("F1CONO", currentCompany)
-    containerCUGEX1.set("F1FILE", "MITMAS")
-    containerCUGEX1.set("F1PK01", itno)
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "MITMAS")
+    cugex1Request.set("F1PK01", itno)
 
-    if (queryCUGEX100.read(containerCUGEX1)) {
-      responseObject["FLTP"] = containerCUGEX1.get("F1A830").toString().trim()
+    if (cugex1Query.read(cugex1Request)) {
+      responseObject["FLTP"] = cugex1Request.get("F1A830").toString().trim()
       return responseObject
     }
     return null
@@ -754,7 +816,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    */
   private String getOrderTypeFlow(String orty) {
 
-    DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection("F1CONO",
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1CONO",
       "F1FILE",
       "F1PK01",
       "F1PK02",
@@ -767,13 +829,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "F1A030"
     ).build()
 
-    DBContainer containerCUGEX1 = queryCUGEX100.getContainer()
-    containerCUGEX1.set("F1CONO", currentCompany)
-    containerCUGEX1.set("F1FILE", "OOTYPE")
-    containerCUGEX1.set("F1PK01", orty)
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "OOTYPE")
+    cugex1Request.set("F1PK01", orty)
 
-    if (queryCUGEX100.read(containerCUGEX1)) {
-      return containerCUGEX1.get("F1A030").toString().trim()
+    if (cugex1Query.read(cugex1Request)) {
+      return cugex1Request.get("F1A030").toString().trim()
     }
   }
 
@@ -783,18 +845,19 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param suno
    * @param itno
    */
-  private def getReplacementItem(String cuno, String itno, double orqa, String ortp, String whlo, String modl) {
+  private Map<String, String> getReplacementItem(String cuno, String itno, double orqa, String ortp, String whlo, String modl) {
     String ritn = null
     boolean found = false
 
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "RITN": "",
       "HIE2": "",
       "SUNO": ""
     ]
 
-    def params = [
+
+    Map<String, String> params = [
       "CUNO": cuno,
       "FACI": "E10",
       "POPN": itno,
@@ -802,16 +865,16 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "ORTP": ortp,
       "SPLM": "CSN01"
     ]
-    def callback = { Map<String, String> response ->
+    Closure<?> apiCallback = { Map<String, String> response ->
       if (response.ITNO != null && !itno.equals(response.ITNO) && !found) {
         ritn = response.ITNO.toString()
         found = true
       }
     }
-    miCaller.call("OIS340MI", "LstSupplSummary", params, callback)
+    miCaller.call("OIS340MI", "LstSupplSummary", params, apiCallback)
 
     if (found) {
-      def dtaMITMAS = getItemDataFromMITMAS(ritn)
+      Map<String, String> dtaMITMAS = getItemDataFromMitmas(ritn)
       if (dtaMITMAS != null) {
         responseObject["RITN"] = ritn
         responseObject["SUNO"] = (String) dtaMITMAS["SUNO"]
@@ -828,7 +891,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Add response into responses list
    */
   private void addResponse(int flag, String fltp, String itno, String whlo, int ltyp, String suno, double orqa, String remk, String rem1, String hie2, String asgd) {
-    def responseData = [
+    Map<String, String> responseData = [
       "FLAG": "" + flag,
       "FLTP": "" + fltp,
       "ITNO": "" + itno,
@@ -847,8 +910,8 @@ public class GetSupplyPath extends ExtendM3Transaction {
   /**
    * Get warehouse thru API MMS059MI
    */
-  private def getWareHouse(String cuno, String ortp, String modl) {
-    def params = [
+  private String getWareHouse(String cuno, String ortp, String modl) {
+    Map<String, String> params = [
       "SPLM": "CSN01",
       "PREX": "5",
       "SPLA": "10",
@@ -857,13 +920,13 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "OBV3": modl,
     ]
     String fwhl = null
-    def callback = { Map<String, String> response ->
+    Closure<?> apiCallback = { Map<String, String> response ->
       if (response.FWHL != null) {
         fwhl = response.FWHL.toString()
       }
     }
     //1ST CALL WITH MODL
-    miCaller.call("MMS059MI", "Get", params, callback)
+    miCaller.call("MMS059MI", "Get", params, apiCallback)
 
     //2ND CALL WITHOUT MODL
     if (fwhl == null) {
@@ -874,7 +937,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
         "OBV1": cuno,
         "OBV2": ortp
       ]
-      miCaller.call("MMS059MI", "Get", params, callback)
+      miCaller.call("MMS059MI", "Get", params, apiCallback)
     }
     return fwhl
   }
@@ -884,29 +947,29 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param cuno Customer
    * @return null if not found else structure with STAT, CHB7
    */
-  private def getCustomerData(String cuno) {
-    def responseObject = [
+  private Map<String, String> getCustomerData(String cuno) {
+    Map<String, String> responseObject = [
       "STAT": "",
       "CHB7": "",
       "CHB8": ""
     ]
 
-    DBAction queryOCUSMA00 = database.table("OCUSMA").index("00").selection(
+    DBAction ocusmaQuery = database.table("OCUSMA").index("00").selection(
       "OKCONO",
       "OKCUNO",
       "OKSTAT"
     ).build()
 
-    DBContainer containerOCUSMA = queryOCUSMA00.getContainer()
-    containerOCUSMA.set("OKCONO", currentCompany)
-    containerOCUSMA.set("OKCUNO", cuno)
-    if (queryOCUSMA00.read(containerOCUSMA)) {
-      responseObject["STAT"] = containerOCUSMA.get("OKSTAT").toString()
+    DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+    ocusmaRequest.set("OKCONO", currentCompany)
+    ocusmaRequest.set("OKCUNO", cuno)
+    if (ocusmaQuery.read(ocusmaRequest)) {
+      responseObject["STAT"] = ocusmaRequest.get("OKSTAT").toString()
     } else {
       return null
     }
 
-    DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection(
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection(
       "F1CONO",
       "F1FILE",
       "F1PK01",
@@ -921,14 +984,14 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "F1CHB8"
     ).build()
 
-    DBContainer containerCUGEX1 = queryCUGEX100.getContainer()
-    containerCUGEX1.set("F1CONO", currentCompany)
-    containerCUGEX1.set("F1FILE", "OCUSMA")
-    containerCUGEX1.set("F1PK01", cuno)
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "OCUSMA")
+    cugex1Request.set("F1PK01", cuno)
 
-    if (queryCUGEX100.read(containerCUGEX1)) {
-      responseObject["CHB7"] = containerCUGEX1.get("F1CHB7").toString()
-      responseObject["CHB8"] = containerCUGEX1.get("F1CHB8").toString()
+    if (cugex1Query.read(cugex1Request)) {
+      responseObject["CHB7"] = cugex1Request.get("F1CHB7").toString()
+      responseObject["CHB8"] = cugex1Request.get("F1CHB8").toString()
     }
     return responseObject
   }
@@ -936,24 +999,24 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * Get generic rounding paramaters
    * in CUGEX1.OFREEF k01 MITMAS k02 FR
    * @return null if not found else structured object fields
-   *     UPA_SUP,
-   *     UPA_INF,
-   *     UDP_SUP,
-   *     UDP_INF,
-   *     UCO_SUP,
-   *     UCO_INF
+   *     upaSup,
+   *     upaInf,
+   *     udpSup,
+   *     udpInf,
+   *     ucoSup,
+   *     ucoInf
    */
-  private def getGlobalRoundingParameters() {
+  private Map<String, String> getGlobalRoundingParameters() {
     //Define return object structure
-    def responseObject = [
-      "UPA_SUP": "",
-      "UPA_INF": "",
-      "UDP_SUP": "",
-      "UDP_INF": "",
-      "UCO_SUP": "",
-      "UCO_INF": ""
+    Map<String, String> responseObject = [
+      "upaSup": "",
+      "upaInf": "",
+      "udpSup": "",
+      "udpInf": "",
+      "ucoSup": "",
+      "ucoInf": ""
     ]
-    DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection(
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection(
       "F1CONO",
       "F1FILE",
       "F1PK01",
@@ -972,19 +1035,19 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "F1N796"
     ).build()
 
-    DBContainer containerCUGEX1 = queryCUGEX100.getContainer()
-    containerCUGEX1.set("F1CONO", currentCompany)
-    containerCUGEX1.set("F1FILE", "OFREEF")
-    containerCUGEX1.set("F1PK01", "MITMAS")
-    containerCUGEX1.set("F1PK02", "FR")
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "OFREEF")
+    cugex1Request.set("F1PK01", "MITMAS")
+    cugex1Request.set("F1PK02", "FR")
 
-    if (queryCUGEX100.read(containerCUGEX1)) {
-      responseObject["UPA_SUP"] = containerCUGEX1.get("F1N296").toString()
-      responseObject["UPA_INF"] = containerCUGEX1.get("F1N596").toString()
-      responseObject["UDP_SUP"] = containerCUGEX1.get("F1N396").toString()
-      responseObject["UDP_INF"] = containerCUGEX1.get("F1N696").toString()
-      responseObject["UCO_SUP"] = containerCUGEX1.get("F1N496").toString()
-      responseObject["UCO_INF"] = containerCUGEX1.get("F1N796").toString()
+    if (cugex1Query.read(cugex1Request)) {
+      responseObject["upaSup"] = cugex1Request.get("F1N296").toString()
+      responseObject["upaInf"] = cugex1Request.get("F1N596").toString()
+      responseObject["udpSup"] = cugex1Request.get("F1N396").toString()
+      responseObject["udpInf"] = cugex1Request.get("F1N696").toString()
+      responseObject["ucoSup"] = cugex1Request.get("F1N496").toString()
+      responseObject["ucoInf"] = cugex1Request.get("F1N796").toString()
     }
     return responseObject
   }
@@ -994,22 +1057,22 @@ public class GetSupplyPath extends ExtendM3Transaction {
    *  CUGEX1.MITHRY k01=2, k02=mitmas.hie2
    *  MITAUN
    * @param itno Item
-   * @return null if not found else structured object fields STAT, HIE2, UPA_SUP, UPA_INF, UDP_SUP, UDP_INF, UCO_SUP, UCO_INF, COF_UPA, COF_UDP, COF_UCO
+   * @return null if not found else structured object fields STAT, HIE2, upaSup, upaInf, udpSup, udpInf, ucoSup, ucoInf, cofUpa, cofUdp, cofUco
    */
-  private def getItemRoundingParameter(String itno, String hie2) {
-    //Define return object structure
-    def responseObject = [
-      "UPA_SUP": "",
-      "UPA_INF": "",
-      "UDP_SUP": "",
-      "UDP_INF": "",
-      "UCO_SUP": "",
-      "UCO_INF": "",
-      "COF_UPA": "",
-      "COF_UDP": "",
-      "COF_UCO": ""
+  private Map<String, String> getItemRoundingParameter(String itno, String hie2) {
+    //Map<String, String>ine return object structure
+    Map<String, String> responseObject = [
+      "upaSup": "",
+      "upaInf": "",
+      "udpSup": "",
+      "udpInf": "",
+      "ucoSup": "",
+      "ucoInf": "",
+      "cofUpa": "",
+      "cofUdp": "",
+      "cofUco": ""
     ]
-    DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection(
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection(
       "F1CONO",
       "F1FILE",
       "F1PK01",
@@ -1028,22 +1091,22 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "F1N796"
     ).build()
 
-    DBContainer containerCUGEX1 = queryCUGEX100.getContainer()
-    containerCUGEX1.set("F1CONO", currentCompany)
-    containerCUGEX1.set("F1FILE", "MITHRY")
-    containerCUGEX1.set("F1PK01", "2")
-    containerCUGEX1.set("F1PK02", hie2)
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "MITHRY")
+    cugex1Request.set("F1PK01", "2")
+    cugex1Request.set("F1PK02", hie2)
 
-    if (queryCUGEX100.read(containerCUGEX1)) {
-      responseObject["UPA_SUP"] = containerCUGEX1.get("F1N296").toString()
-      responseObject["UPA_INF"] = containerCUGEX1.get("F1N596").toString()
-      responseObject["UDP_SUP"] = containerCUGEX1.get("F1N396").toString()
-      responseObject["UDP_INF"] = containerCUGEX1.get("F1N696").toString()
-      responseObject["UCO_SUP"] = containerCUGEX1.get("F1N496").toString()
-      responseObject["UCO_INF"] = containerCUGEX1.get("F1N796").toString()
+    if (cugex1Query.read(cugex1Request)) {
+      responseObject["upaSup"] = cugex1Request.get("F1N296").toString()
+      responseObject["upaInf"] = cugex1Request.get("F1N596").toString()
+      responseObject["udpSup"] = cugex1Request.get("F1N396").toString()
+      responseObject["udpInf"] = cugex1Request.get("F1N696").toString()
+      responseObject["ucoSup"] = cugex1Request.get("F1N496").toString()
+      responseObject["ucoInf"] = cugex1Request.get("F1N796").toString()
     }
 
-    DBAction queryMITAUN00 = database.table("MITAUN").index("00").selection(
+    DBAction mitaunQuery = database.table("MITAUN").index("00").selection(
       "MUCONO",
       "MUITNO",
       "MUAUTP",
@@ -1052,12 +1115,12 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "MUDMCF"
     ).build()
 
-    DBContainer containerMITAUN = queryMITAUN00.getContainer()
-    containerMITAUN.set("MUCONO", currentCompany)
-    containerMITAUN.set("MUITNO", itno)
-    containerMITAUN.set("MUAUTP", 1)
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itno)
+    mitaunRequest.set("MUAUTP", 1)
 
-    Closure<?> readMITAUN = { DBContainer resultMITAUN ->
+    Closure<?> mitaunReader = { DBContainer resultMITAUN ->
       String alun = resultMITAUN.getString("MUALUN").toString()
       double cofa = resultMITAUN.getDouble("MUCOFA")
       String dmcf = resultMITAUN.getInt("MUDMCF")
@@ -1065,171 +1128,174 @@ public class GetSupplyPath extends ExtendM3Transaction {
       cofa = "2".equals(dmcf) ? 1 / cofa : cofa
       cofa = new BigDecimal(Double.toString(cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
       if ("UPA".equals(alun)) {
-        responseObject["COF_UPA"] = "" + cofa
+        responseObject["cofUpa"] = "" + cofa
       } else if ("UDP".equals(alun)) {
-        responseObject["COF_UDP"] = "" + cofa
+        responseObject["cofUdp"] = "" + cofa
       } else if ("UCO".equals(alun)) {
-        responseObject["COF_UCO"] = "" + cofa
+        responseObject["cofUco"] = "" + cofa
       }
     }
-    queryMITAUN00.readAll(containerMITAUN, 3, readMITAUN)
-
+    mitaunQuery.readAll(mitaunRequest, 3, 100, mitaunReader)
     return responseObject
   }
+
   /**
-   *
-   *
-   *
+   * Round quantity
+   * @param itno Item
+   * @param hie2 HIE2
+   * @param orqa Order quantity
+   * @param flg1 Flag for rounding
+   * @return null if not found else structured object fields ORQA, REMK
    */
-  private def roundQty(String itno, String hie2, double orqa, int flg1) {
+  private Map<String, String> roundQty(String itno, String hie2, double orqa, int flg1) {
     //Define return object structure
-    def responseObject = [
+    Map<String, String> responseObject = [
       "ORQA": "",
       "REMK": ""
     ]
-    if (flg1 == 0) {
+    if (flg1 == 0 || orqa == 0) {
       responseObject["ORQA"] = "" + orqa
       responseObject["REMK"] = "Pas d'arrondi"
       return responseObject
     }
 
     //PAS D'ARRONDI CLIENT
-    if (!dtaCustomer["CHB7"].equals("1")) {
+    if (!customerData["CHB7"].equals("1")) {
       responseObject["ORQA"] = "" + orqa
       responseObject["REMK"] = "Pas d'arrondi"
       return responseObject
     }
 
     //Read Item data
-    def dtaItemRoudingParameters = getItemRoundingParameter(itno, hie2)
+    Map<String, String> dtaItemRoudingParameters = getItemRoundingParameter(itno, hie2)
 
     boolean rounded = false
     boolean roundingRuleFound = false
     double outqty = 0d
     String remk = ""
 
-    double gen_upa_sup = 0
-    double gen_upa_inf = 0
-    double gen_udp_sup = 0
-    double gen_udp_inf = 0
-    double gen_uco_sup = 0
-    double gen_uco_inf = 0
+    double genUpaSup = 0
+    double genUpaInf = 0
+    double genUdpSup = 0
+    double genUdpInf = 0
+    double genUcoSup = 0
+    double genUcoInf = 0
 
-    double rayon_upa_sup = 0
-    double rayon_upa_inf = 0
-    double rayon_udp_sup = 0
-    double rayon_udp_inf = 0
-    double rayon_uco_sup = 0
-    double rayon_uco_inf = 0
+    double rayonUpaSup = 0
+    double rayonUpaInf = 0
+    double rayonUdpSup = 0
+    double rayonUdpInf = 0
+    double rayonUcoSup = 0
+    double rayonUcoInf = 0
 
-    double cof_upa = 0
-    double cof_udp = 0
-    double cof_uco = 0
-
-
-    try {
-      gen_upa_sup = Double.parseDouble(dtaGlobalRoundingParameters["UPA_SUP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      gen_upa_inf = Double.parseDouble(dtaGlobalRoundingParameters["UPA_INF"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      gen_udp_sup = Double.parseDouble(dtaGlobalRoundingParameters["UDP_SUP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      gen_udp_inf = Double.parseDouble(dtaGlobalRoundingParameters["UDP_INF"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      gen_uco_sup = Double.parseDouble(dtaGlobalRoundingParameters["UCO_SUP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      gen_uco_inf = Double.parseDouble(dtaGlobalRoundingParameters["UCO_INF"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      rayon_upa_sup = Double.parseDouble(dtaItemRoudingParameters["UPA_SUP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      rayon_upa_inf = Double.parseDouble(dtaItemRoudingParameters["UPA_INF"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      rayon_udp_sup = Double.parseDouble(dtaItemRoudingParameters["UDP_SUP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      rayon_udp_inf = Double.parseDouble(dtaItemRoudingParameters["UDP_INF"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      rayon_uco_sup = Double.parseDouble(dtaItemRoudingParameters["UCO_SUP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      rayon_uco_inf = Double.parseDouble(dtaItemRoudingParameters["UCO_INF"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      cof_upa = Double.parseDouble(dtaItemRoudingParameters["COF_UPA"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      cof_udp = Double.parseDouble(dtaItemRoudingParameters["COF_UDP"].toString())
-    } catch (NumberFormatException e) {
-    }
-    try {
-      cof_uco = Double.parseDouble(dtaItemRoudingParameters["COF_UCO"].toString())
-    } catch (NumberFormatException e) {
-    }
+    double cofUpa = 0
+    double cofUdp = 0
+    double cofUco = 0
 
 
-    //
+    try {
+      genUpaSup = Double.parseDouble(globalRoundingParametersData["upaSup"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      genUpaInf = Double.parseDouble(globalRoundingParametersData["upaInf"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      genUdpSup = Double.parseDouble(globalRoundingParametersData["udpSup"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      genUdpInf = Double.parseDouble(globalRoundingParametersData["udpInf"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      genUcoSup = Double.parseDouble(globalRoundingParametersData["ucoSup"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      genUcoInf = Double.parseDouble(globalRoundingParametersData["ucoInf"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      rayonUpaSup = Double.parseDouble(dtaItemRoudingParameters["upaSup"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      rayonUpaInf = Double.parseDouble(dtaItemRoudingParameters["upaInf"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      rayonUdpSup = Double.parseDouble(dtaItemRoudingParameters["udpSup"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      rayonUdpInf = Double.parseDouble(dtaItemRoudingParameters["udpInf"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      rayonUcoSup = Double.parseDouble(dtaItemRoudingParameters["ucoSup"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      rayonUcoInf = Double.parseDouble(dtaItemRoudingParameters["ucoInf"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      cofUpa = Double.parseDouble(dtaItemRoudingParameters["cofUpa"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      cofUdp = Double.parseDouble(dtaItemRoudingParameters["cofUdp"].toString())
+    } catch (NumberFormatException e) {
+    }
+    try {
+      cofUco = Double.parseDouble(dtaItemRoudingParameters["cofUco"].toString())
+    } catch (NumberFormatException e) {
+    }
+
+
+    // 6 steps to check rounding rules
     for (int step = 0; step < 6; step++) {
       if (!roundingRuleFound) {
-        double lim_sup = 0
-        double lim_inf = 0
+        double limSup = 0
+        double limInf = 0
         double cofa = 0
         switch (step) {
           case 0:
-            lim_sup = rayon_upa_sup
-            lim_inf = rayon_upa_inf
-            cofa = cof_upa
+            limSup = rayonUpaSup
+            limInf = rayonUpaInf
+            cofa = cofUpa
             remk = "rayon palette "
             break
           case 1:
-            lim_sup = rayon_udp_sup
-            lim_inf = rayon_udp_inf
-            cofa = cof_udp
+            limSup = rayonUdpSup
+            limInf = rayonUdpInf
+            cofa = cofUdp
             remk = "rayon 1/2 palette "
             break
           case 2:
-            lim_sup = rayon_uco_sup
-            lim_inf = rayon_uco_inf
-            cofa = cof_uco
+            limSup = rayonUcoSup
+            limInf = rayonUcoInf
+            cofa = cofUco
             remk = "rayon couche "
             break
           case 3:
-            lim_sup = gen_upa_sup
-            lim_inf = gen_upa_inf
-            cofa = cof_upa
+            limSup = genUpaSup
+            limInf = genUpaInf
+            cofa = cofUpa
             remk = "global palette "
             break
           case 4:
-            lim_sup = gen_udp_sup
-            lim_inf = gen_udp_inf
-            cofa = cof_udp
+            limSup = genUdpSup
+            limInf = genUdpInf
+            cofa = cofUdp
             remk = "global 1/2 palette "
             break
           case 5:
-            lim_sup = gen_uco_sup
-            lim_inf = gen_uco_inf
-            cofa = cof_uco
+            limSup = genUcoSup
+            limInf = genUcoInf
+            cofa = cofUco
             remk = "global couche "
             break
           default:
@@ -1237,32 +1303,32 @@ public class GetSupplyPath extends ExtendM3Transaction {
         }
 
         //Calcul
-        if ((lim_sup > 0 || lim_inf > 0) && cofa > 0) {
+        if ((limSup > 0 || limInf > 0) && cofa > 0) {
 
           if (step == 2 || step == 5) { //Si on est sur step 2 ou 5 on sort même si la regle ne s'applique pas
             roundingRuleFound = true
           }
 
-          int nb_un = (int) (orqa / cofa)//Nb unit
-          double reste = new BigDecimal(Double.toString(orqa - (nb_un * cofa))).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          int nbUn = (int) (orqa / cofa)//Nb unit
+          double reste = new BigDecimal(Double.toString(orqa - (nbUn * cofa))).setScale(6, RoundingMode.HALF_UP).doubleValue()
           double preste = new BigDecimal(Double.toString(reste / cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double lim_qty_sup = new BigDecimal(Double.toString(cofa * lim_sup / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-          double lim_qty_inf = new BigDecimal(Double.toString(cofa * lim_inf / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double limQtySup = new BigDecimal(Double.toString(cofa * limSup / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+          double limQtyInf = new BigDecimal(Double.toString(cofa * limInf / 100)).setScale(6, RoundingMode.HALF_UP).doubleValue()
 
-          if (preste >= lim_sup && reste != 0) { //Cas sup
+          if (preste >= limSup && reste != 0) { //Cas sup
             rounded = true
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
-            outqty = new BigDecimal(Double.toString((nb_un + 1) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-            remk += " > " + (lim_sup * 100) + "%"
-          } else if (preste < lim_inf && reste != 0) { //Cas inf
+            outqty = new BigDecimal(Double.toString((nbUn + 1) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+            remk += " > " + (limSup * 100) + "%"
+          } else if (preste < limInf && reste != 0) { //Cas inf
             if (step == 0 || step == 3) {//Si on est sur step 0 ou 3 on sort seulementsi la régle s'applique
               roundingRuleFound = true
             }
             rounded = true
-            outqty = new BigDecimal(Double.toString((nb_un) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
-            remk += " < " + (lim_inf * 100) + "%"
+            outqty = new BigDecimal(Double.toString((nbUn) * cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
+            remk += " < " + (limInf * 100) + "%"
           } else if (reste == 0) {
             rounded = true
             outqty = orqa
@@ -1293,9 +1359,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
    * @param itno
    * @param alun
    */
-  private Map<String, String> getItemDataFromMITAUN(String itno, String alun) {
+  private Map<String, String> getItemDataFromMitaun(String itno, String alun) {
     Map<String, String> responseObject = [
-      "COFA": "1"
+      "COFA"  : "1"
       , "DMCF": "1"
       , "DCCD": "6"
     ]

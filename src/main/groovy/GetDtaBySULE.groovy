@@ -2,7 +2,7 @@
  * Name : EXT010MI.GetDtaBySULE
  * COMX01 Gestion des assortiments clients
  * Description :
- * This API method to add records in specific table EXT010 Customer Assortment
+ * This API method to Get data by warehouse supplier
  * Date         Changed By    Description
  * 20231016     FLEBARS       COMX01 - Creation
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor

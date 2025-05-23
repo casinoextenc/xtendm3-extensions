@@ -1,7 +1,7 @@
 /**
  * Name : EXT850MI.UpdOustInvAmnt
  *
- * Description : 
+ * Description :
  * This API method to Update update oustanding invoice amount
  *
  *
@@ -9,6 +9,8 @@
  * 20230119     NALLANIC      FIN3001 - Creation
  * 20240701     PBEAUDOUIN    For Validation Xtend
  */
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 class UpdOustInvAmnt extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
@@ -44,7 +46,7 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
     String upda = (String) (mi.in.get("UPDA") != null ? mi.in.get("UPDA") : "")
 
     //Read the payer of the customer
-    DBAction queryOCUSMA = database.table("OCUSMA")
+    DBAction queryOcusma = database.table("OCUSMA")
       .index("00")
       .selection(
         "OKCONO",
@@ -53,25 +55,25 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
         "OKCUCD"
       )
       .build()
-    DBContainer containerOCUSMA = queryOCUSMA.getContainer()
-    containerOCUSMA.set("OKCONO", currentCompany)
-    containerOCUSMA.set("OKCUNO", cuno)
+    DBContainer containerOcusma = queryOcusma.getContainer()
+    containerOcusma.set("OKCONO", currentCompany)
+    containerOcusma.set("OKCUNO", cuno)
 
     //Record exists
-    if (!queryOCUSMA.read(containerOCUSMA)) {
+    if (!queryOcusma.read(containerOcusma)) {
       mi.error("Le code Client " + cuno + " n'existe pas")
       return
     }
 
-    String pyno = containerOCUSMA.get("OKPYNO")
-    String cucd = containerOCUSMA.get("OKCUCD")
+    String pyno = containerOcusma.get("OKPYNO")
+    String cucd = containerOcusma.get("OKCUCD")
 
     if (pyno.trim().equals("")) {
       pyno = cuno
     }
 
     //Read the current oustanding invoice amount
-    DBAction queryCCUCRL = database.table("CCUCRL")
+    DBAction queryCcucrl = database.table("CCUCRL")
       .index("00")
       .selection(
         "CCCONO",
@@ -80,18 +82,18 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
         "CCOINA"
       )
       .build()
-    DBContainer containerCCUCRL = queryCCUCRL.getContainer()
-    containerCCUCRL.set("CCCONO", currentCompany)
-    containerCCUCRL.set("CCDIVI", "")
-    containerCCUCRL.set("CCPYNO", pyno)
+    DBContainer containerCcucrl = queryCcucrl.getContainer()
+    containerCcucrl.set("CCCONO", currentCompany)
+    containerCcucrl.set("CCDIVI", "")
+    containerCcucrl.set("CCPYNO", pyno)
 
     //Record exists
-    if (!queryCCUCRL.read(containerCCUCRL)) {
+    if (!queryCcucrl.read(containerCcucrl)) {
       mi.error("La limite de crédit du payeur " + pyno.trim() + " n'existe pas")
       return
     }
 
-    String currentOina = containerCCUCRL.get("CCOINA")
+    String currentOina = containerCcucrl.get("CCOINA")
     Double doubleCurrentOina = 0
     Double doubleInputOina = 0
 
@@ -108,10 +110,13 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
     java.text.DecimalFormat df2 = new java.text.DecimalFormat("0.##")
     String pyam = df2.format(doubleInputOina - doubleCurrentOina)
 
-    java.text.SimpleDateFormat s = new java.text.SimpleDateFormat("yyyyMMdd")
-    String dateDay = s.format(new Date())
+    LocalDate today = LocalDate.now()
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+    String dateDay = today.format(formatter)
+
     if (!upda.equals("0") && !upda.equals("1")) {
       mi.error("Le mode de mise à jour peut prendre la valeur 1 ou 0")
+      return
     }
 
     executeCRS165MIRtvNextNumber(divi, "ZC", "C")
@@ -126,7 +131,7 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
     }
 
     //Read the current interface head
-    DBAction queryFGLINH = database.table("FGLINH")
+    DBAction queryFglinh = database.table("FGLINH")
       .index("00")
       .selection(
         "FHCONO",
@@ -134,14 +139,14 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
         "FHKEY1"
       )
       .build()
-    DBContainer containerFGLINH = queryFGLINH.getContainer()
-    containerFGLINH.set("FHCONO", currentCompany)
-    containerFGLINH.set("FHDIVI", divi)
-    containerFGLINH.set("FHKEY1", key1)
+    DBContainer containerFglinh = queryFglinh.getContainer()
+    containerFglinh.set("FHCONO", currentCompany)
+    containerFglinh.set("FHDIVI", divi)
+    containerFglinh.set("FHKEY1", key1)
 
     String sCurrentCompany = Integer.toString(currentCompany)
 
-    if (!queryFGLINH.read(containerFGLINH)) {
+    if (!queryFglinh.read(containerFglinh)) {
 
       if (upda.equals("1")) {
         executeGLS840MIAddBatchHead(sCurrentCompany, divi, key1, "PAY_ENCOURS", "PAY_ENCOURS_" + pyno)
@@ -209,8 +214,8 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
   }
 
   // Execute GLS840MI.AddBatchLine
-  private executeGLS840MIAddBatchLine(String CONO, String DIVI, String KEY1, String LINE, String PARM) {
-    LinkedHashMap<String, String> parameters = ["CONO": CONO, "DIVI": DIVI, "KEY1": KEY1, "LINE": LINE, "PARM": PARM]
+  private executeGLS840MIAddBatchLine(String pCono, String pDivi, String pKey1, String pLine, String pParm) {
+    LinkedHashMap<String, String> parameters = ["CONO": pCono, "DIVI": pDivi, "KEY1": pKey1, "LINE": pLine, "PARM": pParm]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Failed GLS840MI.AddBatchLine: " + response.errorMessage)
@@ -220,8 +225,8 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
   }
 
   // Execute GLS840MI.UpdBatch
-  private executeGLS840MIUpdBatch(String CONO, String DIVI, String KEY1) {
-    LinkedHashMap<String, String> parameters = ["CONO": CONO, "DIVI": DIVI, "KEY1": KEY1]
+  private executeGLS840MIUpdBatch(String pCono, String pDivi, String pKey1) {
+    LinkedHashMap<String, String> parameters = ["CONO": pCono, "DIVI": pDivi, "KEY1": pKey1]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Failed GLS840MI.UpdBatch: " + response.errorMessage)
@@ -231,17 +236,14 @@ class UpdOustInvAmnt extends ExtendM3Transaction {
   }
 
   // Execute CRS165MI.RtvNextNumber
-  private executeCRS165MIRtvNextNumber(String DIVI, String NBTY, String NBID) {
-    LinkedHashMap<String, String> parameters = ["DIVI": DIVI, "NBTY": NBTY, "NBID": NBID]
+  private executeCRS165MIRtvNextNumber(String pDivi, String pNbty, String pNbid) {
+    LinkedHashMap<String, String> parameters = ["DIVI": pDivi, "NBTY": pNbty, "NBID": pNbid]
     Closure<?> handler = { Map<String, String> response ->
       nbr = response.NBNR.trim()
-
       if (response.error != null) {
         return mi.error("Failed CRS165MI.RtvNextNumber: " + response.errorMessage)
       }
     }
     miCaller.call("CRS165MI", "RtvNextNumber", parameters, handler)
   }
-
-
 }

@@ -1,60 +1,62 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstShipment1
- * Description : List shipment
- * Date         Changed By   Description
- * 20230511     SEAR         LOG28 - Creation of files and containers
- */
+/****************************************************************************************
+ Extension Name : EXT050MI.LstShipment1
+ Type : ExtendM3Transaction
+ Author : SEAR
+ Description
+ This extension is used by Mashup
+ List files and containers
+
+ Description : List pallet
+ Date         Changed By   Description
+ 20230511     SEAR         LOG28 - Creation of files and containers
+ 20241010     MLECLERCQ    LOG28 - Added palets count per container
+ 20250428     FLEBARS      Code review for infor validation
+ ******************************************************************************************/
+import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.math.RoundingMode
 
 public class LstShipment1 extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
+
   private final MICallerAPI miCaller
   private final UtilityAPI utility
-  private String parm
-  private boolean validOrder
-  private boolean sameWarehouse
-  private boolean sameZNBC
-  private String uca4_input
-  private String uca5_input
-  private String uca6_input
+
+
+  private String uca4Input
+  private String uca5Input
+  private String uca6Input
   private String trca
   private String tx15
   private double frcp
   private int currentCompany
   private double vol3
   private String commande
-  private int LigneCommande
-  private int SuffixeCommande
+  private int ligneCommande
+  private int suffixeCommande
   private double volume
   private double weight
-  private double salesPrice
+
   private String baseUnit
   private String ItemNumber
-  private double lnam_OOLINE
-  private double alqt_OOLINE
-  private double orqt_OOLINE
-  private int dmcs_OOLINE
-  private double cofs_OOLINE
-  private String spun_OOLINE
-  private String ltyp_OOLINE
-  private double allocatedQuantity
+  private double lnamOoline
+  private double alqtOoline
+  private double orqtOoline
+  private int dmcsOoline
+  private double cofsOoline
+  private String spunOoline
+
   private double allocatedQuantityUB
-  private double totALQT
-  private double totGRWE
-  private double totVOL3
-  private double totZAAM
-
-
+  private double totAlqt
+  private double totGrwe
+  private double totVol3
+  private double totZaam
+  private String whlo
+  private ArrayList<String> actualPals
+  private Integer nbMaxRecord = 10000
 
   private String jobNumber
 
@@ -75,146 +77,170 @@ public class LstShipment1 extends ExtendM3Transaction {
     currentCompany = (Integer)program.getLDAZD().CONO
 
     //Get mi inputs
-    uca4_input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
-    uca5_input = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
-    uca6_input = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
+    uca4Input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
+    uca5Input = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
+    uca6Input = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
 
     // Get DRADTR
-    ExpressionFactory expression_DRADTR = database.getExpressionFactory("DRADTR")
-    expression_DRADTR = expression_DRADTR.eq("DRUDE1", uca4_input)
-    expression_DRADTR = expression_DRADTR.and(expression_DRADTR.eq("DRUDE2", uca5_input))
-    expression_DRADTR = expression_DRADTR.and(expression_DRADTR.eq("DRUDE3", uca6_input))
+    ExpressionFactory dradtrExpression = database.getExpressionFactory("DRADTR")
+    dradtrExpression = dradtrExpression.eq("DRUDE1", uca4Input)
+    dradtrExpression = dradtrExpression.and(dradtrExpression.eq("DRUDE2", uca5Input))
+    dradtrExpression = dradtrExpression.and(dradtrExpression.eq("DRUDE3", uca6Input))
 
-    DBAction query_DRADTR = database.table("DRADTR").index("00").matching(expression_DRADTR).selection("DRCONN").build()
-    DBContainer DRADTR = query_DRADTR.getContainer()
-    DRADTR.set("DRCONO", currentCompany)
-    DRADTR.set("DRTLVL", 1)
-    if(query_DRADTR.readAll(DRADTR, 2, DRADTRData)){
+    DBAction dradtrQuery = database.table("DRADTR").index("00").matching(dradtrExpression).selection("DRCONN").build()
+    DBContainer dradtrRequest = dradtrQuery.getContainer()
+    dradtrRequest.set("DRCONO", currentCompany)
+    dradtrRequest.set("DRTLVL", 1)
+    if(dradtrQuery.readAll(dradtrRequest, 2, nbMaxRecord, dradtrReader)){
     }
   }
 
   // data DRADTR
-  Closure<?> DRADTRData = { DBContainer ContainerDRADTR ->
-    int conn = ContainerDRADTR.get("DRCONN")
+  Closure<?> dradtrReader = { DBContainer dradtrResult ->
+    int conn = dradtrResult.get("DRCONN")
 
     // get Shipment
     trca = ""
-    DBAction query_DCONSI = database.table("DCONSI").index("00").selection("DACONN", "DATRCA").build()
-    DBContainer DCONSI = query_DCONSI.getContainer()
-    DCONSI.set("DACONO", currentCompany)
-    DCONSI.set("DACONN", conn)
-    if(query_DCONSI.read(DCONSI)){
-      trca = DCONSI.get("DATRCA")
-    }
+    ExpressionFactory dconsiExpression = database.getExpressionFactory("DCONSI")
+    dconsiExpression = dconsiExpression.lt("DACSTL","60")
 
-    // get Transportation equipments
-    vol3 = 0
-    tx15 = ""
-    DBAction query_DCARRI = database.table("DCARRI").index("00").selection("DCTRCA","DCTX15","DCVOL3","DCFRCP").build()
-    DBContainer DCARRI = query_DCARRI.getContainer()
-    DCARRI.set("DCCONO", currentCompany)
-    DCARRI.set("DCTRCA", trca.trim())
-    if(query_DCARRI.read(DCARRI)){
-      vol3 = DCARRI.get("DCVOL3")
-      tx15 = DCARRI.get("DCTX15")
-      frcp = DCARRI.get("DCFRCP")
-    }
-    logger.debug("CONN:${conn}")
-    totALQT = 0
-    totGRWE = 0
-    totVOL3 = 0
-    totZAAM = 0
-    DBAction query_MHDISH = database.table("MHDISH").index("20").selection("OQDLIX").build()
-    DBContainer MHDISH = query_MHDISH.getContainer()
-    MHDISH.set("OQCONO", currentCompany)
-    MHDISH.set("OQINOU", 1)
-    MHDISH.set("OQCONN", conn)
-    query_MHDISH.readAll(MHDISH,3 , MHDISHData)
+    DBAction dconsiQuery = database.table("DCONSI").index("00").matching(dconsiExpression).selection("DACONN", "DATRCA").build()
+    DBContainer dconsiRequest = dconsiQuery.getContainer()
+    dconsiRequest.set("DACONO", currentCompany)
+    dconsiRequest.set("DACONN", conn)
+    if(dconsiQuery.read(dconsiRequest)){
+      trca = dconsiRequest.get("DATRCA")
 
-    mi.outData.put("CONN", conn.toString())
-    mi.outData.put("TRCA", trca + "-" + tx15)
-    mi.outData.put("ZVOL", vol3.toString())
-    mi.outData.put("FRCP", frcp.toString())
-    mi.outData.put("ALQT", totALQT.toString())
-    mi.outData.put("VOL3", totVOL3.toString())
-    mi.outData.put("GRWE", totGRWE.toString())
-    mi.outData.put("ZAAM", totZAAM.toString())
-    mi.write()
+      // get Transportation equipments
+      vol3 = 0
+      tx15 = ""
+      DBAction dcarriQuery = database.table("DCARRI").index("00").selection("DCTRCA","DCTX15","DCVOL3","DCFRCP","DCGRWE").build()
+      DBContainer dcarriRequest = dcarriQuery.getContainer()
+      dcarriRequest.set("DCCONO", currentCompany)
+      dcarriRequest.set("DCTRCA", trca.trim())
+      if(dcarriQuery.read(dcarriRequest)){
+        vol3 = dcarriRequest.get("DCVOL3")
+        tx15 = dcarriRequest.get("DCTX15")
+        frcp = dcarriRequest.get("DCGRWE")
+      }
+      logger.debug("CONN:${conn}")
+      totAlqt = 0
+      totGrwe = 0
+      totVol3 = 0
+      totZaam = 0
+      actualPals = new ArrayList<>()
+      DBAction mhdishQuery = database.table("MHDISH").index("20").selection("OQDLIX").build()
+      DBContainer mhdishRequest = mhdishQuery.getContainer()
+      mhdishRequest.set("OQCONO", currentCompany)
+      mhdishRequest.set("OQINOU", 1)
+      mhdishRequest.set("OQCONN", conn)
+      mhdishQuery.readAll(mhdishRequest,3 , nbMaxRecord, mhdishReader)
+
+      double lalqt = new BigDecimal (totAlqt).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double lvol3 = new BigDecimal (totVol3).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double lgrwe = new BigDecimal (totGrwe).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double lzaam = new BigDecimal (totZaam).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+      mi.outData.put("CONN", conn.toString())
+      mi.outData.put("TRCA", trca + "-" + tx15)
+      mi.outData.put("ZVOL", vol3.toString())
+      mi.outData.put("FRCP", frcp.toString())
+      mi.outData.put("ALQT", lalqt.toString())
+      mi.outData.put("VOL3", lvol3.toString())
+      mi.outData.put("GRWE", lgrwe.toString())
+      mi.outData.put("ZAAM", lzaam.toString())
+      mi.outData.put("PALS", actualPals.size().toString())
+      mi.write()
+    }
   }
 
   // data MHSIDH
-  Closure<?> MHDISHData = { DBContainer ContainerMHDISH ->
+  Closure<?> mhdishReader = { DBContainer mhdishResult ->
 
-    Long dlix = ContainerMHDISH.get("OQDLIX")
+    Long dlix = mhdishResult.get("OQDLIX")
+    whlo = mhdishResult.get("OQWHLO")
 
-    DBAction query_MHDISL = database.table("MHDISL").index("00").selection("URDLIX","URRIDN","URRIDL","URRIDX").build()
-    DBContainer MHDISL = query_MHDISL.getContainer()
-    MHDISL.set("URCONO", currentCompany)
-    MHDISL.set("URDLIX", dlix)
-    MHDISL.set("URRORC", 3)
-    query_MHDISL.readAll(MHDISL,3 , MHDISLData)
+    DBAction mhdislQuery = database.table("MHDISL").index("00").selection("URDLIX","URRIDN","URRIDL","URRIDX").build()
+    DBContainer mhdislRequest = mhdislQuery.getContainer()
+    mhdislRequest.set("URCONO", currentCompany)
+    mhdislRequest.set("URDLIX", dlix)
+    mhdislRequest.set("URRORC", 3)
+    mhdislQuery.readAll(mhdislRequest,3 , nbMaxRecord, mhdislReader)
   }
 
   // data MHSIDH
-  Closure<?> MHDISLData = { DBContainer ContainerMHDISL ->
-    commande = ContainerMHDISL.get("URRIDN")
-    LigneCommande = ContainerMHDISL.get("URRIDL")
-    SuffixeCommande = ContainerMHDISL.get("URRIDX")
+  Closure<?> mhdislReader = { DBContainer mhdislResult ->
+    commande = mhdislResult.get("URRIDN")
+    ligneCommande = mhdislResult.get("URRIDL")
+    suffixeCommande = mhdislResult.get("URRIDX")
+
+    DBAction mitaloQuery = database.table("MITALO").index("20").selection("MQCAMU").build()
+    DBContainer mitaloRequest = mitaloQuery.getContainer()
+    mitaloRequest.set("MQCONO",currentCompany)
+    mitaloRequest.set("MQTTYP",31)
+    mitaloRequest.set("MQRIDN",commande)
+
+    logger.debug("prepare read MITALO")
+
+    if(!mitaloQuery.readAll(mitaloRequest,3, nbMaxRecord, mitaloReader)){
+    }
 
     // get OOLINE
-    DBAction query_OOLINE = database.table("OOLINE").index("00").selection("OBCUNO","OBORNO","OBPONR","OBPOSX","OBSPUN","OBDMCS","OBCOFS","OBORQT","OBALQT","OBLNAM","OBITNO").build()
-    DBContainer OOLINE = query_OOLINE.getContainer()
-    OOLINE.set("OBCONO", currentCompany)
-    OOLINE.set("OBORNO", commande)
-    OOLINE.set("OBPONR",LigneCommande)
-    OOLINE.set("OBPOSX", SuffixeCommande)
-    if(query_OOLINE.read(OOLINE)) {
-      spun_OOLINE = OOLINE.get("OBSPUN")
-      cofs_OOLINE = OOLINE.get("OBCOFS")
-      orqt_OOLINE = OOLINE.get("OBORQT")
-      alqt_OOLINE = OOLINE.get("OBALQT")
-      lnam_OOLINE = OOLINE.get("OBLNAM")
-      dmcs_OOLINE = OOLINE.get("OBDMCS")
-      ItemNumber = OOLINE.get("OBITNO")
-      logger.debug("OOLINE DATA ORNO:${commande} PONR:${LigneCommande} ITNO:${ItemNumber} DMCS:${dmcs_OOLINE} COFS:${cofs_OOLINE} ORQT:${orqt_OOLINE} ALQT:${alqt_OOLINE}")
+    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBCUNO","OBORNO","OBPONR","OBPOSX","OBSPUN","OBDMCS","OBCOFS","OBORQT","OBALQT","OBLNAM","OBITNO").build()
+    DBContainer oolineRequest = oolineQuery.getContainer()
+    oolineRequest.set("OBCONO", currentCompany)
+    oolineRequest.set("OBORNO", commande)
+    oolineRequest.set("OBPONR",ligneCommande)
+    oolineRequest.set("OBPOSX", suffixeCommande)
+    if(oolineQuery.read(oolineRequest)) {
+      spunOoline = oolineRequest.get("OBSPUN")
+      cofsOoline = oolineRequest.get("OBCOFS")
+      orqtOoline = oolineRequest.get("OBORQT")
+      alqtOoline = oolineRequest.get("OBALQT")
+      lnamOoline = oolineRequest.get("OBLNAM")
+      dmcsOoline = oolineRequest.get("OBDMCS")
+      ItemNumber = oolineRequest.get("OBITNO")
+      logger.debug("OOLINE DATA ORNO:${commande} PONR:${ligneCommande} ITNO:${ItemNumber} DMCS:${dmcsOoline} COFS:${cofsOoline} ORQT:${orqtOoline} ALQT:${alqtOoline}")
 
       // get MITMAS
       baseUnit = ""
       volume = 0
       weight = 0
-      DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMPUUN","MMUNMS", "MMGRWE", "MMVOL3").build()
-      DBContainer MITMAS = query_MITMAS.getContainer()
-      MITMAS.set("MMCONO", currentCompany)
-      MITMAS.set("MMITNO", ItemNumber)
-      if(query_MITMAS.read(MITMAS)){
-        baseUnit = MITMAS.get("MMUNMS")
-        volume = MITMAS.getDouble("MMVOL3")
-        weight = MITMAS.getDouble("MMGRWE")
+      DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMPUUN","MMUNMS", "MMGRWE", "MMVOL3").build()
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", ItemNumber)
+      if(mitmasQuery.read(mitmasRequest)){
+        baseUnit = mitmasRequest.get("MMUNMS")
+        volume = mitmasRequest.getDouble("MMVOL3")
+        weight = mitmasRequest.getDouble("MMGRWE")
       }
-      logger.debug("OOLINE DATA UNMS:${baseUnit} SPUN:${spun_OOLINE}")
-      
-      allocatedQuantityUB =  alqt_OOLINE
-      
-      /*
-      if (!baseUnit.equals(spun_OOLINE)) {
-        if (dmcs_OOLINE.equals("1")) {
-          allocatedQuantityUB = alqt_OOLINE * dmcs_OOLINE
-        } else {
-          allocatedQuantityUB = alqt_OOLINE / dmcs_OOLINE
-        }
-      } else {
-        allocatedQuantityUB =  alqt_OOLINE
-      }*/
+      logger.debug("OOLINE DATA UNMS:${baseUnit} SPUN:${spunOoline}")
 
-      double ALQT = new BigDecimal (allocatedQuantityUB).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double GRWE = new BigDecimal (allocatedQuantityUB * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double VOL3 = new BigDecimal (allocatedQuantityUB * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double ZAAM = new BigDecimal (lnam_OOLINE).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      allocatedQuantityUB =  alqtOoline
 
-      totALQT = totALQT + ALQT
-      totGRWE = totGRWE + GRWE
-      totVOL3 = totVOL3 + VOL3
-      totZAAM = totZAAM + ZAAM
+      double lAlqt = new BigDecimal (allocatedQuantityUB).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double lGrwe = new BigDecimal (allocatedQuantityUB * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double lVol3 = new BigDecimal (allocatedQuantityUB * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double lZaam = new BigDecimal (lnamOoline).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+      totAlqt = totAlqt + lAlqt
+      totGrwe = totGrwe + lGrwe
+      totVol3 = totVol3 + lVol3
+      totZaam = totZaam + lZaam
     }
+  }
+
+  /**
+   * Get MITALO data
+   */
+  Closure <?> mitaloReader = { DBContainer mitaloResult ->
+    String camu = mitaloResult.get("MQCAMU")
+    logger.debug("CAMU = ${camu}")
+    if(camu != "0" && !actualPals.contains(camu)){
+      actualPals.add(camu)
+    }
+
+    logger.debug("In MITALO ActualPals size : ${actualPals.size()}")
   }
 }

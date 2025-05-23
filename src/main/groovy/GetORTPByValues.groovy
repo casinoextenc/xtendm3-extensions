@@ -8,6 +8,7 @@ import java.math.RoundingMode
  *
  * Date         Changed By    Description
  * 20221212     FLEBARS       Creation EXT011
+ * 20250415     ARENARD       The code has been checked
  */
 public class GetORTPByValues extends ExtendM3Transaction {
   private final MIAPI mi
@@ -16,6 +17,7 @@ public class GetORTPByValues extends ExtendM3Transaction {
   private final ProgramAPI program
   private final UtilityAPI utility
   private final MICallerAPI miCaller
+  private Integer nbMaxRecord = 10000
 
   private int currentCompany
 
@@ -51,29 +53,34 @@ public class GetORTPByValues extends ExtendM3Transaction {
 
     ExpressionFactory expression = database.getExpressionFactory("CUGEX1")
     expression = expression.eq("F1A030", customerCode)
-        .and(expression.eq("F1A130", supplierCode))
-        .and(expression.eq("F1CHB1", pickupDate))
-        .and(expression.eq("F1CHB2", pickuptHour))
+      .and(expression.eq("F1A130", supplierCode))
+      .and(expression.eq("F1CHB1", pickupDate))
+      .and(expression.eq("F1CHB2", pickuptHour))
 
     DBAction queryCUGEX1 = database.table("CUGEX1").index("00")
-        .matching(expression).selection("F1CONO",
-        "F1FILE",
-        "F1PK01"
-        ).build()
+      .matching(expression).selection("F1CONO",
+      "F1FILE",
+      "F1PK01"
+    ).build()
 
     DBContainer containerCUGEX1 = queryCUGEX1.getContainer()
     containerCUGEX1.set("F1CONO", currentCompany)
     containerCUGEX1.set("F1FILE", "OOTYPE")
 
     //Record exists
-    if (!queryCUGEX1.readAll(containerCUGEX1, 1, 1,outData)){
+    if (!queryCUGEX1.readAll(containerCUGEX1, 1, nbMaxRecord, outData)){
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
+  /**
+   * Output data
+   * @param containerCUGEX1
+   * @return
+   */
   Closure<?> outData = { DBContainer containerCUGEX1 ->
-    String OrderType = containerCUGEX1.get("F1PK01")
-    mi.outData.put("ORTP", OrderType)
+    String orderType = containerCUGEX1.get("F1PK01")
+    mi.outData.put("ORTP", orderType)
     mi.write()
   }
 }

@@ -202,7 +202,7 @@ public class LstConstraints extends ExtendM3Transaction {
       msgd = "Article ${itno} inexistant"
       return
     }
-    
+
     //Get infos from MITPOP
     ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
     mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")

@@ -1,13 +1,18 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstMastFilShip1
- * Description : List master file shipment
- * Date         Changed By   Description
- * 20230511     SEAR         LOG28 - Creation of files and containers
- * 20230818     MLECLERCQ    LOG28 - Correction ZNBC filter for 0 <> null
- */
+/****************************************************************************************
+ Extension Name: EXT050MI.LstMastFilShip1
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-11
+ Description:
+ * List master file shipment
+
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ SEAR                    2023-05-11       1.0              LOG28 - Creation of files and containers
+ MLECLERCQ               2023-08-18       1.1              LOG28 - Correction ZNBC filter for 0 <> null
+ ARENARD                 2025-04-28       1.2              Extension has been fixed
+ ******************************************************************************************/
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -16,24 +21,20 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
 
   int currentCompany
 
-  private String parm
-  private boolean validOrder
-  private boolean sameWarehouse
-  private boolean sameZNBC
-  private String whlo_OOLINE
-  private String whlo_input
-  private String uca4_input
-  private Long znbc_input
-  private Long znbc_DRADTR
+  private String whloInput
+  private String uca4Input
+  private String uca5Input
+  private String uca6Input
+  private Long znbcInput
+  private Long znbcDradtr
 
   private String jobNumber
+  private Integer nbMaxRecord = 10000
 
   public LstMastFilShip1(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -55,69 +56,89 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     }
 
     //Get mi inputs
-    whlo_input = (mi.in.get("WHLO") != null ? (String)mi.in.get("WHLO") : "")
-    uca4_input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
-    znbc_input = (Long)(mi.in.get("ZNBC") != null ? mi.in.get("ZNBC") : -1)
+    whloInput = (mi.in.get("WHLO") != null ? (String)mi.in.get("WHLO") : "")
+    uca4Input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
+    uca5Input = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
+    uca6Input = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
+    znbcInput = (Long)(mi.in.get("ZNBC") != null ? mi.in.get("ZNBC") : -1)
+
+    logger.debug("UCA5 : ${uca5Input}, UCA6 : ${uca6Input}")
 
     // check warehouse
-    DBAction query_MITWHL = database.table("MITWHL").index("00").selection("MWWHLO").build()
-    DBContainer MITWHL = query_MITWHL.getContainer()
+    DBAction queryMitwhl = database.table("MITWHL").index("00").selection("MWWHLO").build()
+    DBContainer MITWHL = queryMitwhl.getContainer()
     MITWHL.set("MWCONO", currentCompany)
-    MITWHL.set("MWWHLO", whlo_input)
-    if(!query_MITWHL.read(MITWHL)){
-      mi.error("Le dépôt " + whlo_input + " n'existe pas")
+    MITWHL.set("MWWHLO", whloInput)
+    if(!queryMitwhl.read(MITWHL)){
+      mi.error("Le dépôt " + whloInput + " n'existe pas")
       return
     }
 
     // Get OOLINE
-    String tmpORNO = ""
-    // TODO AMELIORER FILTRE
+    String tmpOrno = ""
     logger.debug("ameliorer filtre")
-    ExpressionFactory OOLINE_exp = database.getExpressionFactory("OOLINE")
-    OOLINE_exp = OOLINE_exp.eq("OBWHLO", whlo_input)
-    OOLINE_exp = OOLINE_exp.and(OOLINE_exp.lt("OBORST", "44"))
+    ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
+    oolineExp = oolineExp.eq("OBWHLO", whloInput)
+    oolineExp = oolineExp.and(oolineExp.lt("OBORST", "44"))
 
-    DBAction OOLINE_query = database.table("OOLINE").index("00").matching(OOLINE_exp).selection("OBWHLO").build()
-    DBContainer OOLINE_request = OOLINE_query.getContainer()
-    OOLINE_request.set("OBCONO", currentCompany)
-    
-    
-    Closure<?> OOLINE_reader = { DBContainer OOLINE_result ->
-      String orno = OOLINE_result.get("OBORNO")
-      if (orno != tmpORNO){
-        def oohead_data = getOOHEAD(orno)
-        String oohead_uca4 = oohead_data["OAUCA4"] as String
-        logger.debug("orno ${orno} uca4 ${oohead_uca4}")
-        if ((oohead_uca4 == uca4_input || "" == uca4_input) && oohead_uca4 != "") {
-          int znbc_t = getDRADTR(oohead_uca4, oohead_data["OAUCA5"] as String, oohead_data["OAUCA6"] as String)
-          if (znbc_t == znbc_input || znbc_input == -1l) {
-            addEXT050(oohead_uca4, oohead_data["OAUCA5"] as String, oohead_data["OAUCA6"] as String)
+    DBAction oolineQuery = database.table("OOLINE").index("00").matching(oolineExp).selection("OBWHLO").build()
+    DBContainer oolineRequest = oolineQuery.getContainer()
+    oolineRequest.set("OBCONO", currentCompany)
+
+    Closure<?> oolineReader = { DBContainer oolineResult ->
+      String orno = oolineResult.get("OBORNO")
+      if (orno != tmpOrno){
+        Map<String, String> ooheadData = getOOHEAD(orno)
+        if(ooheadData){
+          String ooheadUca4 = ooheadData["OAUCA4"] as String
+          String ooheadUca5 = ooheadData["OAUCA5"] as String
+          String ooheadUca6 = ooheadData["OAUCA6"] as String
+          logger.debug("orno ${orno} uca4 ${ooheadUca4}")
+
+          if(uca6Input != ""){
+            if (((ooheadUca6 == uca6Input) && ooheadUca6 != "") && ((ooheadUca5 == uca5Input || "" == uca5Input) && ooheadUca5 != "") && ((ooheadUca4 == uca4Input || "" == uca4Input) && ooheadUca4 != "") ) {
+              int znbcT = getDRADTR(ooheadUca4, ooheadData["OAUCA5"] as String, ooheadData["OAUCA6"] as String)
+              if (znbcT == znbcInput || znbcInput == -1l) {
+                addEXT050(ooheadUca4, ooheadData["OAUCA5"] as String, ooheadData["OAUCA6"] as String)
+              }
+            }
+          }else if(uca5Input != ""){
+            if (((ooheadUca5 == uca5Input || "" == uca5Input) && ooheadUca5 != "") && ((ooheadUca4 == uca4Input || "" == uca4Input) && ooheadUca4 != "") ) {
+              int znbcT = getDRADTR(ooheadUca4, ooheadData["OAUCA5"] as String, ooheadData["OAUCA6"] as String)
+              if (znbcT == znbcInput || znbcInput == -1l) {
+                addEXT050(ooheadUca4, ooheadData["OAUCA5"] as String, ooheadData["OAUCA6"] as String)
+              }
+            }
+          }else{
+            if ((ooheadUca4 == uca4Input || "" == uca4Input) && ooheadUca4 != "") {
+              int znbcT = getDRADTR(ooheadUca4, ooheadData["OAUCA5"] as String, ooheadData["OAUCA6"] as String)
+              if (znbcT == znbcInput || znbcInput == -1l) {
+                addEXT050(ooheadUca4, ooheadData["OAUCA5"] as String, ooheadData["OAUCA6"] as String)
+              }
+            }
           }
         }
-        tmpORNO = orno
+
+        tmpOrno = orno
       }
     }
 
-
-    if (!OOLINE_query.readAll(OOLINE_request, 1, OOLINE_reader)){
+    if (!oolineQuery.readAll(oolineRequest, 1, nbMaxRecord, oolineReader)){
     }
 
-
     // list out data
-    DBAction ListqueryEXT050 = database.table("EXT050")
-        .index("00")
-        .selection(
+    DBAction listQueryEXT050 = database.table("EXT050")
+      .index("00")
+      .selection(
         "EXUCA4",
         "EXUCA5",
         "EXUCA6",
         "EXZNBC"
-        )
-        .build()
+      )
+      .build()
 
-
-    DBContainer ListContainerEXT050 = ListqueryEXT050.getContainer()
-    ListContainerEXT050.set("EXBJNO", jobNumber)
-
+    DBContainer listContainerEXT050 = listQueryEXT050.getContainer()
+    listContainerEXT050.set("EXBJNO", jobNumber)
 
     Closure<?> outData = { DBContainer containerEXT050 ->
       String dossierEXT050 = containerEXT050.get("EXUCA4")
@@ -131,68 +152,71 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
       mi.write()
     }
 
-
     //Record exists
-    if (!ListqueryEXT050.readAll(ListContainerEXT050, 1, outData)){
+    if (!listQueryEXT050.readAll(listContainerEXT050, 1, nbMaxRecord, outData)){
     }
 
     // delete workfile
-    DBAction DelQuery = database.table("EXT050").index("00").build()
-    DBContainer DelcontainerEXT050 = DelQuery.getContainer()
-    DelcontainerEXT050.set("EXBJNO", jobNumber)
+    DBAction delQuery = database.table("EXT050").index("00").build()
+    DBContainer delContainerEXT050 = delQuery.getContainer()
+    delContainerEXT050.set("EXBJNO", jobNumber)
 
     Closure<?> deleteCallBack = { LockedResult lockedResult ->
       lockedResult.delete()
     }
 
-
-    if(!DelQuery.readAllLock(DelcontainerEXT050, 1, deleteCallBack)){
-      //mi.error("L'enregistrement n'existe pas")
-      //return
+    if(!delQuery.readAllLock(delContainerEXT050, 1, deleteCallBack)){
     }
   }
-
 
   /**
    * Read OOHEAD data
    * @param orno
    * @return
    */
-  public def getOOHEAD(String orno) {
+  public Map<String, String> getOOHEAD(String orno) {
     logger.debug("getoohead ${orno}")
 
-    def return_value = [
-      "UCA4" : ""
-      ,"UCA5": ""
-      ,"UCA6": ""
+    Map<String, String> returnValue = [
+      "OAUCA4" : ""
+      ,"OAUCA5": ""
+      ,"OAUCA6": ""
+      ,"OAUDN1": ""
     ]
 
+    ExpressionFactory ooheadExp = database.getExpressionFactory("OOHEAD")
+    ooheadExp = ooheadExp.lt("OAUDN1", "1")
+    DBAction ooheadQuery = database.table("OOHEAD").matching(ooheadExp).index("00").selection(
+      "OACONO"
+      ,"OAORNO"
+      ,"OAUCA4"
+      ,"OAUCA5"
+      ,"OAUCA6"
+      ,"OAUDN1"
+    ).build()
+    DBContainer ooheadRequest = ooheadQuery.getContainer()
+    ooheadRequest.set("OACONO", currentCompany)
+    ooheadRequest.set("OAORNO", orno)
+    if (ooheadQuery.read(ooheadRequest)) {
+      if(ooheadRequest){
+        String udn1 = ooheadRequest.get("OAUDN1") as String
+        String uca4 = ooheadRequest.get("OAUCA4") as String
+        String uca5 = ooheadRequest.get("OAUCA5") as String
+        String uca6 = ooheadRequest.get("OAUCA6") as String
 
-    DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection(
-        "OACONO"
-        ,"OAORNO"
-        ,"OAUCA4"
-        ,"OAUCA5"
-        ,"OAUCA6"
-        ).build()
-    DBContainer OOHEAD_request = OOHEAD_query.getContainer()
-    OOHEAD_request.set("OACONO", currentCompany)
-    OOHEAD_request.set("OAORNO", orno)
-    if (OOHEAD_query.read(OOHEAD_request)) {
-      String uca4 = OOHEAD_request.get("OAUCA4") as String
-      String uca5 = OOHEAD_request.get("OAUCA5") as String
-      String uca6 = OOHEAD_request.get("OAUCA6") as String
-      
-      
-      return_value["OAUCA4"] = uca4.trim()
-      return_value["OAUCA5"] = uca5.trim()
-      return_value["OAUCA6"] = uca6.trim()
-      logger.debug("ret " + return_value)
-      return return_value
+        logger.debug("UCA4 : ${uca4}, UDN1: ${udn1}")
+        returnValue["OAUCA4"] = uca4.trim()
+        returnValue["OAUCA5"] = uca5.trim()
+        returnValue["OAUCA6"] = uca6.trim()
+        returnValue["OAUDN1"] = udn1.trim()
+        logger.debug("ret " + returnValue)
+        return returnValue
+      }
     }
   }
 
   /**
+   * Get DRADTR data
    * @param dossier
    * @param semaine
    * @param annee
@@ -200,39 +224,44 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
    */
   public int getDRADTR(String dossier, String semaine, String annee) {
     logger.debug("getDRADTR ${dossier} ${semaine} ${annee}")
-    
-    List listCONN = new LinkedList()
-    znbc_DRADTR = 0
-    ExpressionFactory expression_DRADTR = database.getExpressionFactory("DRADTR")
-    expression_DRADTR = expression_DRADTR.eq("DRUDE1", dossier)
-    expression_DRADTR = expression_DRADTR.and(expression_DRADTR.eq("DRUDE2", semaine))
-    expression_DRADTR = expression_DRADTR.and(expression_DRADTR.eq("DRUDE3", annee))
 
-    DBAction query_DRADTR = database.table("DRADTR").index("00").matching(expression_DRADTR).selection("DRCONN").build()
-    DBContainer DRADTR = query_DRADTR.getContainer()
+    List listCONN = new LinkedList()
+    znbcDradtr = 0
+    ExpressionFactory expressionDradtr = database.getExpressionFactory("DRADTR")
+    expressionDradtr = expressionDradtr.eq("DRUDE1", dossier)
+    expressionDradtr = expressionDradtr.and(expressionDradtr.eq("DRUDE2", semaine))
+    expressionDradtr = expressionDradtr.and(expressionDradtr.eq("DRUDE3", annee))
+
+    DBAction queryDradtr = database.table("DRADTR").index("00").matching(expressionDradtr).selection("DRCONN").build()
+    DBContainer DRADTR = queryDradtr.getContainer()
     DRADTR.set("DRCONO", currentCompany)
     DRADTR.set("DRTLVL", 1)
 
-    Closure<?> DRADTRData = { DBContainer ContainerDRADTR ->
-      String conn = ContainerDRADTR.get("DRCONN") as String
+    Closure<?> dradtrData = { DBContainer containerDradtr ->
+      String conn = containerDradtr.get("DRCONN") as String
       if (!listCONN.contains(conn)) {
         listCONN.add(conn)
-        znbc_DRADTR++
+        znbcDradtr++
       }
     }
-    if(query_DRADTR.readAll(DRADTR, 2, DRADTRData)){
+    if(queryDradtr.readAll(DRADTR, 2, nbMaxRecord, dradtrData)){
     }
-    return znbc_DRADTR
+    return znbcDradtr
   }
 
+  /**
+   * Add EXT050 data
+   * @param dossier
+   * @param semaine
+   * @param annee
+   */
   public void addEXT050(String dossier, String semaine, String annee) {
     logger.debug("EXT050 ${dossier} ${semaine} ${annee}")
 
-
     //Check if record exists
     DBAction queryEXT050 = database.table("EXT050")
-        .index("00")
-        .selection(
+      .index("00")
+      .selection(
         "EXBJNO",
         "EXCONO",
         "EXUCA4",
@@ -244,8 +273,8 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
+      )
+      .build()
 
     DBContainer containerEXT050 = queryEXT050.getContainer()
     containerEXT050.set("EXBJNO", jobNumber)
@@ -261,7 +290,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
       containerEXT050.set("EXUCA4", dossier)
       containerEXT050.set("EXUCA5", semaine)
       containerEXT050.set("EXUCA6", annee)
-      containerEXT050.set("EXZNBC", znbc_DRADTR)
+      containerEXT050.set("EXZNBC", znbcDradtr)
       containerEXT050.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
       containerEXT050.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
       containerEXT050.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
@@ -271,4 +300,3 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     }
   }
 }
-

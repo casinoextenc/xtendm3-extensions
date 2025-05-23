@@ -5,15 +5,16 @@
  * Name : EXT013
  * Description : Generates sales order integration report
  * Date         Changed By   Description
- * 20231129     SEAR         CMD008 - Rapport d'intégration de demande
+ * 20231129     SEAR         CMD08 - Rapport d'intégration de demande
  * 20240521     PBEAUDOUIN   Si pas trouvé dans alors lecture
+ * 20250410     ARENARD      Extension has been fixed
  */
-
 import java.math.RoundingMode
+import java.time.DateTimeException
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
-import java.util.Calendar
+
 public class EXT013 extends ExtendM3Batch {
   private final LoggerAPI logger
   private final DatabaseAPI database
@@ -56,8 +57,8 @@ public class EXT013 extends ExtendM3Batch {
   private String totline
   private String totlines
   private String lines
-  private String MailLine
-  private String MailLines
+  private String mailLine
+  private String mailLines
   private int countLines
   private String docnumber
   private boolean isConfOrder
@@ -74,6 +75,7 @@ public class EXT013 extends ExtendM3Batch {
   private String numTransitaire
   private String incoterm
   private String cuno
+  private String cunm
   private String modl
   private String lncd
   private String whlo
@@ -87,7 +89,6 @@ public class EXT013 extends ExtendM3Batch {
   private String cucd
   private Integer conn
   private Long dlix
-  private Integer ordt
   private Integer totLignesRecues
   private Integer totLignesintegrees
   private Integer totLignesRejeteesBloquantes
@@ -97,15 +98,15 @@ public class EXT013 extends ExtendM3Batch {
   private String librayon
   private Integer totligneRayon
   private Integer totSsligneError
-  private double VolTot
+  private double volTot
   private Integer totCol
-  private double totEquivPal
+  private Double totEquivPal
   private double totBrut
   private double totNet
   private double totVal
-  private double VolTotRej
+  private double volTotRej
   private Integer totColRej
-  private double totEquivPalRej
+  private Double totEquivPalRej
   private double totBrutRej
   private double totNetRej
   private double totValRej
@@ -122,7 +123,6 @@ public class EXT013 extends ExtendM3Batch {
   private String itds
   private String rscd
   private String rsc1
-  private double cofa
   private double grweItem
   private double neweItem
   private double vol3Item
@@ -137,7 +137,10 @@ public class EXT013 extends ExtendM3Batch {
   private String fileJobNumber
   private Map<String, String> rayonMap
   private Map<String, String> soustotMap
-
+  private String server
+  private String share
+  private String path
+  private Integer nbMaxRecord = 10000
 
   public EXT013(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -151,29 +154,27 @@ public class EXT013 extends ExtendM3Batch {
 
   public void main() {
     // Get job number
+    currentCompany = (Integer) program.getLDAZD().CONO
     LocalDateTime timeOfCreation = LocalDateTime.now()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
     fileJobNumber = program.getJobNumber()
     if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())
       performActualJob(data)
-    } else {
-      // No job data found
     }
 
   }
-
-  // Perform actual job
+  /**
+   * Perform the actual job
+   * @param jobNumber
+   * @return
+   */
   private performActualJob(Optional<String> data) {
     if (!data.isPresent()) {
-      //logger.debug("Job reference Id ${batch.getReferenceId().get()} is passed but data was not found")
       return
     }
     rawData = data.get()
-    //logger.debug("Début performActualJob")
     inOrderNumber = getFirstParameter()
-
-    currentCompany = (Integer) program.getLDAZD().CONO
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
@@ -184,6 +185,12 @@ public class EXT013 extends ExtendM3Batch {
     rayonMap = new LinkedHashMap<String, String>()
     soustotMap = new LinkedHashMap<String, String>()
 
+    server = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "")
+    path = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "RapportIntegration", "Path", "", "")
+    share = "\\\\${server}\\${path}\\"
+    logger.debug("#PB share = " + share)
+
+    logger.debug("#PB share = " + share)
     //clear var head
     confOrderNumber = ""
     numMagasin = ""
@@ -200,6 +207,7 @@ public class EXT013 extends ExtendM3Batch {
     numTransitaire = ""
     incoterm = ""
     cuno = ""
+    cunm = ""
     modl = ""
     lncd = ""
     whlo = ""
@@ -210,22 +218,44 @@ public class EXT013 extends ExtendM3Batch {
     tedl = ""
     orderExist = true
     // retrouver le mail du user
-    MailLine = ""
-    MailLines = ""
+    mailLine = ""
+    mailLines = ""
     getMailUser()
 
     // open directory
-    textFiles.open("FileImport/RapportIntegration")
+    textFiles.open(path)
 
     // get confirm Order if temp Order
-    DBAction queryOXCNTR = database.table("OXCNTR").index("00").selection("EVORNO", "EVORNR", "EVSTAT").build()
+
+    ExpressionFactory oxcntrExpression = database.getExpressionFactory("OXCNTR")
+    oxcntrExpression = oxcntrExpression.eq("EVBQLY", "A")
+    oxcntrExpression = oxcntrExpression.and(oxcntrExpression.eq("EVID01", "M3BOD"))
+    oxcntrExpression = oxcntrExpression.and(oxcntrExpression.eq("EVSTAT", "90"))
+
+    DBAction queryOXCNTR = database.table("OXCNTR").index("00")
+      .matching(oxcntrExpression)
+      .selection(
+        "EVORNO",
+        "EVORNR",
+        "EVSTAT",
+        "EVBQLY",
+        "EVID01"
+      ).build()
     DBContainer OXCNTR = queryOXCNTR.getContainer()
     OXCNTR.set("EVCONO", currentCompany)
     OXCNTR.set("EVORNO", inOrderNumber)
 
     // Retrieve OXCNTR
-    Closure<?> outData_OXCNTR = { DBContainer oxcntrResult ->
+    boolean found = false
+    Closure<?> outdataOxcntr = { DBContainer oxcntrResult ->
       String stat = oxcntrResult.get("EVSTAT")
+      String bqly = oxcntrResult.get("EVBQLY")
+      String id01 = oxcntrResult.getString("EVID01").trim()
+
+      if ("90".equalsIgnoreCase(stat) && bqly == "A" && id01 == "M3BOD") {
+        found = true
+      }
+
       if ("90".equalsIgnoreCase(stat)) {
         confOrderNumber = oxcntrResult.get("EVORNR")
       }
@@ -234,22 +264,30 @@ public class EXT013 extends ExtendM3Batch {
         inOrderNumber = oxcntrResult.getString("EVORNO")
     }
 
-    if (!queryOXCNTR.readAll(OXCNTR, 2, outData_OXCNTR)) {
+    if (!queryOXCNTR.readAll(OXCNTR, 2, nbMaxRecord, outdataOxcntr)) {
       orderExist = false
-      logger.debug("pas de commande trouvée avec EVORNO = " +inOrderNumber )
     }
 
     if (orderExist == false) {
-      queryOXCNTR = database.table("OXCNTR").index("50").selection("EVORNO", "EVORNR", "EVSTAT").build()
+      queryOXCNTR = database.table("OXCNTR")
+        .matching(oxcntrExpression)
+        .index("50")
+        .selection(
+          "EVORNO",
+          "EVORNR",
+          "EVSTAT",
+          "EVBQLY",
+          "EVID01").build()
       OXCNTR = queryOXCNTR.getContainer()
       OXCNTR.set("EVCONO", currentCompany)
       OXCNTR.set("EVORNR", inOrderNumber)
-      if (!queryOXCNTR.readAll(OXCNTR, 2, outData_OXCNTR)) {
+      if (!queryOXCNTR.readAll(OXCNTR, 2, 1, outdataOxcntr)) {
         orderExist = false
-        logger.debug("pas de commande trouvée avec EVORNR = "+inOrderNumber)
-      } else {
       }
     }
+    logger.debug("found : ${found} - inOrderNumber : ${inOrderNumber} confOrderNumber : ${confOrderNumber}")
+    if (!found)
+      return
 
     // OXHEAD informations
     DBAction queryOXHEAD = database.table("OXHEAD").index("00").selection(
@@ -281,14 +319,12 @@ public class EXT013 extends ExtendM3Batch {
       modl = OXHEAD.get("OAMODL").toString().trim()
       whlo = OXHEAD.get("OAWHLO").toString().trim()
       ortp = OXHEAD.get("OAORTP").toString().trim()
-      uca4 = OXHEAD.get("OAUCA4").toString().trim()
-      uca5 = OXHEAD.get("OAUCA5").toString().trim()
-      uca6 = OXHEAD.get("OAUCA6").toString().trim()
       tedl = OXHEAD.get("OATEDL").toString().trim()
       cucd = OXHEAD.get("OACUCD").toString().trim()
       newe = OXHEAD.getDouble("OANEWE")
       grwe = OXHEAD.getDouble("OAGRWE")
       vol3 = OXHEAD.getDouble("OAVOL3")
+      executecrs610MIGetBasicData(String.valueOf(currentCompany), cuno)
     }
 
     //OOHEAD informations
@@ -329,17 +365,14 @@ public class EXT013 extends ExtendM3Batch {
       grwe = OOHEAD.getDouble("OAGRWE")
       vol3 = OOHEAD.getDouble("OAVOL3")
       ntam = OOHEAD.getDouble("OANTAM")
+      executecrs610MIGetBasicData(String.valueOf(currentCompany), cuno)
     }
 
     getHeadData()
 
-    if (!(isConfOrder)) {
-      getLinesData()
-    } else {
-      getLinesData()
-    }
+    getLinesData()
 
-    boolean first_line = true
+    boolean firstLine = true
     for (key in rayonMap.keySet()) {
       String value = rayonMap.get(key)
       String[] vt = value.split("#")
@@ -347,15 +380,15 @@ public class EXT013 extends ExtendM3Batch {
       String mapLibRayon = vt[1]
       String nbLines = vt[2]
       rayonline = mapRayon.trim() + ";" + mapLibRayon.trim() + ";" + nbLines.trim()
-      if (first_line) {
-        first_line = false
-        rayonlines =  rayonline
+      if (firstLine) {
+        firstLine = false
+        rayonlines = rayonline
       } else {
         rayonlines = rayonlines += "\r\n" + rayonline
       }
     }
 
-    boolean first_lineM = true
+    boolean firstLineM = true
     for (key in soustotMap.keySet()) {
       String value = soustotMap.get(key)
       String[] vt = value.split("#")
@@ -363,24 +396,24 @@ public class EXT013 extends ExtendM3Batch {
       String mapLibSsTot = vt[1]
       String nbLines = vt[2]
       ssTotline = mapSsTot.trim() + ";" + mapLibSsTot.trim() + ";" + nbLines.trim()
-      if (first_lineM) {
-        first_lineM = false
+      if (firstLineM) {
+        firstLineM = false
         ssTotlines = ssTotline
       } else {
-        ssTotlines = ssTotlines += "\r\n" + ssTotline
+        ssTotlines = ssTotlines + "\r\n" + ssTotline
       }
     }
 
     // récap des lignes
-    totline ="total Lignes Recues;" + totLignesRecues
+    totline = "Total Lignes Recues;" + totLignesRecues
     totlines = totlines += totline + "\r\n"
-    totline ="total Lignes Intégrées;" + totLignesintegrees
+    totline = "Total Lignes Intégrées;" + totLignesintegrees
     totlines = totlines += totline + "\r\n"
-    totline ="Total lignes rejetées bloquantes;" +  totLignesRejeteesBloquantes
+    totline = "Total lignes rejetées bloquantes;" + totLignesRejeteesBloquantes
     totlines = totlines += totline + "\r\n"
-    totline ="Total lignes erreur d'information;" + totLignesErreursInformation
+    totline = "Total lignes erreur d'information;" + totLignesErreursInformation
     totlines = totlines += totline + "\r\n"
-    totline ="Total lignes substituées;" + totLignesSubstituees
+    totline = "Total lignes substituées;" + totLignesSubstituees
     totlines = totlines += totline
 
     if (ntam > 0) {
@@ -389,40 +422,48 @@ public class EXT013 extends ExtendM3Batch {
 
     // récap totaux intégrés
     double dVol3 = new BigDecimal(vol3).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    String sVol3 = String.format("%.3f", dVol3)
     double dGrwe = new BigDecimal(grwe).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    String sGrwe = String.format("%.3f", dGrwe)
     double dNewe = new BigDecimal(newe).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    String sNewe = String.format("%.3f", dNewe)
     double dTotVal = new BigDecimal(totVal).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    double dtotEquivPal = new BigDecimal(totEquivPal).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    totIntegre = "Volume total;" + dVol3
+    String sTotVal = String.format("%.3f", dTotVal)
+    Double dtotEquivPal = totEquivPal
+    totIntegre = "Volume total;" + sVol3
     totIntegres = totIntegres += totIntegre + "\r\n"
     totIntegre = "Total Colis;" + totCol
     totIntegres = totIntegres += totIntegre + "\r\n"
-    totIntegre = "Total equivalent palette;" + dtotEquivPal
+    totIntegre = "Total palette reconstituée;" + dtotEquivPal
     totIntegres = totIntegres += totIntegre + "\r\n"
-    totIntegre = "Total poids brut;" + dGrwe
+    totIntegre = "Total poids brut;" + sGrwe
     totIntegres = totIntegres += totIntegre + "\r\n"
-    totIntegre = "Total poids net;" + dNewe
+    totIntegre = "Total poids net;" + sNewe
     totIntegres = totIntegres += totIntegre + "\r\n"
-    totIntegre = "Total Valeur;" + dTotVal + ";" + cucd
+    totIntegre = "Total Valeur;" + sTotVal + ";" + cucd
     totIntegres = totIntegres += totIntegre
 
     // récap totaux rejetés
-    double dVolTotRej = new BigDecimal(VolTotRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    double dVolTotRej = new BigDecimal(volTotRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    String sVolTotRej = String.format("%.3f", dVolTotRej)
     double dTotBrutRej = new BigDecimal(totBrutRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    String sTotBrutRej = String.format("%.3f", dTotBrutRej)
     double dTotNetRej = new BigDecimal(totNetRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
+    String sTotNetRej = String.format("%.3f", dTotNetRej)
     double dTotValRej = new BigDecimal(totValRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    double dtotEquivPalRej = new BigDecimal(totEquivPalRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    totRejete = "Volume total;" + dVolTotRej
+    String sTotValRej = String.format("%.3f", dTotValRej)
+    Double dTotEquivPalRej = totEquivPalRej
+    totRejete = "Volume total;" + sVolTotRej
     totRejetes = totRejetes += totRejete + "\r\n"
     totRejete = "Total Colis;" + totColRej
     totRejetes = totRejetes += totRejete + "\r\n"
-    totRejete = "Total equivalent palette;" + dtotEquivPalRej
+    totRejete = "Total Palette reconstituée;" + dTotEquivPalRej
     totRejetes = totRejetes += totRejete + "\r\n"
-    totRejete = "Total poids brut;" + dTotBrutRej
+    totRejete = "Total poids brut;" + sTotBrutRej
     totRejetes = totRejetes += totRejete + "\r\n"
-    totRejete = "Total poids net;" +  dTotNetRej
+    totRejete = "Total poids net;" + sTotNetRej
     totRejetes = totRejetes += totRejete + "\r\n"
-    totRejete = "Total Valeur;" + dTotValRej + ";" + cucd
+    totRejete = "Total Valeur;" + sTotValRej + ";" + cucd
     totRejetes = totRejetes += totRejete
 
     // Perform Job
@@ -463,9 +504,11 @@ public class EXT013 extends ExtendM3Batch {
   }
 
 
-  // Write date from order head
+  /**
+   * Get lines data
+   */
   public void getLinesData() {
-
+    logger.debug("getLinesData")
     // clear var lines
     ponr = 0
     posx = 0
@@ -506,24 +549,23 @@ public class EXT013 extends ExtendM3Batch {
 
     totligneRayon = 0
     totSsligneError = 0
-    VolTot = 0
+    volTot = 0
     totCol = 0
     totEquivPal = 0
     totBrut = 0
     totNet = 0
     totVal = 0
-    VolTotRej = 0
+    volTotRej = 0
     totColRej = 0
     totEquivPalRej = 0
     totBrutRej = 0
     totNetRej = 0
     totValRej = 0
 
-
     // Retrieve CONN
     conn = 0
     dlix = 0
-    Closure<?> outdata_OXLINE = { DBContainer OXLINE ->
+    Closure<?> outdataOxline = { DBContainer OXLINE ->
       ponr = OXLINE.getInt("OBPONR")
       posx = OXLINE.getInt("OBPOSX")
       itno = OXLINE.getString("OBITNO").trim()
@@ -552,7 +594,6 @@ public class EXT013 extends ExtendM3Batch {
         rsc1 = OOLINE.getString("OBRSC1").trim()
         orqt = OOLINE.getDouble("OBORQT")
         nepr = OOLINE.getDouble("OBNEPR")
-        logger.debug("rsc1 : " + rsc1)
       }
 
       errorCode = ""
@@ -561,24 +602,27 @@ public class EXT013 extends ExtendM3Batch {
       rayon = ""
       librayon = ""
       pcb = 0
-      ean13 =""
+      ean13 = ""
       itds = ""
 
       totLignesRecues++
       totLignesintegrees++
-
+      logger.debug("outdataOxline ${totLignesintegrees} + ${totLignesRecues} + ${ponr}")
       errorCode = retrieveError(inOrderNumber, ponr, posx)
-      if (errorCode == "") errorCode = rscd
-      if(rsc1 != "") {
-        errorCode = rsc1
+      logger.debug("outdataOxline retrieveError return errorCode  ${errorCode}")
+      if (errorCode == "") {
+        errorCode = rscd
+        if (rsc1 != "")
+          errorCode = rsc1
       }
-      if (errorCode == "") errorCode = "0"
-      logger.debug("errorCode : " + errorCode)
+      if (errorCode == "")
+        errorCode = "0"
 
-      // logger.debug("errorCode : " + errorCode)
       typeError = getErrorDescription(cuno, errorCode)
 
-      if (itno.startsWith("NOK-S6")) itno = fitn
+      if (itno.startsWith("NOK-S6"))
+        itno = fitn
+
       ean13 = getEAN(itno)
       pcb = getItemPCB(itno)
 
@@ -593,11 +637,10 @@ public class EXT013 extends ExtendM3Batch {
         totligneRayon = 1
         String key = rayon
         String value = rayon
-        value += "#" +  librayon
-        value += "#" +  String.valueOf(totligneRayon)
-        if (!rayonMap.containsKey(key)){
+        value += "#" + librayon
+        value += "#" + String.valueOf(totligneRayon)
+        if (!rayonMap.containsKey(key)) {
           rayonMap.put(key, value)
-          logger.debug("rayon map key=${key}")
         } else {
           String[] ks = rayonMap.get(key).split("#")
           String keyRayon = ks[0]
@@ -605,22 +648,26 @@ public class EXT013 extends ExtendM3Batch {
           totligneRayon = ks[2] as int
           totligneRayon++
           String valueMap = keyRayon
-          valueMap += "#" +  keylibRayon
-          valueMap += "#" +  String.valueOf(totligneRayon)
+          valueMap += "#" + keylibRayon
+          valueMap += "#" + String.valueOf(totligneRayon)
           rayonMap.put(keyRayon, valueMap)
-          logger.debug("update rayon map key=${key}")
         }
       }
 
+      // todo parametre dans CRS881
+      boolean blockingError = false
+      int errorBloc = Integer.parseInt(errorCode)
+      if (errorBloc != 0 && errorBloc != 49 && errorBloc != 50 && errorBloc != 51 && errorBloc != 52 && errorBloc != 53)
+        blockingError = true
+
       // map repartition sous totaux par type d'erreurs
-      if (errorCode != "0") {
+      if (errorCode != "0" && blockingError) {
         totSsligneError = 1
         String key = errorCode
         String value = errorCode
-        value += "#" +  typeError
-        value += "#" +  String.valueOf(totSsligneError)
-        logger.debug("Add document_EXT036 key=${key}")
-        if (!soustotMap.containsKey(key)){
+        value += "#" + typeError
+        value += "#" + String.valueOf(totSsligneError)
+        if (!soustotMap.containsKey(key)) {
           soustotMap.put(key, value)
         } else {
           String[] ks = soustotMap.get(key).split("#")
@@ -629,66 +676,73 @@ public class EXT013 extends ExtendM3Batch {
           totSsligneError = ks[2] as int
           totSsligneError++
           String valueMap = keySsTot
-          valueMap += "#" +  keylibSsTot
-          valueMap += "#" +  String.valueOf(totSsligneError)
+          valueMap += "#" + keylibSsTot
+          valueMap += "#" + String.valueOf(totSsligneError)
           soustotMap.put(keySsTot, valueMap)
         }
       }
 
-      int errorBloc = Integer.parseInt(errorCode)
       int IntOrqt = (int) Math.round(orqt)
       int IntUdn6 = (int) Math.round(udn6)
       int IntPcb = (int) Math.round(pcb)
+      double volLine = new BigDecimal(orqt * vol3Item).setScale(3, RoundingMode.HALF_UP).doubleValue()
+      String svolLine = String.format("%.3f", volLine)
 
-      boolean dlcBloc = false
-      if (errorBloc != 0 && errorBloc != 49 && errorBloc != 50 && errorBloc != 51 && errorBloc != 52) dlcBloc = true
-      if (dlcBloc) {
-        double valeur = new BigDecimal(nepr * orqt).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-        double equivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
-        blocline = itno + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";"  + "0" + ";" + IntPcb + ";" + valeur  + ";" + equivPal + ";" + typeError + ";" + commItem
+      if (blockingError) {
+        double valeur = new BigDecimal(nepr * orqt).setScale(3, RoundingMode.HALF_UP).doubleValue()
+        String svaleur = String.format("%.3f", valeur)
+        double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_UP).doubleValue()
+
+        blocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + "0" + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + dequivPal + ";" + typeError + ";" + commItem
         bloclines += blocline + "\r\n"
         totLignesintegrees--
         totLignesRejeteesBloquantes++
-        totEquivPalRej = totEquivPalRej + equivPal
-        totValRej = totValRej + valeur
-        double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
+        totEquivPalRej = totEquivPalRej + 0
+        totValRej = totValRej + 0
+        double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_UP).doubleValue()
         int equivColArrondie = (int) Math.round(equivCol)
-        totColRej = totColRej + equivColArrondie
+        totColRej = totColRej + 0
         double brutLine = orqt * grweItem
         double netLine = orqt * neweItem
-        double volLine = orqt * vol3Item
-        totBrutRej = totBrutRej + brutLine
-        totNetRej = totNetRej + netLine
-        VolTotRej = VolTotRej + volLine
+        totBrutRej = totBrutRej + 0
+        totNetRej = totNetRej + 0
+        volTotRej = volTotRej + 0
       } else {
-        double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-        double equivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
-        nonBlocline = itno + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";"  + IntOrqt + ";" + IntPcb + ";" + valeur  + ";" + equivPal + ";" + typeError + ";" + commItem
-        nonBloclines += nonBlocline + "\r\n"
+        double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_UP).doubleValue()
+        String svaleur = String.format("%.3f", valeur)
+        double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
+
+        if (errorCode != "0") {
+          logger.debug("nonBlocline errorCode " + errorCode)
+          nonBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + String.format("%.2f", dequivPal) + ";" + typeError + ";" + commItem
+          nonBloclines += nonBlocline + "\r\n"
+        }
         totLignesErreursInformation++
-        totEquivPal = totEquivPal + equivPal
+        totEquivPal = totEquivPal + dequivPal
         totVal = totVal + valeur
-        double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
+        double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_UP).doubleValue()
         int equivColArrondie = (int) Math.round(equivCol)
         totCol = totCol + equivColArrondie
       }
 
       if (repi != "") {
-        double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-        double equivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
-        replacedBlocline = itno + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";"  + IntOrqt + ";" + IntPcb + ";" + valeur  + ";" + equivPal + ";" + typeError + ";" + commItem
+        double valeur = new BigDecimal(lnam).setScale(3, RoundingMode.HALF_UP).doubleValue()
+        String svaleur = String.format("%.3f", valeur)
+        double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
+
+        replacedBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + dequivPal + ";" + typeError + ";" + commItem
         replacedBloclines += replacedBlocline + "\r\n"
         totLignesSubstituees++
-        totEquivPal = totEquivPal + equivPal
+        totEquivPal = totEquivPal + dequivPal
         double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
         int equivColArrondie = (int) Math.round(equivCol)
         totCol = totCol + equivColArrondie
       }
 
-      if (udn6 != orqt && udn6 != 0 && orqt != 0 ) {
+      if (udn6 != orqt && udn6 != 0 && orqt != 0) {
         double qteArrondie = new BigDecimal((orqt / udn6) * 100).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
         int pourcentageArrondie = (int) Math.round(qteArrondie)
-        roundedline = itno + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";"  + IntUdn6 + ";" + IntPcb + ";" + pourcentageArrondie
+        roundedline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + IntUdn6 + ";" + svolLine + ";" + +IntPcb + ";" + pourcentageArrondie
         roundedlines += roundedline + "\r\n"
       }
 
@@ -708,13 +762,14 @@ public class EXT013 extends ExtendM3Batch {
     DBContainer OXLINE = queryOXLINE.getContainer()
     OXLINE.set("OBCONO", currentCompany)
     OXLINE.set("OBORNO", inOrderNumber)
-    if (!queryOXLINE.readAll(OXLINE, 2, outdata_OXLINE)) {
-      logger.debug("pas de ligne de commande trouvée")
+    if (!queryOXLINE.readAll(OXLINE, 2, nbMaxRecord, outdataOxline)) {
     }
 
   }
 
-  // Write date from order head
+  /**
+   * Get header data
+   */
   public void getHeadData() {
 
     typeAppro = ""
@@ -745,8 +800,7 @@ public class EXT013 extends ExtendM3Batch {
     // Retrieve CONN
     conn = 0
     dlix = 0
-    Closure<?> outData_MHDISH = { DBContainer MHDISH ->
-      logger.debug("found MHDISH")
+    Closure<?> outdataMhdish = { DBContainer MHDISH ->
       conn = MHDISH.getInt("OQCONN")
       dlix = MHDISH.getLong("OQDLIX")
       return
@@ -759,8 +813,7 @@ public class EXT013 extends ExtendM3Batch {
     DBContainer MHDISH = queryMHDISH.getContainer()
     MHDISH.set("OQCONO", currentCompany)
     MHDISH.set("OQINOU", 1)
-    if (!queryMHDISH.readAll(MHDISH, 2, outData_MHDISH)) {
-      logger.debug("Index de livraison n'existe pas")
+    if (!queryMHDISH.readAll(MHDISH, 2, nbMaxRecord, outdataMhdish)) {
       return
     }
 
@@ -772,19 +825,17 @@ public class EXT013 extends ExtendM3Batch {
     DCONSI.set("DACONN", conn)
     if (queryDCONSI.read(DCONSI)) {
       fwno = DCONSI.getString("DAFWNO").trim()
-      logger.debug("found DCONSI")
     }
 
     //DRADTR informations
     ccud = ""
-    DBAction queryDRADTR = database.table("DRADTR").index("00").selection("DRCCUD").build()
+    DBAction queryDRADTR = database.table("DRADTR").index("00").selection("DRFWNO").build()
     DBContainer DRADTR = queryDRADTR.getContainer()
     DRADTR.set("DRCONO", currentCompany)
     DRADTR.set("DRCONN", conn)
     DRADTR.set("DRTLVL", 2)
     DRADTR.set("DRDLIX", dlix)
     if (queryDRADTR.read(DRADTR)) {
-      logger.debug("found DRADTR")
       ccud = DRADTR.getString("DRFWNO").trim()
     }
 
@@ -792,25 +843,37 @@ public class EXT013 extends ExtendM3Batch {
     datePosit = ccud
     incoterm = tedl + " " + getIncoterm(cuno, tedl)
   }
-  // get transport mode
+  /**
+   * Get transport mode
+   * @param codeClient
+   */
   public String getTransport(String codeClient, String TransportMode) {
     lncd = getcustomerLang(codeClient)
     return getTextCSYTAB("MODL", lncd, TransportMode)
   }
 
-  // get incoterm
+  /**
+   * Get Incoterm
+   * @param codeClient
+   */
   public String getIncoterm(String codeClient, String Incoterm) {
     lncd = getcustomerLang(codeClient)
     return getDescriptionCSYTAB("TEDL", lncd, Incoterm)
   }
 
-  // get transport mode
+  /**
+   * Get error description
+   * @param codeClient
+   */
   public String getErrorDescription(String codeClient, String errorCode) {
     lncd = getcustomerLang(codeClient)
     return getDescriptionCSYTAB("RSCD", lncd, errorCode)
   }
 
-  // Get EAN
+  /**
+   * Get EAN
+   * @param itno
+   */
   public String getEAN(String ITNO) {
     String EAN13 = ""
     //init query on MITPOP
@@ -818,55 +881,57 @@ public class EXT013 extends ExtendM3Batch {
     expressionMITPOP = expressionMITPOP.eq("MPREMK", "EA13")
     DBAction queryMITPOP = database.table("MITPOP").index("00").matching(expressionMITPOP).selection("MPPOPN").build()
     DBContainer containerMITPOP = queryMITPOP.getContainer()
-    containerMITPOP.set("MPCONO",currentCompany)
-    containerMITPOP.set("MPALWT",1)
-    containerMITPOP.set("MPALWQ","")
+    containerMITPOP.set("MPCONO", currentCompany)
+    containerMITPOP.set("MPALWT", 1)
+    containerMITPOP.set("MPALWQ", "")
     containerMITPOP.set("MPITNO", ITNO)
 
-    //loop on MITPOP records
+    /**
+     * Read MITPOP records
+     */
     Closure<?> readMITPOP = { DBContainer resultMITPOP ->
       EAN13 = resultMITPOP.getString("MPPOPN").trim()
     }
-    queryMITPOP.readAll(containerMITPOP, 4, readMITPOP)
+    queryMITPOP.readAll(containerMITPOP, 4, nbMaxRecord, readMITPOP)
 
     return EAN13
   }
 
-  // Retrieve Error List
+  /**
+   * Retrieve error
+   * @param itno
+   */
   public String retrieveError(String ORNO, Integer PONR, Integer POSX) {
     int saveMSCD = 0
     int mscd = 0
     String errorCODE = ""
     String mscdCODE = ""
-    Closure<?> outData_EXT013 = { DBContainer EXT013 ->
-      fitn = EXT013.getString("EXFITN").trim()
-      mscdCODE = EXT013.getString("EXMSCD").trim()
+    Closure<?> ext013Reader = { DBContainer ext013Result ->
+      fitn = ext013Result.getString("EXFITN").trim()
+      mscdCODE = ext013Result.getString("EXMSCD").trim()
       if (mscdCODE != "") {
         mscd = Integer.parseInt(mscdCODE)
       } else {
         mscd = 0
       }
-      logger.debug("found MSCD : " + itno + " line : " + ponr + " and MSCD :" + mscd)
       if (saveMSCD == 0 || mscd > saveMSCD) {
         saveMSCD = mscd
-        errorCODE = EXT013.getString("EXMSCD").trim()
-        logger.debug("found Saved MSCD : " + itno + " line : " + ponr + " and savedMSCD :" + saveMSCD)
+        errorCODE = ext013Result.getString("EXMSCD").trim()
       }
     }
 
-    DBAction orderRemark = database.table("EXT013").index("00").selection(
+    DBAction ext013Query = database.table("EXT013").index("00").selection(
       "EXORNO",
       "EXPONR",
       "EXFITN",
       "EXMSCD",
       "EXREMK").build()
-    DBContainer EXT013 = orderRemark.getContainer()
-    EXT013.set("EXCONO", currentCompany)
-    EXT013.set("EXORNO", ORNO)
-    EXT013.set("EXPONR", PONR)
-    EXT013.set("EXPOSX", POSX)
-    orderRemark.readAll(EXT013, 4, outData_EXT013)
-    logger.debug("errorCode :" + errorCODE)
+    DBContainer ext013Request = ext013Query.getContainer()
+    ext013Request.set("EXCONO", currentCompany)
+    ext013Request.set("EXORNO", ORNO)
+    ext013Request.set("EXPONR", PONR)
+    ext013Request.set("EXPOSX", POSX)
+    ext013Query.readAll(ext013Request, 4, nbMaxRecord, ext013Reader)
     return errorCODE
   }
   /**
@@ -897,7 +962,6 @@ public class EXT013 extends ExtendM3Batch {
 
     if (queryCUGEX100.read(containerCUGEX1)) {
       COMM = containerCUGEX1.getString("F1A121").trim()
-      logger.debug("found commentaire A121 : " + containerCUGEX1.getString("F1A121").trim() + " article "+  itno + " line : " + ponr)
     }
     return COMM
   }
@@ -909,7 +973,6 @@ public class EXT013 extends ExtendM3Batch {
   private String getTempCUGEVM(String FLDI, String A130) {
     //Define return object structure
     String TX40 = ""
-    logger.debug("A130  : " + A130)
     DBAction queryCUGEVM = database.table("CUGEVM").index("00").selection("F3CONO",
       "F3FILE",
       "F3CUER",
@@ -925,16 +988,18 @@ public class EXT013 extends ExtendM3Batch {
     containerCUGEVM.set("F3FLDI", FLDI.trim())
     containerCUGEVM.set("F3CUER", "")
     containerCUGEVM.set("F3AL30", A130.trim())
-    containerCUGEVM.set("F3SEQN",Integer.parseInt(A130.trim()))
+    containerCUGEVM.set("F3SEQN", Integer.parseInt(A130.trim()))
 
     if (queryCUGEVM.read(containerCUGEVM)) {
       TX40 = containerCUGEVM.getString("F3TX40").trim()
-      logger.debug("found libelle temperature  : " + containerCUGEVM.getString("F3TX40").trim())
     }
     return TX40
   }
 
-  // get Item coef
+  /**
+   * Get Item Coefficient
+   * @param itno
+   */
   private Double getItemCoef(String ITNO, String ALUN) {
 
     double cofa = 1
@@ -946,13 +1011,15 @@ public class EXT013 extends ExtendM3Batch {
     MITAUN.set("MUALUN", ALUN)
     if (queryMITAUN.read(MITAUN)) {
       cofa = MITAUN.get("MUCOFA") as Double
-      logger.debug("found MITAUN : " + itno + " line : " + ponr + " and COFA :" + cofa)
     }
 
     return cofa
   }
 
-  // get texte 15 CSYTAB
+  /**
+   * Get text CSYTAB
+   * @param codeClient
+   */
   public String getTextCSYTAB(String constant, String lang, String key) {
     String TX15 = ""
     DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTTX15").build()
@@ -977,10 +1044,13 @@ public class EXT013 extends ExtendM3Batch {
     return TX15
   }
 
-  // get parm CSYTAB
+  /**
+   * Get description CSYTAB
+   * @param codeClient
+   */
   public String getDescriptionCSYTAB(String constant, String lang, String key) {
     String CTPARM = ""
-    DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTPARM","CTTX40").build()
+    DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
     DBContainer CSYTAB = queryCSYTAB.getContainer()
     CSYTAB.set("CTCONO", currentCompany)
     CSYTAB.set("CTLNCD", lang)
@@ -991,11 +1061,10 @@ public class EXT013 extends ExtendM3Batch {
         CTPARM = CSYTAB.getString("CTPARM").trim().substring(0, 36)
       } else {
         CTPARM = CSYTAB.getString("CTTX40").trim()
-        logger.debug("CTPARM" + CTPARM)
-        logger.debug("found CSYTAB PARM : " + CSYTAB.getString("CTTX40").trim() + "item : "+ itno + " line : " + ponr)
+        logger.debug("found CSYTAB PARM : " + CSYTAB.getString("CTTX40").trim() + "item : " + itno + " line : " + ponr)
       }
     } else {
-      DBAction queryCSYTAB1 = database.table("CSYTAB").index("00").selection("CTPARM","CTTX40").build()
+      DBAction queryCSYTAB1 = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
       DBContainer CSYTAB1 = queryCSYTAB1.getContainer()
       CSYTAB1.set("CTCONO", currentCompany)
       CSYTAB1.set("CTLNCD", "")
@@ -1006,14 +1075,16 @@ public class EXT013 extends ExtendM3Batch {
           CTPARM = CSYTAB1.getString("CTPARM").trim().substring(0, 36)
         } else {
           CTPARM = CSYTAB1.getString("CTTX40").trim()
-          logger.debug("CTPARM" + CTPARM)
         }
       }
     }
     return CTPARM
   }
 
-  // get Item informations
+  /**
+   * Get Item informations
+   * @param itno
+   */
   public void getItemInfos(String ITNO) {
     itds = ""
     grweItem = 0
@@ -1030,18 +1101,19 @@ public class EXT013 extends ExtendM3Batch {
     MITMAS.set("MMCONO", currentCompany)
     MITMAS.set("MMITNO", ITNO.trim())
     if (queryMITMAS.read(MITMAS)) {
-      logger.debug("found MITMAS : " + itno + " line : " + ponr)
       itds = MITMAS.getString("MMITDS").trim()
       grweItem = MITMAS.getDouble("MMGRWE")
       neweItem = MITMAS.getDouble("MMNEWE")
       vol3Item = MITMAS.getDouble("MMVOL3")
       rayon = MITMAS.getString("MMHIE2").trim()
-      logger.debug("rayon : " + rayon)
     }
 
   }
 
-  // get Item informations
+  /**
+   * Get Item level information
+   * @param itno
+   */
   public void getLevelItemInfo(String HIE2) {
     librayon = ""
     DBAction queryMITHRY = database.table("MITHRY").index("00").selection("HITX40").build()
@@ -1050,13 +1122,15 @@ public class EXT013 extends ExtendM3Batch {
     MITHRY.set("HIHLVL", 2)
     MITHRY.set("HIHIE0", HIE2.trim())
     if (queryMITHRY.read(MITHRY)) {
-      logger.debug("librayon : " + librayon)
       librayon = MITHRY.getString("HITX40").trim()
     }
 
   }
 
-  // get Item PCB
+  /**
+   * Get Item PCB
+   * @param itno
+   */
   public double getItemPCB(String ITNO) {
     double ItemPCB = 0
     DBAction queryMPACIT = database.table("MPACIT").index("00").selection("ECD1QT").build()
@@ -1071,12 +1145,14 @@ public class EXT013 extends ExtendM3Batch {
     MPACIT.set("ECTRQT", 9999999)
     if (queryMPACIT.read(MPACIT)) {
       ItemPCB = MPACIT.getDouble("ECD1QT")
-      logger.debug("found MPACIT : " + itno + " line : " + ponr)
     }
     return ItemPCB
   }
 
-  // get customer lang
+  /**
+   * Get customer language
+   * @param customer
+   */
   public String getcustomerLang(String customer) {
     String customerLang = ""
     DBAction queryOCUSMA = database.table("OCUSMA").index("00").selection("OKLHCD").build()
@@ -1089,9 +1165,17 @@ public class EXT013 extends ExtendM3Batch {
     return customerLang
   }
 
-
+  /**
+   * Execute OIS320MI GetPriceLine
+   * @param CUNO
+   * @param ITNO
+   * @param ORDT
+   * @param ALUN
+   * @param ORQA
+   * @param ORTP
+   */
   private executeOIS320MIGetPriceLine(String CUNO, String ITNO, String ORDT, String ALUN, double ORQA, String ORTP) {
-    def parameters = [
+    Map<String, String> parameters = [
       "CUNO": CUNO,
       "ITNO": ITNO,
       "ORQA": "" + ORQA,
@@ -1099,20 +1183,38 @@ public class EXT013 extends ExtendM3Batch {
       "ORDT": ORDT,
       "ORTP": ORTP]
     Closure<?> handler = { Map<String, String> response ->
-      logger.debug("OIS320MI.GetPriceLine " + response)
       if (response.error != null) {
-        logger.debug("Failed OIS320MI.GetPriceLine: " + response.errorMessage)
       } else {
         lnam = response.LNAM as double
         nepr = response.NETP as double
-        logger.debug("OIS100.AddOrderLine " + lnam)
       }
     }
+
+
     miCaller.call("OIS320MI", "GetPriceLine", parameters, handler)
   }
 
-  /* Get mail user
-  */
+  /**
+   * Execute CRS610MI GetBasicData
+   * @param CONO
+   * @param CUNO
+   */
+  private executecrs610MIGetBasicData(String CONO, String CUNO) {
+    Map<String, String> parameters = [
+      "CONO": CONO,
+      "CUNO": CUNO]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+      } else {
+        cunm = response.CUNM.trim()
+      }
+    }
+    miCaller.call("CRS610MI", "GetBasicData", parameters, handler)
+  }
+
+  /**
+   * Get mail user
+   */
   private void getMailUser() {
     //Define return object structure
     DBAction queryCEMAIL = database.table("CEMAIL").index("00").selection("CBEMAL").build()
@@ -1122,161 +1224,226 @@ public class EXT013 extends ExtendM3Batch {
     containerCEMAIL.set("CBEMKY", program.getUser())
 
     Closure<?> readCEMAIL = { DBContainer resultCEMAIL ->
-      MailLines = resultCEMAIL.getString("CBEMAL").trim()
-      logger.debug("Mail trouvé" + MailLines)
+      mailLines = resultCEMAIL.getString("CBEMAL").trim()
     }
-    queryCEMAIL.readAll(containerCEMAIL, 3, readCEMAIL)
-    logger.debug("Mail : " + MailLines)
+    queryCEMAIL.readAll(containerCEMAIL, 3, nbMaxRecord, readCEMAIL)
     logger.debug("user : " + program.getUser())
 
   }
 
-  // Write bloking Lines file
+  /**
+   * Write bloking line file
+   * @param header
+   * @param message
+   */
   public void writeBlokingAnomalyLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "BlokingLines" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté cdées par le client"+ ";" + "Qtés intégrées" + ";" + "PCB"+ ";" + "Equiv Pal" + ";" + "Valeur" + ";" +  "Type erreur" + ";" + "Commentaire Article"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, bloclines)
   }
 
-  // Write non bloking Lines file
+  /**
+   * Write non bloking Lines file
+   * @param header
+   * @param message
+   */
   public void writeNonBlokingAnomalyLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "NonBlokingLines" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté cdées par le client"+ ";" + "Qtés intégrées" + ";" + "PCB"+ ";" + "Equiv Pal" + ";" + "Valeur" + ";" +  "Type erreur" + ";" + "Commentaire Article"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, nonBloclines)
   }
 
-  // Write Replaced Lines file
+  /**
+   * Write replaced Lines file
+   * @param header
+   * @param message
+   */
   public void writeReplacedLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "ReplacedLine" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté cdées par le client"+ ";" + "Qtés intégrées" + ";" + "PCB"+ ";" + "Equiv Pal" + ";" + "Valeur" + ";" +  "Type erreur" + ";" + "Commentaire Article"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, replacedBloclines)
   }
 
-  // Write Rounded Lines file
+  /**
+   * Write rounded Lines file
+   * @param header
+   * @param message
+   */
   public void writeRoundedLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RoundedLine" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté fichier"+ ";" + "Qté Cdée" + ";" + "PCB"+ ";" + "taux arrondi"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté fichier" + ";" + "Quantité commandée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "taux arrondi %"
     logMessage(header, roundedlines)
   }
 
-  // Write Rayon Lines file
+  /**
+   * Write rayon Lines file
+   * @param header
+   * @param message
+   */
   public void writeRayonLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RayonLine" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
     header = "Rayon" + ";" + "Libellé Rayon" + ";" + "Nb de Lignes"
     logMessage(header, rayonlines)
   }
 
-  // Write total Lines file
+  /**
+   * Write sous total Lines file
+   * @param header
+   * @param message
+   */
   public void writeTotlinesFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "totlines" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
     header = "Sous total lignes par type d'erreur" + ";" + "Nb de Lignes"
     logMessage(header, totlines)
   }
 
-  // Write sous total Lines file
+  /**
+   * Write sous total Lines file
+   * @param header
+   * @param message
+   */
   public void writeSsTotlinesFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "ssTotlines" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
     header = "Code Erreur" + ";" + "Libellé Erreur" + ";" + "Nb de Lignes"
     logMessage(header, ssTotlines)
   }
 
-  // Write total integre file
+  /**
+   * Write total lines file
+   * @param header
+   * @param message
+   */
   public void writeTotIntegreFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "TotIntegre" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
     header = "Total Integré" + ";" + "valeur"
     logMessage(header, totIntegres)
   }
 
-  // Write total integre file
+  /**
+   * Write total reject file
+   * @param header
+   * @param message
+   */
   public void writeTotRejeteFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "TotRejete" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
     header = "Total Rejeté" + ";" + "valeur"
     logMessage(header, totRejetes)
   }
 
-  // Write header file
+  /**
+   * Write rapport header file
+   * @param header
+   * @param message
+   */
   public void writeRapportHeaderFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "Header" + "-" + "rapport.txt"
-    logger.debug("writeRapportFile ${logFileName}")
-    header = "N° Magasin" + ";" + "Mode de transport" + ";" + "N° Demande" + ";" + "N° commande" + ";" + "Date Intégration" + ";" + "Code Fournisseur"+ ";" + "Date Pos" + ";" + "rotation" + ";" + "type d'approvisionnement" + ";" + "température" + ";" + "N° Transitaire" + ";" + "Incoterm"
+    header = "N° Magasin" + ";" + "Mode de transport" + ";" + "N° Demande" + ";" + "N° commande" + ";" + "Date Intégration" + ";" + "Code Fournisseur" + ";" + "Date Pos" + ";" + "Rotation" + ";" + "Type d'approvisionnement" + ";" + "Température" + ";" + "N° Transitaire" + ";" + "Incoterm" + ";" + "Nom Client"
     logMessage(header, "")
     countLines = 0
-    lines = numMagasin + ";" + modeTransport + ";" + numDemande + ";" + numCommande + ";" + dateIntegration + ";" + codeFournisseur + ";" + datePosit + ";" + rotation + ";" + typeAppro + ";" + temperature + ";" + numTransitaire + ";" + incoterm
+
+    DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+    DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+    dateIntegration = convertDate(dateIntegration)
+    datePosit = convertDate(datePosit)
+    lines = numMagasin + ";" + modeTransport + ";" + numDemande + ";" + numCommande + ";" + dateIntegration + ";" + codeFournisseur + ";" + datePosit + ";" + rotation + ";" + typeAppro + ";" + temperature + ";" + numTransitaire + ";" + incoterm + ";" + cunm
     logMessage("", lines)
   }
 
-  // Write the file indicating the end of processing
+  /**
+   * Write mail file
+   * @param header
+   * @param message
+   */
   public void writeMailFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "MailFile.txt"
-    logger.debug("writeRapportFile ${logFileName}")
     header = "Adresses Mail"
-    logMessage(header, MailLines)
+    logMessage(header, mailLines)
   }
 
-  // Write the file indicating the end of processing
+  /**
+   * Write end file
+   * @param header
+   * @param message
+   */
   public void writeEndFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "docNumber.xml"
     docnumber = fileJobNumber + "-" + confOrderNumber
-    logger.debug("write-endfile ${logFileName}")
-    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document>  <DocumentType>RAPPORTINTEGRATION</DocumentType>  <DocumentNumber>${docnumber}</DocumentNumber>  <DocumentPath>F:\\RapportIntegration\\</DocumentPath></Document>"
+
+    header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    header += "<Document>"
+    header += "<DocumentType>RAPPORTINTEGRATION</DocumentType>"
+    header += "<DocumentNumber>${docnumber}</DocumentNumber>"
+    header += "<DocumentPath>${share}</DocumentPath>"
+    header += "</Document>"
+
+    logger.debug("#PB Docnumber =" + header)
     logMessage(header, "")
   }
-  // Log message
+
+  /**
+   * Write log message
+   * @param header
+   * @param message
+   */
   void logMessage(String header, String line) {
 
     if (logFileName.endsWith("docNumber.xml"))
-      logger.debug("logMessage ${logFileName}")
 
-    logger.debug("header = " + header)
-    logger.debug("line = " + line)
+      logger.debug("line = " + line)
     if (header.trim() != "") {
       log(header)
-      //logger.debug("write header")
     }
     if (line.trim() != "") {
       log(line)
-      //logger.debug("write line")
     }
   }
 
-  // Log
+  /**
+   * Write log
+   * @param message
+   */
   void log(String message) {
     IN60 = true
-    //logger.debug(message)
-    //message = LocalDateTime.now().toString() + ";" + message
     Closure<?> consumer = { PrintWriter printWriter ->
-      logger.debug("message ${message}")
       printWriter.println(message)
     }
     if (logFileName.endsWith("docNumber.xml")) {
-      logger.debug("logMessage ${logFileName} message:${message}")
       textFiles.write(logFileName, "UTF-8", false, consumer)
     } else {
       textFiles.write(logFileName, "UTF-8", true, consumer)
     }
   }
-  // Get first parameter
+  /**
+   * Get first parameter
+   */
   private String getFirstParameter() {
-    //logger.debug("rawData = " + rawData)
     rawDataLength = rawData.length()
     beginIndex = 0
     endIndex = rawData.indexOf(";")
     // Get parameter
     String parameter = rawData.substring(beginIndex, endIndex)
-    //logger.debug("parameter = " + parameter)
     return parameter
   }
+  /**
+   * Convert date from yyyyMMdd to dd/MM/yyyy
+   * @param inputDate
+   * @return
+   */
+  public String convertDate(String inputDate) {
+    DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+    DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    try {
+      LocalDate date = LocalDate.parse(inputDate, inputFormatter)
+      return date.format(outputFormatter)
+    } catch (DateTimeException e) {
+      return ""
+    }
 
-  // Get next parameter
+  }
+  /**
+   * Get next parameter
+   */
   private String getNextParameter() {
     beginIndex = endIndex + 1
     endIndex = rawDataLength - rawData.indexOf(";") - 1
@@ -1286,35 +1453,85 @@ public class EXT013 extends ExtendM3Batch {
     endIndex = rawData.indexOf(";")
     // Get parameter
     String parameter = rawData.substring(beginIndex, endIndex)
-    //logger.debug("parameter = " + parameter)
     return parameter
   }
 
-  // Delete records related to the current job from EXTJOB table
+  /**
+   * Delete the job data from EXTJOB table
+   * @param referenceId
+   */
   public void deleteEXTJOB() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     DBAction query = database.table("EXTJOB").index("00").build()
     DBContainer EXTJOB = query.getContainer()
     EXTJOB.set("EXRFID", batch.getReferenceId().get())
-    if (!query.readAllLock(EXTJOB, 1, updateCallBack_EXTJOB)) {
+    if (!query.readLock(EXTJOB, updatecallbackExtjob)) {
     }
   }
 
-  // Delete EXTJOB
-  Closure<?> updateCallBack_EXTJOB = { LockedResult lockedResult ->
+  /**
+   * Callback to delete the job data from EXTJOB table
+   * @param lockedResult
+   */
+  Closure<?> updatecallbackExtjob = { LockedResult lockedResult ->
     lockedResult.delete()
   }
 
+  /**
+   * Get the job data from EXTJOB table
+   * @param referenceId
+   */
   private Optional<String> getJobData(String referenceId) {
-    def query = database.table("EXTJOB").index("00").selection("EXDATA").build()
-    def container = query.createContainer()
+    DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBContainer container = query.createContainer()
     container.set("EXRFID", referenceId)
     if (query.read(container)) {
-      //logger.debug("EXDATA = " + container.getString("EXDATA"))
       return Optional.of(container.getString("EXDATA"))
     } else {
-      //logger.debug("EXTJOB not found")
     }
     return Optional.empty()
+  }
+
+  /**
+   * Get the value in CRS881/CRS882
+   * @param division
+   * @param mstd
+   * @param mvrs
+   * @param bmsg
+   * @param ibob
+   * @param elmp
+   * @param elmd
+   * @param elmc
+   * @param mbmc
+   * @return
+   */
+  private String getCRS881(String division, String mstd, String mvrs, String bmsg, String ibob, String elmp, String elmd, String elmc, String mbmc) {
+    String mvxd = ""
+    DBAction queryMbmtrn = database.table("MBMTRN").index("00").selection("TRIDTR").build()
+    DBContainer requestMbmtrn = queryMbmtrn.getContainer()
+    requestMbmtrn.set("TRTRQF", "0")
+    requestMbmtrn.set("TRMSTD", mstd)
+    requestMbmtrn.set("TRMVRS", mvrs)
+    requestMbmtrn.set("TRBMSG", bmsg)
+    requestMbmtrn.set("TRIBOB", ibob)
+    requestMbmtrn.set("TRELMP", elmp)
+    requestMbmtrn.set("TRELMD", elmd)
+    requestMbmtrn.set("TRELMC", elmc)
+    requestMbmtrn.set("TRMBMC", mbmc)
+    if (queryMbmtrn.read(requestMbmtrn)) {
+      DBAction queryMbmtrd = database.table("MBMTRD").index("00").selection("TDMVXD").build()
+      DBContainer requestMbmtrd = queryMbmtrd.getContainer()
+      requestMbmtrd.set("TDCONO", currentCompany)
+      requestMbmtrd.set("TDDIVI", division)
+      requestMbmtrd.set("TDIDTR", requestMbmtrn.get("TRIDTR"))
+      // Retrieve MBTRND
+      Closure<?> readerMbmtrd = { DBContainer resultMbmtrd ->
+        mvxd = resultMbmtrd.get("TDMVXD") as String
+        mvxd = mvxd.trim()
+      }
+      if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {
+      }
+      return mvxd
+    }
   }
 }

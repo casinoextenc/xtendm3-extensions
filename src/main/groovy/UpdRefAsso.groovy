@@ -8,25 +8,33 @@
  * 20221122     FLEBARS       COMX01 - Creation
  * 20240228     FLEBARS       Gestion statuts 20-50
  * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
+ * 20250114     YJANNIN       COMX01 - Historisation
  */
+
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+
 public class UpdRefAsso extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
   private final ProgramAPI program
   private final UtilityAPI utility
-
+  private final MICallerAPI miCaller
   private int currentCompany
   private String errorMessage
+  private String txtMessage
   private String fuds
+  private double price
+  private String retourPrice
 
-
-  public UpdRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
+  public UpdRefAsso(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.mi = mi
     this.database = database
     this.logger = logger
     this.program = program
     this.utility = utility
+    this.miCaller = miCaller
   }
 
   /**
@@ -52,7 +60,7 @@ public class UpdRefAsso extends ExtendM3Transaction {
     int fvdt = (Integer) (mi.in.get("FVDT") != null ? mi.in.get("FVDT") : 0)
     int lvdt = (Integer) (mi.in.get("LVDT") != null ? mi.in.get("LVDT") : 0)
 
-
+    txtMessage =""
     //Check inputs
     if (!checkCustomer(cuno)) {
       mi.error(errorMessage)
@@ -62,22 +70,54 @@ public class UpdRefAsso extends ExtendM3Transaction {
       mi.error(errorMessage)
       return
     }
-    if (sule.length() > 0 && suld.length() > 0) {
-      mi.error("il faut renseigner soit le fournisseur entrepot soit le fournisseur direct")
-      return
+
+    if (txtMessage == "" && sule.length() > 0 && suld.length() > 0) {
+      txtMessage = "il faut renseigner soit le fournisseur entrepot soit le fournisseur direct pas les deux"
+      logger.debug("#PB "+txtMessage)
     }
-    if (sule.length() > 0) {
-      if (!checkSupplier(sule, "200")) {
-        mi.error(errorMessage)
-        return
+    if (txtMessage == "" && sule.length() == 0 && suld.length() == 0) {
+      txtMessage = "il faut renseigner au moins le fournisseur entrepot ou le fournisseur direct"
+      logger.debug("#PB "+txtMessage)
+    }
+    if (txtMessage == "") {
+      if (sule.length() > 0) {
+        if (!checkSupplier(sule, "200")) {
+          txtMessage = errorMessage
+          logger.debug("#PB "+txtMessage)
+        } else if (!checkSunoItno(sule, itno)) {
+          txtMessage = "Alerte problème filière d'approvisionnement PPS040 SULE : "+sule
+          logger.debug("#PB "+txtMessage)
+        }
+      } else if (suld.length() > 0) {
+        if (!checkSupplier(suld, "100")) {
+          txtMessage = errorMessage
+          logger.debug("#PB "+txtMessage)
+        } else if (!checkSunoItno(suld, itno)) {
+          txtMessage = "Alerte problème filière d'approvisionnement PPS040 SULD : "+suld
+          logger.debug("#PB "+txtMessage)
+        }
       }
     }
-    if (suld.length() > 0) {
-      if (!checkSupplier(suld, "100")) {
-        mi.error(errorMessage)
-        return
+
+
+    retourPrice = ""
+    if (txtMessage == "") {
+      price = 0
+      if (sule.length() > 0) {
+        executePPS106MIGetPrice(itno, sule)
+      } else {
+        executePPS106MIGetPrice(itno, suld)
+      }
+      if (retourPrice != "") {
+        txtMessage = retourPrice
+        logger.debug("#PB "+txtMessage)
+      } else if (price == 0.0100) {
+        txtMessage = "Alerte problème filière d'approvisionnement PPS100"
+        logger.debug("#PB "+txtMessage)
       }
     }
+
+
     if (cmde != 1 && cmde != 2) {
       mi.error("L'indicateur de commandabilité doit être égal à 1 ou 2")
       return
@@ -168,9 +208,29 @@ public class UpdRefAsso extends ExtendM3Transaction {
       ext010Request.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
       ext010Request.set("EXCHNO", 1)
       ext010Request.set("EXCHID", program.getUser())
+      createEXT011Record(ext010Request, "C")
       ext010Query.insert(ext010Request)
       return
     }
+
+    double saprDb = ext010Request.get("EXSAPR") as double
+    int rsclDb = ext010Request.get("EXRSCL") as int
+    int cmdeDb = ext010Request.get("EXCMDE") as int
+    int tvdtDb = ext010Request.get("EXTVDT") as int
+    int fvdtDb = ext010Request.get("EXFVDT") as int
+    int lvdtDb = ext010Request.get("EXLVDT") as int
+
+    //Check inputs for update
+    boolean flagUpdate = false
+    flagUpdate = flagUpdate || (sapr != saprDb)
+    flagUpdate = flagUpdate || !mi.in.get("SULE").equals(ext010Request.getString("EXSULE").trim())
+    flagUpdate = flagUpdate || !mi.in.get("SULD").equals(ext010Request.getString("EXSULD").trim())
+    flagUpdate = flagUpdate || (rscl != rsclDb)
+    flagUpdate = flagUpdate || (cmde != cmdeDb)
+    flagUpdate = flagUpdate || (tvdt != tvdtDb)
+    flagUpdate = flagUpdate || (fvdt != fvdtDb)
+    flagUpdate = flagUpdate || (lvdt != lvdtDb)
+
 
     // else if Record  exists then Update
     Closure<?> ext010Updater = { LockedResult ext010LockedResult ->
@@ -194,9 +254,57 @@ public class UpdRefAsso extends ExtendM3Transaction {
       ext010LockedResult.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
       ext010LockedResult.set("EXCHNO", ((Integer) ext010LockedResult.get("EXCHNO") + 1))
       ext010LockedResult.set("EXCHID", program.getUser())
+      createEXT011Record(ext010LockedResult, "U")
       ext010LockedResult.update()
     }
-    ext010Query.readLock(ext010Request, ext010Updater)
+    if (flagUpdate) ext010Query.readLock(ext010Request, ext010Updater)
+    if (txtMessage != "") {
+      mi.error(txtMessage)
+    }
+  }
+
+  /**
+   * Create EXT011 record
+   * @parameter DBContainer,flag
+   * */
+  private void createEXT011Record(DBContainer ext010Request, String flag) {
+    DBAction ext011Query = database.table("EXT011")
+      .index("00")
+      .selection(
+        "EXCONO",
+        "EXASGD",
+        "EXCUNO",
+        "EXITNO",
+        "EXCDAT",
+        "EXRGDT",
+        "EXRGTM",
+        "EXCHNO",
+        "EXCHID"
+      )
+      .build()
+
+    DBContainer ext011Request = ext011Query.getContainer()
+    ext011Request.set("EXCONO", currentCompany)
+    ext011Request.set("EXASGD", ext010Request.get("EXASGD"))
+    ext011Request.set("EXCUNO", ext010Request.get("EXCUNO"))
+    ext011Request.set("EXITNO", ext010Request.get("EXITNO"))
+    ext011Request.set("EXSIG6", ext010Request.get("EXSIG6"))
+    ext011Request.set("EXSAPR", ext010Request.get("EXSAPR"))
+    ext011Request.set("EXSULE", ext010Request.get("EXSULE"))
+    ext011Request.set("EXSULD", ext010Request.get("EXSULD"))
+    ext011Request.set("EXFUDS", ext010Request.get("EXFUDS"))
+    ext011Request.set("EXCDAT", ext010Request.get("EXCDAT"))
+    ext011Request.set("EXRSCL", ext010Request.get("EXRSCL"))
+    ext011Request.set("EXCMDE", ext010Request.get("EXCMDE"))
+    ext011Request.set("EXFVDT", ext010Request.get("EXFVDT"))
+    ext011Request.set("EXLVDT", ext010Request.get("EXLVDT"))
+    ext011Request.set("EXTVDT", ext010Request.get("EXTVDT"))
+    ext011Request.set("EXRGDT", ext010Request.get("EXRGDT"))
+    ext011Request.set("EXRGTM", ext010Request.get("EXRGTM"))
+    ext011Request.set("EXCHNO", ext010Request.get("EXCHNO"))
+    ext011Request.set("EXCHID", ext010Request.get("EXCHID"))
+    ext011Request.set("EXFLAG", flag)
+    ext011Query.insert(ext011Request)
   }
 
   /**
@@ -248,7 +356,7 @@ public class UpdRefAsso extends ExtendM3Transaction {
     if (mitmasQuery.read(mitmasContianer)) {
       String stat = (String) mitmasContianer.get("MMSTAT")
       fuds = (String) mitmasContianer.get("MMFUDS")
-      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)) {//A°20240228
+      if (!(stat.compareTo("20") >= 0 && stat.compareTo("90") < 0)) {
         errorMessage = "Statut Article ${itno} est invalide"
         return false
       }
@@ -291,17 +399,65 @@ public class UpdRefAsso extends ExtendM3Transaction {
       return false
     }
 
-    String dbsucl = ""
+    String dbSucl = ""
 
     cidvenRequest.set("IICONO", currentCompany)
     cidvenRequest.set("IISUNO", suno)
     if (cidvenQuery.read(cidvenRequest)) {
-      dbsucl = (String) cidvenRequest.get("IISUCL")
+      dbSucl = (String) cidvenRequest.get("IISUCL")
     }
-    if (!dbsucl.equals(sucl)) {
+    if (!dbSucl.equals(sucl)) {
       errorMessage = "Groupe fournisseur ${suno} est invalide"
       return false
     }
     return true
+  }
+
+  /**
+   * Read information from DB EXT010
+   * Double check
+   *
+   * @parameter Supplier
+   * @parameter Item
+   * @return true if ok false otherwise
+   * */
+  private boolean checkSunoItno(String suno, String itno) {
+    boolean found = false
+    DBAction mitvenQuery = database.table("MITVEN")
+      .index("10")
+      .selection("IFSITE")
+      .build()
+    DBContainer containerMitven = mitvenQuery.getContainer()
+    containerMitven.set("IFCONO", currentCompany)
+    containerMitven.set("IFSUNO", suno)
+    containerMitven.set("IFITNO", itno)
+    Closure<?> outMitven = { DBContainer mitvenResult ->
+      found = true
+    }
+    if (!mitvenQuery.readAll(containerMitven, 3, 1, outMitven)) {
+    }
+    if (found) {
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Execute PPS106MI.GetPrice
+   *
+   * @parameter Item, supplier
+   * @return price
+   * */
+  private executePPS106MIGetPrice(String ITNO, String SUNO) {
+    Map<String, String> parameters = ["ITNO": ITNO, "SUNO": SUNO, "ORQA": "1"]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        retourPrice = response.error
+      } else if (response.PUPR != null) {
+        price = response.PUPR as double
+        logger.debug("#PB Price = "+String.valueOf(price))
+      }
+    }
+    miCaller.call("PPS106MI", "GetPrice", parameters, handler)
   }
 }

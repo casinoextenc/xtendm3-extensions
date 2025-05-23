@@ -15,6 +15,7 @@ public class LstAssortCriter extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
+  private Integer nbMaxRecord = 10000
 
   public LstAssortCriter(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -58,11 +59,12 @@ public class LstAssortCriter extends ExtendM3Transaction {
     DBAction ext020Query = database.table("EXT020").index("00").matching(ext020Expression).selection("EXCONO", "EXASCD", "EXCUNO", "EXFDAT", "EXSTAT", "EXSTTS", "EXNDTS", "EXRGDT", "EXRGTM", "EXLMDT", "EXCHNO", "EXCHID").build()
     DBContainer ext020Request = ext020Query.getContainer()
     ext020Request.setInt("EXCONO", currentCompany)
-    if (!ext020Query.readAll(ext020Request, 1, ext020Reader)) {
+    if (!ext020Query.readAll(ext020Request, 1, nbMaxRecord, ext020Reader)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
+  // Retrieve EXT020
   Closure<?> ext020Reader = { DBContainer ext020Result ->
     String cono = ext020Result.get("EXCONO")
     String ascd = ext020Result.get("EXASCD")

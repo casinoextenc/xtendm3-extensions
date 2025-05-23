@@ -1,19 +1,17 @@
-/**
- * Name: EXT099MI.GetPOLineSIGMA6
- * Migration projet GIT
- * old file = EXT099MI_GetPOLineSIGMA6.groovy
- */
+/****************************************************************************************
+ Extension Name: EXT099MI.GetMinCofaItem
+ Type: ExtendM3Transaction
+ Script Author: PBEAUDOUIN
+ Date: 2023-12-19
+ Description:
+ * Find ITNO (SIGMA9) avec le plus petit COFA by POPN (SIGMA6)
 
-/**
- * README
- * This extension is used by MEC
- *
- * Name : EXT099MI.GetMinCofaItem
- * Description : INT-COM04 find ITNO (SIGMA9) avec le plus petit COFA by POPN (SIGMA6)
- * Date         Changed By    Description
- * 20231219    PBEAUDOUIN     COM04 Creation
+ Revision History:
+ Name         Date         Version   Description of Changes
+ PBEAUDOUIN   2023-12-19   1.0       REF001 - Reference data interfaces Creation
+ ARENARD      2025-04-22   1.1       Code has been checked
+ ******************************************************************************************/
 
- */
 public class GetMinCofaItem extends ExtendM3Transaction {
   private final MIAPI mi
   private final LoggerAPI logger
@@ -25,6 +23,7 @@ public class GetMinCofaItem extends ExtendM3Transaction {
   private final UtilityAPI utility
 
   private int currentCompany
+  private Integer nbMaxRecord = 10000
 
   public GetMinCofaItem(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -40,37 +39,37 @@ public class GetMinCofaItem extends ExtendM3Transaction {
     currentCompany = (Integer) program.getLDAZD().CONO
     String popn = (String) (mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
 
-    ExpressionFactory MITPOP_expression = database.getExpressionFactory("MITPOP")
-    MITPOP_expression = MITPOP_expression.eq("MPREMK", "SIGMA6")
+    ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
+    mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")
 
 
-    DBAction MITPOP_query = database.table("MITPOP")
-      .matching(MITPOP_expression)
+    DBAction mitpopQuery = database.table("MITPOP")
+      .matching(mitpopExpression)
       .selection(
         "MPITNO"
       )
       .index("10").build()
-    DBContainer MITPOP_request = MITPOP_query.getContainer()
-    MITPOP_request.set("MPCONO", currentCompany)
-    MITPOP_request.set("MPALWT", 1)
-    MITPOP_request.set("MPALWQ", "")
-    MITPOP_request.set("MPPOPN", popn)
+    DBContainer mitpopRequest = mitpopQuery.getContainer()
+    mitpopRequest.set("MPCONO", currentCompany)
+    mitpopRequest.set("MPALWT", 1)
+    mitpopRequest.set("MPALWQ", "")
+    mitpopRequest.set("MPPOPN", popn)
 
 
     boolean rt = false
     double currentCofa = 0
     String currentItno = ""
 
-    Closure<?> MITPOP_reader = { DBContainer MITPOP_result ->
+    Closure<?> mitpopReader = { DBContainer mitpopResult ->
       rt = true
-      double cofa = getCofa(MITPOP_result.get("MPITNO") as String)
+      double cofa = getCofa(mitpopResult.get("MPITNO") as String)
       if (cofa < currentCofa || currentCofa == 0) {
-        currentItno = MITPOP_result.get("MPITNO") as String
+        currentItno = mitpopResult.get("MPITNO") as String
         currentCofa = cofa
       }
     }
 
-    if (!MITPOP_query.readAll(MITPOP_request, 4, MITPOP_reader)) {
+    if (!mitpopQuery.readAll(mitpopRequest, 4, nbMaxRecord, mitpopReader)) {
     }
     if (rt) {
       mi.outData.put("ITNO", currentItno)
@@ -85,31 +84,36 @@ public class GetMinCofaItem extends ExtendM3Transaction {
     }
   }
 
+  /**
+   * Get the COFA of an item
+   * @param itno the item number
+   * @return the COFA of the item
+   */
   public double getCofa(String itno) {
     String popn = (String) (mi.in.get("POPN") != null ? mi.in.get("POPN") : "")
 
-    ExpressionFactory MITAUN_expression = database.getExpressionFactory("MITAUN")
-    MITAUN_expression = MITAUN_expression.eq("MUAUS2", "1")
+    ExpressionFactory mitaunExpression = database.getExpressionFactory("MITAUN")
+    mitaunExpression = mitaunExpression.eq("MUAUS2", "1")
 
 
-    DBAction MITAUN_query = database.table("MITAUN")
-      .matching(MITAUN_expression)
+    DBAction mitaunQuery = database.table("MITAUN")
+      .matching(mitaunExpression)
       .selection(
         "MUCOFA"
       )
       .index("40").build()
-    DBContainer MITAUN_request = MITAUN_query.getContainer()
-    MITAUN_request.set("MUCONO", currentCompany)
-    MITAUN_request.set("MUITNO", itno)
-    MITAUN_request.set("MUAUTP", 1)
-    MITAUN_request.set("MUDMCF", 1)
+    DBContainer mitaunRequest = mitaunQuery.getContainer()
+    mitaunRequest.set("MUCONO", currentCompany)
+    mitaunRequest.set("MUITNO", itno)
+    mitaunRequest.set("MUAUTP", 1)
+    mitaunRequest.set("MUDMCF", 1)
     double cofa = 0
-    Closure<?> MITAUN_reader = { DBContainer MITAUN_result ->
+    Closure<?> mitaunReader = { DBContainer mitaunResult ->
 
-      cofa = MITAUN_result.get("MUCOFA") as Double
+      cofa = mitaunResult.get("MUCOFA") as Double
 
     }
-    if (!MITAUN_query.readAll(MITAUN_request, 4, MITAUN_reader)) {
+    if (!mitaunQuery.readAll(mitaunRequest, 4, nbMaxRecord, mitaunReader)) {
 
     }
 

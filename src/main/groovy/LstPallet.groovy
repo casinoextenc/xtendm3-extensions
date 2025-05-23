@@ -1,16 +1,21 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstPallet
- * Description : List pallet
- * Date         Changed By   Description
- * 20230524     SEAR         LOG28 - Creation of files and containers
- * 20240319     MLECLERCQ    LOG28 - Alcool filter
- */
+/****************************************************************************************
+ Extension Name : EXT050MI.LstPallet
+ Type : ExtendM3Transaction
+ Author : SEAR
+ Description
+ This extension is used by Mashup
+ List files and containers
+
+ Description : List pallet
+ Date         Changed By   Description
+ 20230524     SEAR         LOG28 - Creation of files and containers
+ 20240319     MLECLERCQ    LOG28 - filters
+ 20250428     FLEBARS      Code review for infor validation
+ ******************************************************************************************/
+
+import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.math.RoundingMode
 
 public class LstPallet extends ExtendM3Transaction {
   private final MIAPI mi
@@ -25,77 +30,64 @@ public class LstPallet extends ExtendM3Transaction {
   private boolean sameIndex
   private boolean foundLineIndex
   private boolean sameCustomer
-  private String whlo_input
-  private String uca4_input
-  private String uca5_input
-  private String uca6_input
-  private String cuno_input
-  private Long dlix_input
+  private String whloInput
+  private String uca4Input
+  private String uca5Input
+  private String uca6Input
+  private String cunoInput
+  private Long dlixInput
   private Integer currentCompany
-  private String cuno_OOHEAD
+  private String cunoOohead
   private double volume
   private double weight
-  private double salesPrice
   private String baseUnit
-  private String ItemNumber
+  private String itemNumber
   private String description
   private String dossier
   private String semaine
   private String annee
-  private double lnam_OOLINE
-  private double alqt_OOLINE
-  private int dmcs_OOLINE
-  private double cofs_OOLINE
-  private String spun_OOLINE
-  private String faci_OOLINE
-  private double allocatedQuantity
+  private double lnamOoline
+  private double alqtOoline
+  private int dmcsOoline
+  private double cofsOoline
+  private String spunOoline
+  private String faciOoline
   private double allocatedQuantityUB
   private String commande
   private int lineNumber
   private int lineSuffix
-  private String orst_OOLINE
-  private String cust_name
-  private String cust_number
+  private String custName
+  private String custNumber
   private Long lineIndex
-  private int conn_MHDISH
-  private String rscd_MHDISH
+  private int connMhdish
+  private String rscdMhdish
   private int sanitary
   private double free2
   private int dangerous
+  private int sensitive
 
-  private String ridn_MITALO
-  private int ridl_MITALO
-  private int ridx_MITALO
-  private String camu_MITALO
-  private Long ridi_MITALO
-  private double alqt_MITALO
-  private String whlo_MITALO
+  private String ridnMitalo
+  private int ridlMitalo
+  private int ridxMitalo
+  private String camuMitalo
+  private Long ridiMitalo
+  private double alqtMitalo
+  private String whloMitalo
   private String csno
   private String orco
   private String popn
   private String suno
 
-  private Map<String, Boolean> quaFilters_input
+  private Map<String, Boolean> quafiltersInput
   private LinkedHashMap<String, Boolean> filterResults
 
   private String dgx4
 
-  private boolean hasAlcool = false
-  private boolean hasBeer = false
-  private boolean hasWine = false
-  private boolean isISO = false
-  private boolean isDPH = false
-  private boolean isPhyto = false
-  private boolean isSanit = false
-  private boolean isPetFood = false
-  private boolean isMilk = false
-  private boolean isChamp = false
-  private boolean isDgx = false
-  private boolean isDgx4 = false
-
   private int isRecordValid = 0
+  private double nbOfCols
 
   private String jobNumber
+  private Integer nbMaxRecord = 10000
 
   public LstPallet(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -107,102 +99,101 @@ public class LstPallet extends ExtendM3Transaction {
   }
 
   public void main() {
-
     LocalDateTime timeOfCreation = LocalDateTime.now()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
 
-
     if (mi.in.get("CONO") == null) {
-      currentCompany = (Integer)program.getLDAZD().CONO
+      currentCompany = (Integer) program.getLDAZD().CONO
     } else {
       currentCompany = mi.in.get("CONO")
     }
 
-    quaFilters_input = new HashMap<String, Boolean>()
+    quafiltersInput = new HashMap<String, Boolean>()
+    filterResults = new LinkedHashMap<String, Boolean>()
 
     //Get mi inputs
-    whlo_input = (mi.in.get("WHLO") != null ? (String)mi.in.get("WHLO") : "")
-    uca4_input = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
-    uca5_input = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
-    uca6_input = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
-    cuno_input = (mi.in.get("CUNO") != null ? (String)mi.in.get("CUNO") : "")
-    dlix_input = (Long)(mi.in.get("DLIX") != null ? mi.in.get("DLIX") : 0)
+    whloInput = (mi.in.get("WHLO") != null ? (String) mi.in.get("WHLO") : "")
+    uca4Input = (mi.in.get("UCA4") != null ? (String) mi.in.get("UCA4") : "")
+    uca5Input = (mi.in.get("UCA5") != null ? (String) mi.in.get("UCA5") : "")
+    uca6Input = (mi.in.get("UCA6") != null ? (String) mi.in.get("UCA6") : "")
+    cunoInput = (mi.in.get("CUNO") != null ? (String) mi.in.get("CUNO") : "")
+    dlixInput = (Long) (mi.in.get("DLIX") != null ? mi.in.get("DLIX") : 0)
 
-    quaFilters_input["PHYT"] = (mi.in.get("PHYT") != null ? (Boolean) mi.in.get("PHYT") : false)
-    quaFilters_input["SANI"] = (mi.in.get("SANI") != null ? (Boolean) mi.in.get("SANI") : false)
-    quaFilters_input["PETF"] = (mi.in.get("PETF") != null ? (Boolean) mi.in.get("PETF") : false)
-    quaFilters_input["LAIT"] = (mi.in.get("LAIT") != null ? (Boolean) mi.in.get("LAIT") : false)
-    quaFilters_input["ALCO"] = (mi.in.get("ALCO") != null ? (Boolean) mi.in.get("ALCO") : false)
-    quaFilters_input["BIER"] = (mi.in.get("BIER") != null ? (Boolean) mi.in.get("BIER") : false)
-    quaFilters_input["VIN1"] = (mi.in.get("VIN1") != null ? (Boolean) mi.in.get("VIN1") : false)
-    quaFilters_input["CHAM"] = (mi.in.get("CHAM") != null ? (Boolean) mi.in.get("CHAM") : false)
-    quaFilters_input["DGX1"] = (mi.in.get("DGX1") != null ? (Boolean) mi.in.get("DGX1") : false)
-    quaFilters_input["DGX4"] = (mi.in.get("DGX4") != null ? (Boolean) mi.in.get("DGX4") : false)
-    quaFilters_input["ISO1"] = (mi.in.get("ISO1") != null ? (Boolean) mi.in.get("ISO1") : false)
-    quaFilters_input["DPH1"] = (mi.in.get("DPH1") != null ? (Boolean) mi.in.get("DPH1") : false)
+    quafiltersInput["PHYT"] = (mi.in.get("PHYT") != null ? (Boolean) mi.in.get("PHYT") : false)
+    quafiltersInput["SANI"] = (mi.in.get("SANI") != null ? (Boolean) mi.in.get("SANI") : false)
+    quafiltersInput["PETF"] = (mi.in.get("PETF") != null ? (Boolean) mi.in.get("PETF") : false)
+    quafiltersInput["LAIT"] = (mi.in.get("LAIT") != null ? (Boolean) mi.in.get("LAIT") : false)
+    quafiltersInput["ALCO"] = (mi.in.get("ALCO") != null ? (Boolean) mi.in.get("ALCO") : false)
+    quafiltersInput["BIER"] = (mi.in.get("BIER") != null ? (Boolean) mi.in.get("BIER") : false)
+    quafiltersInput["VIN1"] = (mi.in.get("VIN1") != null ? (Boolean) mi.in.get("VIN1") : false)
+    quafiltersInput["CHAM"] = (mi.in.get("CHAM") != null ? (Boolean) mi.in.get("CHAM") : false)
+    quafiltersInput["DGX1"] = (mi.in.get("DGX1") != null ? (Boolean) mi.in.get("DGX1") : false)
+    quafiltersInput["DGX4"] = (mi.in.get("DGX4") != null ? (Boolean) mi.in.get("DGX4") : false)
+    quafiltersInput["ISO1"] = (mi.in.get("ISO1") != null ? (Boolean) mi.in.get("ISO1") : false)
+    quafiltersInput["DPH1"] = (mi.in.get("DPH1") != null ? (Boolean) mi.in.get("DPH1") : false)
 
     // check warehouse
-    DBAction query_MITWHL = database.table("MITWHL").index("00").selection("MWWHLO").build()
-    DBContainer MITWHL = query_MITWHL.getContainer()
-    MITWHL.set("MWCONO", currentCompany)
-    MITWHL.set("MWWHLO", whlo_input)
-    if(!query_MITWHL.read(MITWHL)){
-      mi.error("Le dépôt " + whlo_input + " n'existe pas")
+    DBAction mitwhlQuery = database.table("MITWHL").index("00").selection("MWWHLO").build()
+    DBContainer mitwhlRequest = mitwhlQuery.getContainer()
+    mitwhlRequest.set("MWCONO", currentCompany)
+    mitwhlRequest.set("MWWHLO", whloInput)
+    if (!mitwhlQuery.read(mitwhlRequest)) {
+      mi.error("Le dépôt " + whloInput + " n'existe pas")
       return
     }
 
     // check customer number
-    if (cuno_input.length() > 0) {
-      DBAction query_OCUSMA = database.table("OCUSMA").index("00").selection("OKCUNO").build()
-      DBContainer OCUSMA = query_OCUSMA.getContainer()
-      OCUSMA.set("OKCONO", currentCompany)
-      OCUSMA.set("OKCUNO", cuno_input)
-      if(!query_OCUSMA.read(OCUSMA)){
-        mi.error("Le code client  " + cuno_input + " n'existe pas")
+    if (cunoInput.length() > 0) {
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").selection("OKCUNO").build()
+      DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+      ocusmaRequest.set("OKCONO", currentCompany)
+      ocusmaRequest.set("OKCUNO", cunoInput)
+      if (!ocusmaQuery.read(ocusmaRequest)) {
+        mi.error("Le code client  " + cunoInput + " n'existe pas")
         return
       }
     }
 
     // check index number
     if ((mi.in.get("DLIX") != null)) {
-      DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX").build()
-      DBContainer MHDISH = query_MHDISH.getContainer()
-      MHDISH.set("OQCONO", currentCompany)
-      MHDISH.set("OQINOU", 1)
-      MHDISH.set("OQDLIX", dlix_input)
-      if(!query_MHDISH.read(MHDISH)){
-        mi.error("Index de livraison  " + dlix_input + " n'existe pas")
+      DBAction mhdishQuery = database.table("MHDISH").index("00").selection("OQDLIX").build()
+      DBContainer mhdishRequest = mhdishQuery.getContainer()
+      mhdishRequest.set("OQCONO", currentCompany)
+      mhdishRequest.set("OQINOU", 1)
+      mhdishRequest.set("OQDLIX", dlixInput)
+      if (!mhdishQuery.read(mhdishRequest)) {
+        mi.error("Index de livraison  " + dlixInput + " n'existe pas")
         return
       }
     }
 
-    ExpressionFactory expression_OOHEAD = database.getExpressionFactory("OOHEAD")
-    if(uca4_input != ""){
-      expression_OOHEAD = expression_OOHEAD.eq("OAUCA4", uca4_input)
+    ExpressionFactory ooheadExpression = database.getExpressionFactory("OOHEAD")
+    if (uca4Input != "") {
+      ooheadExpression = ooheadExpression.eq("OAUCA4", uca4Input)
     } else {
-      expression_OOHEAD = expression_OOHEAD.ne("OAUCA4", "")
+      ooheadExpression = ooheadExpression.ne("OAUCA4", "")
     }
-    if(uca5_input != ""){
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.eq("OAUCA5", uca5_input))
+    if (uca5Input != "") {
+      ooheadExpression = ooheadExpression.and(ooheadExpression.eq("OAUCA5", uca5Input))
     } else {
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.ne("OAUCA5", ""))
+      ooheadExpression = ooheadExpression.and(ooheadExpression.ne("OAUCA5", ""))
     }
-    if(uca6_input != ""){
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.eq("OAUCA6", uca6_input))
+    if (uca6Input != "") {
+      ooheadExpression = ooheadExpression.and(ooheadExpression.eq("OAUCA6", uca6Input))
     } else {
-      expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.ne("OAUCA6", ""))
+      ooheadExpression = ooheadExpression.and(ooheadExpression.ne("OAUCA6", ""))
     }
-    expression_OOHEAD = expression_OOHEAD.and(expression_OOHEAD.le("OAORSL", '44'))
+    ooheadExpression = ooheadExpression.and(ooheadExpression.le("OAORSL", '44'))
 
-    DBAction query_OOHEAD = database.table("OOHEAD").index("00").matching(expression_OOHEAD).selection("OAORNO","OAUCA4","OAUCA5","OAUCA6","OACUNO").build()
-    DBContainer containerOOHEAD = query_OOHEAD.getContainer()
-    containerOOHEAD.set("OACONO", currentCompany)
+    DBAction ooheadQuery = database.table("OOHEAD").index("00").matching(ooheadExpression).selection("OAORNO", "OAUCA4", "OAUCA5", "OAUCA6", "OACUNO").build()
+    DBContainer ooheadRequest = ooheadQuery.getContainer()
+    ooheadRequest.set("OACONO", currentCompany)
 
-    if (!query_OOHEAD.readAll(containerOOHEAD, 1, OOHEADData)){
+    if (!ooheadQuery.readAll(ooheadRequest, 1, nbMaxRecord, ooheadReader)) {
     }
 
     // list out data
-    DBAction ListqueryEXT052 = database.table("EXT052")
+    DBAction ext052Query = database.table("EXT052")
       .index("10")
       .selection(
         "EXBJNO",
@@ -218,108 +209,102 @@ public class LstPallet extends ExtendM3Transaction {
         "EXCFI2",
         "EXZSAN",
         "EXFILT",
+        "EXSENS",
         "EXALQT",
         "EXGRWE",
         "EXVOL3",
         "EXZAAM",
         "EXDLIX",
         "EXCONN",
-        "EXRSCD"
+        "EXRSCD",
+        "EXCOLS"
       )
       .build()
 
-    DBContainer ListContainerEXT052 = ListqueryEXT052.getContainer()
-    ListContainerEXT052.set("EXBJNO", jobNumber)
+    DBContainer ext052Request = ext052Query.getContainer()
+    ext052Request.set("EXBJNO", jobNumber)
 
     //Record exists
-    if (!ListqueryEXT052.readAll(ListContainerEXT052, 1, outData)){
+    if (!ext052Query.readAll(ext052Request, 1, nbMaxRecord, ext052Reader)) {
     }
 
-    // delete workfile
-    DBAction DelQuery = database.table("EXT052").index("00").build()
-    DBContainer DelcontainerEXT052 = DelQuery.getContainer()
-    DelcontainerEXT052.set("EXBJNO", jobNumber)
-    if(!DelQuery.readAllLock(DelcontainerEXT052, 1, deleteCallBack)){
-      /*      mi.error("L'enregistrement n'existe pas")
-       return*/
+    Closure<?> ext052LReader = { DBContainer ext052Result ->
+      Closure<?> ext052Deleter = { LockedResult ext052LockedResult ->
+        ext052LockedResult.delete()
+      }
+      ext052Query.readLock(ext052Result, ext052Deleter)
+    }
+
+    //Record exists
+    if (!ext052Query.readAll(ext052Request, 1, nbMaxRecord, ext052LReader)) {
     }
   }
 
   // liste OOHEAD
-  Closure<?> OOHEADData = { DBContainer containerOOHEAD ->
+  Closure<?> ooheadReader = { DBContainer ooheadResult ->
+    int company = ooheadResult.get("OACONO")
+    commande = ooheadResult.get("OAORNO")
+    dossier = ooheadResult.get("OAUCA4")
+    semaine = ooheadResult.get("OAUCA5")
+    annee = ooheadResult.get("OAUCA6")
+    cunoOohead = ooheadResult.get("OACUNO")
+    logger.debug("found OOHEAD : " + commande)
 
-    int company = containerOOHEAD.get("OACONO")
-    commande = containerOOHEAD.get("OAORNO")
-    dossier = containerOOHEAD.get("OAUCA4")
-    semaine = containerOOHEAD.get("OAUCA5")
-    annee = containerOOHEAD.get("OAUCA6")
-    cuno_OOHEAD = containerOOHEAD.get("OACUNO")
-    // logger.debug("found OOHEAD : " + commande)
-
-    filterResults = new LinkedHashMap<>()
-
-    for(key in quaFilters_input.keySet()){
-      if(quaFilters_input.get(key) == true){
-        filterResults.put(key,false)
-      }
-    }
+    initFilters()
 
     // Get MITLO
-    ExpressionFactory expression_MITALO = database.getExpressionFactory("MITALO")
-    expression_MITALO = (expression_MITALO.eq("MQWHLO", whlo_input))
-    expression_MITALO = expression_MITALO.and(expression_MITALO.eq("MQPLSX", "0"))
-    DBAction query_MITALO = database.table("MITALO").index("10").matching(expression_MITALO).selection("MQRIDN","MQRIDL","MQRIDX","MQRIDI","MQCAMU","MQALQT","MQITNO","MQWHLO").build()
-    DBContainer MITALO = query_MITALO.getContainer()
-    MITALO.set("MQCONO", company)
-    MITALO.set("MQTTYP", 31)
-    MITALO.set("MQRIDN", commande)
-    if(query_MITALO.readAll(MITALO, 3, MITALOData)){
+    ExpressionFactory mitaloExpression = database.getExpressionFactory("MITALO")
+    mitaloExpression = (mitaloExpression.eq("MQWHLO", whloInput))
+    mitaloExpression = mitaloExpression.and(mitaloExpression.eq("MQPLSX", "0"))
+    DBAction mitaloQuery = database.table("MITALO").index("10").matching(mitaloExpression).selection("MQRIDN", "MQRIDL", "MQRIDX", "MQRIDI", "MQCAMU", "MQALQT", "MQITNO", "MQWHLO").build()
+    DBContainer mitaloRequest = mitaloQuery.getContainer()
+    mitaloRequest.set("MQCONO", company)
+    mitaloRequest.set("MQTTYP", 31)
+    mitaloRequest.set("MQRIDN", commande)
+    if (mitaloQuery.readAll(mitaloRequest, 3, nbMaxRecord, mitaloReader)) {
     }
-
-
-    //logger.debug("commande : " +  commande)
-    //logger.debug("dossier : " +  dossier + "semaine : " +  semaine + "annee : " +  annee)
-    //logger.debug("sameWarehouse : " +  sameWarehouse)
+    logger.debug("commande : " + commande)
+    logger.debug("dossier : " + dossier + "semaine : " + semaine + "annee : " + annee)
+    logger.debug("sameWarehouse : " + sameWarehouse)
   }
 
   // data MITALO
-  Closure<?> MITALOData = { DBContainer ContainerMITALO ->
-    ridn_MITALO = ContainerMITALO.get("MQRIDN")
-    ridl_MITALO = ContainerMITALO.get("MQRIDL")
-    ridx_MITALO = ContainerMITALO.get("MQRIDX")
-    camu_MITALO = ContainerMITALO.get("MQCAMU")
-    ridi_MITALO = ContainerMITALO.get("MQRIDI")
-    alqt_MITALO = ContainerMITALO.get("MQALQT")
-    whlo_MITALO = ContainerMITALO.get("MQWHLO")
-    ItemNumber = ContainerMITALO.get("MQITNO")
+  Closure<?> mitaloReader = { DBContainer mitaloResult ->
+    ridnMitalo = mitaloResult.get("MQRIDN")
+    ridlMitalo = mitaloResult.get("MQRIDL")
+    ridxMitalo = mitaloResult.get("MQRIDX")
+    camuMitalo = mitaloResult.get("MQCAMU")
+    ridiMitalo = mitaloResult.get("MQRIDI")
+    alqtMitalo = mitaloResult.get("MQALQT")
+    whloMitalo = mitaloResult.get("MQWHLO")
+    itemNumber = mitaloResult.get("MQITNO")
 
-    logger.debug("found MITALO RIDN: " + ridn_MITALO)
-    logger.debug("found MITALO RIDL: " + ridl_MITALO)
-    logger.debug("found MITALO RIDI: " + ridi_MITALO)
+    logger.debug("found MITALO RIDN: " + ridnMitalo)
+    logger.debug("found MITALO RIDL: " + ridlMitalo)
+    logger.debug("found MITALO RIDI: " + ridiMitalo)
 
-    if(ridi_MITALO == 0) {
-      DBAction query_MHDISL = database.table("MHDISL").index("10").selection("URDLIX").build()
-      DBContainer MHDISL = query_MHDISL.getContainer()
-      MHDISL.set("URCONO", currentCompany)
-      MHDISL.set("URRORC", 3)
-      MHDISL.set("URRIDN", ridn_MITALO)
-      MHDISL.set("URRIDL", ridl_MITALO)
-      MHDISL.set("URRIDX", ridx_MITALO)
-      if(query_MHDISL.readAll(MHDISL, 5, outData_MHDISL)){
+    if (ridiMitalo == 0) {
+      DBAction mhdislQuery = database.table("MHDISL").index("10").selection("URDLIX").build()
+      DBContainer mhdislRequest = mhdislQuery.getContainer()
+      mhdislRequest.set("URCONO", currentCompany)
+      mhdislRequest.set("URRORC", 3)
+      mhdislRequest.set("URRIDN", ridnMitalo)
+      mhdislRequest.set("URRIDL", ridlMitalo)
+      mhdislRequest.set("URRIDX", ridxMitalo)
+      if (mhdislQuery.readAll(mhdislRequest, 5, nbMaxRecord, mhdislReader)) {
       }
     }
-
     sameWarehouse = false
     sameIndex = false
     sameCustomer = false
     foundLineIndex = false
 
-    if (whlo_MITALO.equals(whlo_input)) {
+    if (whloMitalo.equals(whloInput)) {
       sameWarehouse = true
     }
 
-    if(cuno_input.length() > 0 ){
-      if (cuno_input.trim().equals(cuno_OOHEAD.trim())) {
+    if (cunoInput.length() > 0) {
+      if (cunoInput.trim().equals(cunoOohead.trim())) {
         sameCustomer = true
       }
     } else {
@@ -329,57 +314,57 @@ public class LstPallet extends ExtendM3Transaction {
     if ((mi.in.get("DLIX") == null)) {
       sameIndex = true
     } else {
-      if (dlix_input == ridi_MITALO) {
+      if (dlixInput == ridiMitalo) {
         sameIndex = true
       }
     }
 
-    conn_MHDISH = 0
-    DBAction query_MHDISH = database.table("MHDISH").index("00").selection("OQDLIX","OQCONN","OQRSCD").build()
-    DBContainer MHDISH = query_MHDISH.getContainer()
-    MHDISH.set("OQCONO", currentCompany)
-    MHDISH.set("OQINOU", 1)
-    MHDISH.set("OQDLIX", ridi_MITALO)
-    if(query_MHDISH.read(MHDISH)){
-      conn_MHDISH = MHDISH.get("OQCONN")
-      rscd_MHDISH = MHDISH.get("OQRSCD")
-      logger.debug("found MHDISH CONN: " + conn_MHDISH)
+    connMhdish = 0
+    DBAction mhdishQuery = database.table("MHDISH").index("00").selection("OQDLIX", "OQCONN", "OQRSCD").build()
+    DBContainer mhdishRequest = mhdishQuery.getContainer()
+    mhdishRequest.set("OQCONO", currentCompany)
+    mhdishRequest.set("OQINOU", 1)
+    mhdishRequest.set("OQDLIX", ridiMitalo)
+    if (mhdishQuery.read(mhdishRequest)) {
+      connMhdish = mhdishRequest.get("OQCONN")
+      rscdMhdish = mhdishRequest.get("OQRSCD")
+      logger.debug("found MHDISH CONN: " + connMhdish)
     }
 
-    //logger.debug("sameIndex: " + sameIndex)
-    //logger.debug("sameWarehouse: " + sameWarehouse)
-    //logger.debug("sameCustomer: " + sameCustomer)
+    logger.debug("sameIndex: " + sameIndex)
+    logger.debug("sameWarehouse: " + sameWarehouse)
+    logger.debug("sameCustomer: " + sameCustomer)
 
     if (sameIndex && sameWarehouse && sameCustomer) {
-      //logger.debug("valide line")
+      logger.debug("valide line")
 
-      spun_OOLINE = ""
+      spunOoline = ""
       // Get OOLINE
-      DBAction query_OOLINE = database.table("OOLINE").index("00").selection("OBCUNO","OBORNO","OBPONR","OBPOSX","OBWHLO","OBSPUN","OBDMCS","OBCOFS","OBALQT","OBLNAM","OBFACI","OBITNO").build()
-      DBContainer OOLINE = query_OOLINE.getContainer()
-      OOLINE.set("OBCONO", currentCompany)
-      OOLINE.set("OBORNO", ridn_MITALO)
-      OOLINE.set("OBPONR", ridl_MITALO)
-      OOLINE.set("OBPOSX", ridx_MITALO)
-      if(query_OOLINE.read(OOLINE)){
-        spun_OOLINE = OOLINE.get("OBSPUN")
-        cofs_OOLINE = OOLINE.get("OBCOFS")
-        alqt_OOLINE = OOLINE.get("OBALQT")
-        lnam_OOLINE = OOLINE.get("OBLNAM")
-        dmcs_OOLINE = OOLINE.get("OBDMCS")
-        faci_OOLINE = OOLINE.get("OBFACI")
-        lineSuffix = OOLINE.get("OBPOSX")
-        lineNumber = OOLINE.get("OBPONR")
+      DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBCUNO", "OBORNO", "OBPONR", "OBPOSX", "OBWHLO", "OBSPUN", "OBDMCS", "OBCOFS", "OBALQT", "OBLNAM", "OBFACI", "OBITNO").build()
+      DBContainer oolineRequest = oolineQuery.getContainer()
+      oolineRequest.set("OBCONO", currentCompany)
+      oolineRequest.set("OBORNO", ridnMitalo)
+      oolineRequest.set("OBPONR", ridlMitalo)
+      oolineRequest.set("OBPOSX", ridxMitalo)
+      if (oolineQuery.read(oolineRequest)) {
+        spunOoline = oolineRequest.get("OBSPUN")
+        cofsOoline = oolineRequest.get("OBCOFS")
+        alqtOoline = oolineRequest.get("OBALQT")
+        lnamOoline = oolineRequest.get("OBLNAM")
+        dmcsOoline = oolineRequest.get("OBDMCS")
+        faciOoline = oolineRequest.get("OBFACI")
+        lineSuffix = oolineRequest.get("OBPOSX")
+        lineNumber = oolineRequest.get("OBPONR")
       }
 
       // get OCUSMA
-      DBAction query_OCUSMA = database.table("OCUSMA").index("00").selection("OKCUNO","OKCUNM").build()
-      DBContainer OCUSMA = query_OCUSMA.getContainer()
-      OCUSMA.set("OKCONO", currentCompany)
-      OCUSMA.set("OKCUNO", cuno_OOHEAD)
-      if(query_OCUSMA.read(OCUSMA)){
-        cust_name = OCUSMA.get("OKCUNM")
-        cust_number = OCUSMA.get("OKCUNO")
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").selection("OKCUNO", "OKCUNM").build()
+      DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+      ocusmaRequest.set("OKCONO", currentCompany)
+      ocusmaRequest.set("OKCUNO", cunoOohead)
+      if (ocusmaQuery.read(ocusmaRequest)) {
+        custName = ocusmaRequest.get("OKCUNM")
+        custNumber = ocusmaRequest.get("OKCUNO")
       }
 
       // get MITMAS
@@ -387,358 +372,406 @@ public class LstPallet extends ExtendM3Transaction {
       suno = ""
       free2 = 0
       dangerous = 0
-      DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMITDS", "MMPUUN","MMUNMS", "MMGRWE", "MMVOL3","MMHAZI","MMCFI2","MMSUNO", "MMCFI4", "MMHAC1").build()
-      DBContainer MITMAS = query_MITMAS.getContainer()
-      MITMAS.set("MMCONO", currentCompany)
-      MITMAS.set("MMITNO", ItemNumber)
-      if(query_MITMAS.read(MITMAS)){
-        description = MITMAS.get("MMITDS")
-        baseUnit = MITMAS.get("MMUNMS")
-        volume = MITMAS.getDouble("MMVOL3")
-        weight = MITMAS.getDouble("MMGRWE")
-        dangerous = MITMAS.getInt("MMHAZI")
-        dgx4 = MITMAS.get("MMHAC1")
-        free2 = MITMAS.getDouble("MMCFI2")
-        suno = MITMAS.get("MMSUNO")
+      DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMITDS", "MMPUUN", "MMUNMS", "MMGRWE", "MMVOL3", "MMHAZI", "MMCFI2", "MMSUNO", "MMCFI4", "MMHAC1").build()
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", itemNumber)
+      if (mitmasQuery.read(mitmasRequest)) {
+        description = mitmasRequest.get("MMITDS")
+        baseUnit = mitmasRequest.get("MMUNMS")
+        volume = mitmasRequest.getDouble("MMVOL3")
+        weight = mitmasRequest.getDouble("MMGRWE")
+        dangerous = mitmasRequest.getInt("MMHAZI")
+        dgx4 = mitmasRequest.get("MMHAC1")
+        free2 = mitmasRequest.getDouble("MMCFI2")
+        suno = mitmasRequest.get("MMSUNO")
 
-
-
-        if(quaFilters_input.get("BIER") || quaFilters_input.get("VIN1")){
-          if(!filterResults.get("BIER") || !filterResults.get("VIN1")){
-            String cfi4 = MITMAS.get("MMCFI4")
+        if (quafiltersInput.get("BIER") || quafiltersInput.get("VIN1")) {
+          if (!filterResults.get("BIER") || !filterResults.get("VIN1")) {
+            String cfi4 = mitmasRequest.get("MMCFI4")
             cfi4 = cfi4.trim()
             //Don't need to check if both are already true
-            filterResults = (LinkedHashMap<String, Boolean>)filterBeerAndWine(cfi4, filterResults)
+            filterResults = (LinkedHashMap<String, Boolean>) filterBeerAndWine(cfi4, filterResults)
           }
 
-          logger.debug("Bier or wine filters, their values are : " + filterResults.get("BIER") + ", " + filterResults.get("VIN1"))
+          logger.debug("Bier or wine filters, their values are : " + filterResults.get("BIER") + ", " + filterResults.get("VIN1") + " for PAL: ${camuMitalo}")
         }
       }
 
-      if(quaFilters_input.get("ISO1") || quaFilters_input.get("DPH1")){
-        filterResults = (LinkedHashMap<String, Boolean>)filterOnCugex(ItemNumber, filterResults)
+      if (quafiltersInput.get("ISO1") || quafiltersInput.get("DPH1")) {
+        filterResults = (LinkedHashMap<String, Boolean>) filterOnCugex(itemNumber, filterResults)
         logger.debug("ISO or DPH filters, their values are : " + filterResults.get("ISO1") + ", " + filterResults.get("DPH1"))
       }
 
       logger.debug("suno = " + suno)
-      logger.debug("ItemNumber = " + ItemNumber)
+      logger.debug("itemNumber = " + itemNumber)
       popn = ""
-      ExpressionFactory expression_MITPOP = database.getExpressionFactory("MITPOP")
-      expression_MITPOP = expression_MITPOP.eq("MPREMK", "SIGMA6")
-      DBAction MITPOP_query = database.table("MITPOP").index("00").matching(expression_MITPOP).selection("MPPOPN").build()
-      DBContainer MITPOP = MITPOP_query.getContainer()
-      MITPOP.set("MPCONO", currentCompany)
-      MITPOP.set("MPALWT", 1)
-      MITPOP.set("MPALWQ", "")
-      MITPOP.set("MPITNO", ItemNumber)
-      if (!MITPOP_query.readAll(MITPOP, 4, outData_MITPOP)) {
+      ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
+      mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")
+      DBAction mitpopQuery = database.table("MITPOP").index("00").matching(mitpopExpression).selection("MPPOPN").build()
+      DBContainer mitpopRequest = mitpopQuery.getContainer()
+      mitpopRequest.set("MPCONO", currentCompany)
+      mitpopRequest.set("MPALWT", 1)
+      mitpopRequest.set("MPALWQ", "")
+      mitpopRequest.set("MPITNO", itemNumber)
+      if (!mitpopQuery.readAll(mitpopRequest, 4, nbMaxRecord, mitpopReader)) {
       }
       logger.debug("popn = " + popn)
 
-      logger.debug("faci_OOLINE = " + faci_OOLINE)
-      csno =""
+      logger.debug("faciOoline = " + faciOoline)
+      csno = ""
       orco = ""
-      DBAction MITFAC_query = database.table("MITFAC").index("00").selection("M9CSNO","M9ORCO").build()
-      DBContainer MITFAC = MITFAC_query.getContainer()
-      MITFAC.set("M9CONO", currentCompany)
-      MITFAC.set("M9FACI", faci_OOLINE)
-      MITFAC.set("M9ITNO", ItemNumber)
-      if(MITFAC_query.read(MITFAC)){
-        csno = MITFAC.get("M9CSNO")
-        orco = MITFAC.get("M9ORCO")
+      DBAction mitfacQuery = database.table("MITFAC").index("00").selection("M9CSNO", "M9ORCO").build()
+      DBContainer mitfacRequest = mitfacQuery.getContainer()
+      mitfacRequest.set("M9CONO", currentCompany)
+      mitfacRequest.set("M9FACI", faciOoline)
+      mitfacRequest.set("M9ITNO", itemNumber)
+      if (mitfacQuery.read(mitfacRequest)) {
+        csno = mitfacRequest.get("M9CSNO")
+        orco = mitfacRequest.get("M9ORCO")
       }
       logger.debug("csno = ${csno} and orco = ${orco}")
 
       sanitary = 0
+      sensitive = 0
+      DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1CONO",
+        "F1FILE",
+        "F1PK01",
+        "F1PK02",
+        "F1PK03",
+        "F1PK04",
+        "F1PK05",
+        "F1PK06",
+        "F1PK07",
+        "F1PK08",
+        "F1CHB9"
+      ).build()
 
+      DBContainer cugex1Request = cugex1Query.getContainer()
+      cugex1Request.set("F1CONO", currentCompany)
+      cugex1Request.set("F1FILE", "MITMAS")
+      cugex1Request.set("F1PK01", itemNumber)
 
+      if (cugex1Query.read(cugex1Request)) {
+        sensitive = cugex1Request.get("F1CHB9")
+      }
 
-      DBAction EXT032_query = database.table("EXT032").index("00").selection("EXZSAN","EXZALC").build()
-      DBContainer EXT032 = EXT032_query.getContainer()
-      EXT032.set("EXCONO", currentCompany)
-      EXT032.set("EXPOPN", popn)
-      EXT032.set("EXSUNO", suno)
-      EXT032.set("EXORCO", orco)
-      if(EXT032_query.read(EXT032)){
-        sanitary = EXT032.get("EXZSAN")
+      DBAction ext032Query = database.table("EXT032").index("00").selection("EXZSAN", "EXZALC").build()
+      DBContainer ext032Request = ext032Query.getContainer()
+      ext032Request.set("EXCONO", currentCompany)
+      ext032Request.set("EXPOPN", popn)
+      ext032Request.set("EXSUNO", suno)
+      ext032Request.set("EXORCO", orco)
+      if (ext032Query.read(ext032Request)) {
+        sanitary = ext032Request.get("EXZSAN")
 
-        boolean alcool = (boolean)EXT032.get("EXZALC")
+        filterResults["SANI"] = sanitary == 1 ? true : false
 
-        logger.debug("Filtre alcool ? : " + quaFilters_input["ALCO"] + " , EXT032 ZALC = ${alcool}")
-        if (quaFilters_input.get("ALCO") && !filterResults.get("ALCO")){
+        boolean alcool = (boolean) ext032Request.get("EXZALC")
+
+        logger.debug("Filtre alcool ? : " + quafiltersInput["ALCO"] + " , EXT032 ZALC = ${alcool}")
+        if (quafiltersInput.get("ALCO") && !filterResults.get("ALCO")) {
           //If alcool already true, don't need to check
-            if(alcool){
-              /*hasAlcool = true
-              isRecordValid = true*/
-              filterResults["ALCO"] = true
-            }
+          if (alcool) {
+            filterResults["ALCO"] = true
+          }
         }
 
       }
       logger.debug("sanitary = " + sanitary)
 
-      // convert to Basic unit
-      /*
-       if (!baseUnit.equals(spun_OOLINE)) {
-       if (dmcs_OOLINE.equals("1")) {
-       allocatedQuantityUB = alqt_MITALO * dmcs_OOLINE
-       } else {
-       allocatedQuantityUB = alqt_MITALO / dmcs_OOLINE
-       }
-       } else {
-       allocatedQuantityUB =  alqt_MITALO
-       }
-       */
-      allocatedQuantityUB =  alqt_MITALO
+      allocatedQuantityUB = alqtMitalo
 
-      double ALQT = new BigDecimal (allocatedQuantityUB).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double GRWE = new BigDecimal (allocatedQuantityUB * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double VOL3 = new BigDecimal (allocatedQuantityUB * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      double ZAAM = new BigDecimal (lnam_OOLINE).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double dAlqt = new BigDecimal(allocatedQuantityUB).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double dGrwe = new BigDecimal(allocatedQuantityUB * weight).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double dVol3 = new BigDecimal(allocatedQuantityUB * volume).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double dZaam = new BigDecimal(lnamOoline).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+      DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUALUN", "MUCOFA").build()
+      DBContainer mitaunRequest = mitaunQuery.getContainer()
+      mitaunRequest.set("MUCONO", currentCompany)
+      mitaunRequest.set("MUITNO", itemNumber)
+      mitaunRequest.set("MUAUTP", 1)
+      mitaunRequest.set("MUALUN", "COL")
+
+      if (mitaunQuery.read(mitaunRequest)) {
+        Double cofa = mitaunRequest.get("MUCOFA")
+        logger.debug("MUCOFA = ${cofa}")
+        nbOfCols = dAlqt / cofa
+        nbOfCols = new BigDecimal(nbOfCols).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+        logger.debug("nbOfCols = ${nbOfCols}")
+      } else {
+        logger.debug("record not found in MITAUN")
+      }
 
 
       logger.debug("line OK")
 
-      if (quaFilters_input.containsValue(true)) {
-        logger.debug("Des filtres sont présents")
+      if (quafiltersInput.containsValue(true)) {
 
-        for(resultKey in filterResults.keySet()){
-          logger.debug("Result for key: ${resultKey} = " + filterResults.get(resultKey))
+        filterResults = (LinkedHashMap<String, Boolean>) filterOnExt036(commande, lineNumber, lineSuffix, filterResults)
+
+        for (resultKey in filterResults.keySet()) {
+          logger.debug("Result for key: ${resultKey} = " + filterResults.get(resultKey) + " for PAL = ${camuMitalo}")
         }
 
-        filterResults = (LinkedHashMap<String, Boolean>) filterOnEXT036(commande,lineNumber, lineSuffix,filterResults )
+        boolean eq = areFiltersEquals()
+        logger.debug("filters equals = ${eq}")
+        isRecordValid = eq ? 1 : 0
 
-        isRecordValid = filterResults.containsValue(false) ? 0 : 1
-      }else{
+      } else {
         isRecordValid = 0
       }
 
+      logger.debug("Record is valid before EXT052: " + isRecordValid)
 
-        logger.debug("Record is valid before EXT052: " + isRecordValid)
+      //Check if record exists
+      DBAction ext052Query = database.table("EXT052")
+        .index("00")
+        .selection(
+          "EXBJNO",
+          "EXCONO",
+          "EXUCA4",
+          "EXUCA5",
+          "EXUCA6",
+          "EXORNO",
+          "EXCAMU",
+          "EXCUNO",
+          "EXCUNM",
+          "EXHAZI",
+          "EXCFI2",
+          "EXZSAN",
+          "EXSENS",
+          "EXALQT",
+          "EXGRWE",
+          "EXVOL3",
+          "EXZAAM",
+          "EXDLIX",
+          "EXCONN",
+          "EXRSCD",
+          "EXCOLS",
+          "EXRGDT",
+          "EXRGTM",
+          "EXLMDT",
+          "EXCHNO",
+          "EXCHID"
+        )
+        .build()
 
-        //Check if record exists
-        DBAction queryEXT052 = database.table("EXT052")
-          .index("00")
-          .selection(
-            "EXBJNO",
-            "EXCONO",
-            "EXUCA4",
-            "EXUCA5",
-            "EXUCA6",
-            "EXORNO",
-            "EXCAMU",
-            "EXCUNO",
-            "EXCUNM",
-            "EXHAZI",
-            "EXCFI2",
-            "EXZSAN",
-            "EXALQT",
-            "EXGRWE",
-            "EXVOL3",
-            "EXZAAM",
-            "EXDLIX",
-            "EXCONN",
-            "EXRSCD",
-            "EXRGDT",
-            "EXRGTM",
-            "EXLMDT",
-            "EXCHNO",
-            "EXCHID"
-          )
-          .build()
-
-        DBContainer containerEXT052 = queryEXT052.getContainer()
-        containerEXT052.set("EXBJNO", jobNumber)
-        containerEXT052.set("EXCONO", currentCompany)
-        containerEXT052.set("EXUCA4", dossier)
-        containerEXT052.set("EXUCA5", semaine)
-        containerEXT052.set("EXUCA6", annee)
-        containerEXT052.set("EXORNO", commande)
-        containerEXT052.set("EXCAMU", camu_MITALO)
+      DBContainer ext052Request = ext052Query.getContainer()
+      ext052Request.set("EXBJNO", jobNumber)
+      ext052Request.set("EXCONO", currentCompany)
+      ext052Request.set("EXUCA4", dossier)
+      ext052Request.set("EXUCA5", semaine)
+      ext052Request.set("EXUCA6", annee)
+      ext052Request.set("EXORNO", commande)
+      ext052Request.set("EXCAMU", camuMitalo)
 
       //Record exists
-      if (queryEXT052.read(containerEXT052)) {
-        Closure<?> updateEXT050 = { LockedResult lockedResultEXT052 ->
-          Long last_dlix = lockedResultEXT052.getLong("EXDLIX")
-          if (last_dlix > 0 && last_dlix != ridi_MITALO) {
+      if (ext052Query.read(ext052Request)) {
+        Closure<?> updateExt052 = { LockedResult lockedResultEXT052 ->
+          Long lastDlix = lockedResultEXT052.getLong("EXDLIX")
+          if (lastDlix > 0 && lastDlix != ridiMitalo) {
             lockedResultEXT052.set("EXDLIX", 0)
           } else {
-            lockedResultEXT052.set("EXDLIX", ridi_MITALO)
+            lockedResultEXT052.set("EXDLIX", ridiMitalo)
           }
-          if(dangerous == 1)
+          if (dangerous == 1)
             lockedResultEXT052.set("EXHAZI", dangerous)
-          if((int) free2 > 0)
+          if ((int) free2 > 0)
             lockedResultEXT052.set("EXCFI2", 1)
-          if(sanitary == 1)
+          if (sanitary == 1)
             lockedResultEXT052.set("EXZSAN", sanitary)
-          if(isRecordValid == 1)
+          if (sensitive == 1) {
+            lockedResultEXT052.set("EXSENS", sensitive)
+          }
+          if (isRecordValid == 1)
             lockedResultEXT052.set("EXFILT", isRecordValid)
-          lockedResultEXT052.set("EXALQT", lockedResultEXT052.getDouble("EXALQT") + ALQT)
-          lockedResultEXT052.set("EXGRWE", lockedResultEXT052.getDouble("EXGRWE") + GRWE)
-          lockedResultEXT052.set("EXVOL3", lockedResultEXT052.getDouble("EXVOL3") + VOL3)
-          lockedResultEXT052.set("EXZAAM", lockedResultEXT052.getDouble("EXZAAM") + ZAAM)
+          lockedResultEXT052.set("EXALQT", lockedResultEXT052.getDouble("EXALQT") + dAlqt)
+          lockedResultEXT052.set("EXGRWE", lockedResultEXT052.getDouble("EXGRWE") + dGrwe)
+          lockedResultEXT052.set("EXVOL3", lockedResultEXT052.getDouble("EXVOL3") + dVol3)
+          lockedResultEXT052.set("EXZAAM", lockedResultEXT052.getDouble("EXZAAM") + dZaam)
+          lockedResultEXT052.set("EXCOLS", lockedResultEXT052.getDouble("EXCOLS") + nbOfCols)
           lockedResultEXT052.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-          lockedResultEXT052.setInt("EXCHNO", ((Integer)lockedResultEXT052.get("EXCHNO") + 1))
+          lockedResultEXT052.setInt("EXCHNO", ((Integer) lockedResultEXT052.get("EXCHNO") + 1))
           lockedResultEXT052.set("EXCHID", program.getUser())
           lockedResultEXT052.update()
+
         }
-        queryEXT052.readLock(containerEXT052, updateEXT050)
+        ext052Query.readLock(ext052Request, updateExt052)
       } else {
-        containerEXT052.set("EXBJNO", jobNumber)
-        containerEXT052.set("EXCONO", currentCompany)
-        containerEXT052.set("EXUCA4", dossier)
-        containerEXT052.set("EXUCA5", semaine)
-        containerEXT052.set("EXUCA6", annee)
-        containerEXT052.set("EXORNO", commande)
-        containerEXT052.set("EXCUNO", cust_number)
-        containerEXT052.set("EXCUNM", cust_name)
-        containerEXT052.set("EXHAZI", dangerous)
-        containerEXT052.set("EXCFI2", free2)
-        containerEXT052.set("EXZSAN", sanitary)
-        containerEXT052.set("EXFILT", isRecordValid)
-        containerEXT052.set("EXALQT", ALQT)
-        containerEXT052.set("EXGRWE", GRWE)
-        containerEXT052.set("EXVOL3", VOL3)
-        containerEXT052.set("EXZAAM", ZAAM)
-        containerEXT052.set("EXDLIX", ridi_MITALO)
-        containerEXT052.set("EXCONN", conn_MHDISH)
-        containerEXT052.set("EXRSCD", rscd_MHDISH)
-        containerEXT052.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
-        containerEXT052.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
-        containerEXT052.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-        containerEXT052.set("EXCHNO", 1)
-        containerEXT052.set("EXCHID", program.getUser())
-        queryEXT052.insert(containerEXT052)
+        ext052Request.set("EXBJNO", jobNumber)
+        ext052Request.set("EXCONO", currentCompany)
+        ext052Request.set("EXUCA4", dossier)
+        ext052Request.set("EXUCA5", semaine)
+        ext052Request.set("EXUCA6", annee)
+        ext052Request.set("EXORNO", commande)
+        ext052Request.set("EXCUNO", custNumber)
+        ext052Request.set("EXCUNM", custName)
+        ext052Request.set("EXHAZI", dangerous)
+        ext052Request.set("EXCFI2", free2)
+        ext052Request.set("EXZSAN", sanitary)
+        ext052Request.set("EXFILT", isRecordValid)
+        ext052Request.set("EXALQT", dAlqt)
+        ext052Request.set("EXGRWE", dGrwe)
+        ext052Request.set("EXVOL3", dVol3)
+        ext052Request.set("EXZAAM", dZaam)
+        ext052Request.set("EXSENS", sensitive)
+        ext052Request.set("EXCOLS", nbOfCols)
+        ext052Request.set("EXDLIX", ridiMitalo)
+        ext052Request.set("EXCONN", connMhdish)
+        ext052Request.set("EXRSCD", rscdMhdish)
+        ext052Request.set("EXRGDT", utility.call("DateUtil", "currentDateY8AsInt"))
+        ext052Request.set("EXRGTM", utility.call("DateUtil", "currentTimeAsInt"))
+        ext052Request.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
+        ext052Request.set("EXCHNO", 1)
+        ext052Request.set("EXCHID", program.getUser())
+        ext052Query.insert(ext052Request)
       }
 
+      isRecordValid = 0
+
+      initFilters()
 
     }
   }
 
+  /**
+   * Retrieve MHDISL data
+   */
   Closure<?> DataMHDISL = { DBContainer containerMHDISL ->
     lineIndex = containerMHDISL.getLong("URDLIX")
     sameIndex = true
     foundLineIndex = true
   }
 
-  Closure<?> outData = { DBContainer containerEXT052 ->
-    String dossierEXT052 = containerEXT052.get("EXUCA4")
-    String semaineEXT052 = containerEXT052.get("EXUCA5")
-    String anneeEXT052 = containerEXT052.get("EXUCA6")
-    String camuEXT052 = containerEXT052.get("EXCAMU")
-    String commandeEXT052 = containerEXT052.get("EXORNO")
-    String customerEXT052 = containerEXT052.get("EXCUNO")
-    String custNameEXT052 = containerEXT052.get("EXCUNM")
-    String dangerousEXT052 = containerEXT052.get("EXHAZI")
-    String free2EXT052 = containerEXT052.get("EXCFI2")
-    String sanitaryEXT052 = containerEXT052.get("EXZSAN")
-    String allocatedEXT052 = containerEXT052.get("EXALQT")
-    String weightEXT052 = containerEXT052.get("EXGRWE")
-    String volumeEXT052 = containerEXT052.get("EXVOL3")
-    String amountEXT052 = containerEXT052.get("EXZAAM")
-    String indexEXT052 = containerEXT052.get("EXDLIX")
-    String shipmentEXT052 = containerEXT052.get("EXCONN")
-    String reasonCodeEXT052 = containerEXT052.get("EXRSCD")
-    String filterEXT052 = containerEXT052.get("EXFILT")
-    logger.debug("EXT052 RSCD = " + containerEXT052.get("EXRSCD"))
-    logger.debug("reasonCodeEXT052 = " + reasonCodeEXT052)
+  /**
+   * Retrieve EXT052 data
+   */
+  Closure<?> ext052Reader = { DBContainer ext052Result ->
+    String dossierExt052 = ext052Result.get("EXUCA4")
+    String semaineExt052 = ext052Result.get("EXUCA5")
+    String anneeExt052 = ext052Result.get("EXUCA6")
+    String camuExt052 = ext052Result.get("EXCAMU")
+    String commandeExt052 = ext052Result.get("EXORNO")
+    String customerExt052 = ext052Result.get("EXCUNO")
+    String custNameExt052 = ext052Result.get("EXCUNM")
+    String dangerousExt052 = ext052Result.get("EXHAZI")
+    String free2Ext052 = ext052Result.get("EXCFI2")
+    String sanitaryExt052 = ext052Result.get("EXZSAN")
+    String sensitiveExt052 = ext052Result.get("EXSENS")
+    String allocatedExt052 = ext052Result.get("EXALQT")
+    String weightExt052 = ext052Result.get("EXGRWE")
+    String volumeExt052 = ext052Result.get("EXVOL3")
+    String amountExt052 = ext052Result.get("EXZAAM")
+    String colsExt052 = ext052Result.get("EXCOLS")
+    String indexExt052 = ext052Result.get("EXDLIX")
+    String shipmentExt052 = ext052Result.get("EXCONN")
+    String reasonCodeExt052 = ext052Result.get("EXRSCD")
+    String filterExt052 = ext052Result.get("EXFILT")
+    logger.debug("EXT052 RSCD = " + ext052Result.get("EXRSCD"))
+    logger.debug("reasonCodeExt052 = " + reasonCodeExt052)
 
-    
-      mi.outData.put("UCA4", dossierEXT052)
-      mi.outData.put("UCA5", semaineEXT052)
-      mi.outData.put("UCA6", anneeEXT052)
-      mi.outData.put("CAMU", camuEXT052)
-      mi.outData.put("ORNO", commandeEXT052)
-      mi.outData.put("CUNO", customerEXT052)
-      mi.outData.put("CUNM", custNameEXT052)
-      mi.outData.put("HAZI", dangerousEXT052)
-      mi.outData.put("CFI2", free2EXT052)
-      mi.outData.put("ZSAN", sanitaryEXT052)
-      mi.outData.put("ALQT", allocatedEXT052)
-      mi.outData.put("GRWE", weightEXT052)
-      mi.outData.put("VOL3", volumeEXT052)
-      mi.outData.put("ZAAM", amountEXT052)
-      mi.outData.put("DLIX", indexEXT052)
-      mi.outData.put("CONN", shipmentEXT052)
-      mi.outData.put("RSCD", reasonCodeEXT052)
 
-    if(quaFilters_input.containsValue(true)){
-      if(filterEXT052 == "1"){
+    mi.outData.put("UCA4", dossierExt052)
+    mi.outData.put("UCA5", semaineExt052)
+    mi.outData.put("UCA6", anneeExt052)
+    mi.outData.put("CAMU", camuExt052)
+    mi.outData.put("ORNO", commandeExt052)
+    mi.outData.put("CUNO", customerExt052)
+    mi.outData.put("CUNM", custNameExt052)
+    mi.outData.put("HAZI", dangerousExt052)
+    mi.outData.put("CFI2", free2Ext052)
+    mi.outData.put("ZSAN", sanitaryExt052)
+    mi.outData.put("SENS", sensitiveExt052)
+    mi.outData.put("COLS", colsExt052)
+    mi.outData.put("ALQT", allocatedExt052)
+    mi.outData.put("GRWE", weightExt052)
+    mi.outData.put("VOL3", volumeExt052)
+    mi.outData.put("ZAAM", amountExt052)
+    mi.outData.put("DLIX", indexExt052)
+    mi.outData.put("CONN", shipmentExt052)
+    mi.outData.put("RSCD", reasonCodeExt052)
+
+    if (quafiltersInput.containsValue(true)) {
+      if (filterExt052 == "1") {
         mi.write()
-      }  
-    }else{
+      }
+    } else {
       mi.write()
     }
-    
-      
-
-    
-
-
-
-
   }
 
-  Closure<?> outData_MITPOP = { DBContainer MITPOP ->
-    popn = MITPOP.get("MPPOPN")
+  /**
+   * Retrieve MITPOP data
+   */
+  Closure<?> mitpopReader = { DBContainer mitpopResult ->
+    popn = mitpopResult.get("MPPOPN")
   }
+  /**
+   * Delete
+   */
   Closure<?> deleteCallBack = { LockedResult lockedResult ->
     lockedResult.delete()
   }
-  Closure<?> outData_MHDISL = { DBContainer MHDISL ->
-    ridi_MITALO = MHDISL.get("URDLIX")
-    logger.debug("found MHDISL RIDI: " + ridi_MITALO)
+  /**
+   * Retrieve MHDISL data
+   */
+  Closure<?> mhdislReader = { DBContainer mhdislResult ->
+    ridiMitalo = mhdislResult.get("URDLIX")
+    logger.debug("found MHDISL RIDI: " + ridiMitalo)
   }
 
-  private filterBeerAndWine(cfi4,filterResults){
+  /**
+   * Filter beer and wine
+   */
+  private filterBeerAndWine(cfi4, filterResults) {
     logger.debug("MMCFI4 : ${cfi4}")
 
-    //TODO : remove hard values
-    if(cfi4 == "S" || cfi4 == "T"){
-      /*hasBeer = true
-      logger.debug("record cfi4 = ${cfi4}, hasBeer : ${hasBeer}")*/
+    if (cfi4 == "S" || cfi4 == "T") {
       filterResults["BIER"] = true
-      filterResults["ALCO"] = true
-    }else if(cfi4 == "1" || cfi4 == "2" || cfi4 == "3" || cfi4 == "4" || cfi4 == "5" || cfi4 == "6" || cfi4 == "9"
+    } else if (cfi4 == "1" || cfi4 == "2" || cfi4 == "3" || cfi4 == "4" || cfi4 == "5" || cfi4 == "6" || cfi4 == "9"
       || cfi4 == "B" || cfi4 == "C" || cfi4 == "D" || cfi4 == "K" || cfi4 == "L" || cfi4 == "M" || cfi4 == "N"
       || cfi4 == "Q" || cfi4 == "U" || cfi4 == "X"
-    ){
-      //hasWine = true
+    ) {
       filterResults["VIN1"] = true
-      filterResults["ALCO"] = true
     }
 
     return filterResults
   }
 
-  private filterOnCugex(itno, filterResults){
+  /**
+   * Filter on CUGEX1
+   */
+  private filterOnCugex(itno, filterResults) {
 
-    LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>)filterResults
+    LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>) filterResults
 
-    DBAction query_CUGEX1 = database.table("CUGEX1").index("00").selection("F1CHB9", "F1CHB6").build()
-    DBContainer CUGEX1 = query_CUGEX1.getContainer()
-    CUGEX1.set("F1CONO", currentCompany)
-    CUGEX1.set("F1FILE", "MITMAS")
-    CUGEX1.set("F1PK01", itno)
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1CHB9", "F1CHB6").build()
+    DBContainer cugex1Request = cugex1Query.getContainer()
+    cugex1Request.set("F1CONO", currentCompany)
+    cugex1Request.set("F1FILE", "MITMAS")
+    cugex1Request.set("F1PK01", itno)
 
     logger.debug("In function filterOnCugex with ITNO: ${itno}")
 
     int chb6 = 0
     int chb9 = 0
 
-    if(query_CUGEX1.readAll(CUGEX1,3,1, { DBContainer closureCugex1 ->
-      chb6 = closureCugex1.get("F1CHB6")
-      chb9 = closureCugex1.get("F1CHB9")
-    })){
-      logger.debug("Get filters in Cugex : CHB6 = " + CUGEX1.get("F1CHB6") + " and CHB9 = " + CUGEX1.get("F1CHB9") + "pour Article=${itno}")
-      if(chb6 == 1){
-        if(results.containsKey("DPH1")){
+    if (cugex1Query.readAll(cugex1Request, 3, 1, { DBContainer cugex1Result ->
+      chb6 = cugex1Result.get("F1CHB6")
+      chb9 = cugex1Result.get("F1CHB9")
+    })) {
+      logger.debug("Get filters in Cugex : CHB6 = " + cugex1Request.get("F1CHB6") + " and CHB9 = " + cugex1Request.get("F1CHB9") + "pour Article=${itno}")
+      if (chb6 == 1) {
+        if (results.containsKey("DPH1")) {
           results["DPH1"] = true
         }
       }
 
-      if(chb9 == 1){
-        if(results.containsKey("ISO1")){
+      if (chb9 == 1) {
+        if (results.containsKey("ISO1")) {
           results["ISO1"] = true
         }
       }
@@ -747,61 +780,65 @@ public class LstPallet extends ExtendM3Transaction {
     }
   }
 
-  private filterOnEXT036(orno, ponr, posx, filterResults){
+  /**
+   * Filter on EXT036
+   */
+  private filterOnExt036(orno, ponr, posx, filterResults) {
 
-    LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>)filterResults
+    LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>) filterResults
     posx = posx == null ? 0 : posx
 
-    DBAction query_EXT036 = database.table("EXT036").index("00").selection("EXORNO","EXPONR","EXITNO","EXZSTY", "EXZCTY").build()
-    DBContainer containerEXT036 = query_EXT036.getContainer()
-    containerEXT036.set("EXCONO", currentCompany)
-    containerEXT036.set("EXORNO", orno)
-    containerEXT036.set("EXPONR", ponr as Integer)
-    containerEXT036.set("EXPOSX", posx  as Integer)
+    DBAction ext036Query = database.table("EXT036").index("00").selection("EXORNO", "EXPONR", "EXITNO", "EXZSTY", "EXZCTY").build()
+    DBContainer ext036Request = ext036Query.getContainer()
+    ext036Request.set("EXCONO", currentCompany)
+    ext036Request.set("EXORNO", orno)
+    ext036Request.set("EXPONR", ponr as Integer)
+    ext036Request.set("EXPOSX", posx as Integer)
 
     String zcty = ""
     String zsty = ""
     String itno = ""
-    if(query_EXT036.readAll(containerEXT036, 4,50, {DBContainer closureEXT036 ->
-      zcty = closureEXT036.get("EXZCTY")
-      zsty = closureEXT036.get("EXZSTY")
-      itno = closureEXT036.get("EXITNO")
-    })){
-      logger.debug("In EXT036 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}" )
+    if (ext036Query.readAll(ext036Request, 4, 50, { DBContainer ext036Reader ->
+      zcty = ext036Reader.get("EXZCTY")
+      zsty = ext036Reader.get("EXZSTY")
+      itno = ext036Reader.get("EXITNO")
+    })) {
+      logger.debug("In EXT036 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}")
 
-      if(results.containsKey("PHYT") && zcty.trim() == "PHYTOSANITAIRE"){
+      if (results.containsKey("PHYT") && zcty.trim() == "PHYTOSANITAIRE") {
         results["PHYT"] = true
       }
 
-      if(results.containsKey("SANI") && zcty.trim() == "SANITAIRE"){
+      if (results.containsKey("SANI") && zcty.trim() == "SANITAIRE") {
+        logger.debug("In EXT036 , SANI = " + zcty.trim())
         results["SANI"] = true
       }
 
-      if(results.containsKey("PETF") && zsty.trim() == "PET"){
+      if (results.containsKey("PETF") && zsty.trim() == "PET") {
         results["PETF"] = true
       }
 
-      if(results.containsKey("LAIT") && zsty.trim() == "LAI"){
+      if (results.containsKey("LAIT") && zsty.trim() == "LAI") {
         results["LAIT"] = true
       }
 
-      if(results.containsKey("CHAM") && zsty.trim() == "CHA"){
+      if (results.containsKey("CHAM") && zsty.trim() == "CHA") {
         results["CHAM"] = true
       }
 
-      if(results.containsKey("DGX1") && zsty.trim() == "DGX"){
+      if (results.containsKey("DGX1") && zsty.trim() == "DGX") {
         results["DGX1"] = true
       }
 
-      if(results.containsKey("DGX4") && zsty.trim() == "DGX"){
-        DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMHAC1").build()
-        DBContainer containerMITMAS = query_MITMAS.getContainer()
-        containerMITMAS.set("MMCONO", currentCompany)
-        containerMITMAS.set("MMITNO", itno)
+      if (results.containsKey("DGX4") && zsty.trim() == "DGX") {
+        DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMHAC1").build()
+        DBContainer mitmasRequest = mitmasQuery.getContainer()
+        mitmasRequest.set("MMCONO", currentCompany)
+        mitmasRequest.set("MMITNO", itno)
 
-        if(query_MITMAS.read(containerMITMAS)){
-          String haci = containerMITMAS.get("MMHAC1")
-          if(haci == "4.1" || haci == "4.2" || haci == "4.3"){
+        if (mitmasQuery.read(mitmasRequest)) {
+          String haci = mitmasRequest.get("MMHAC1")
+          if (haci == "4.1" || haci == "4.2" || haci == "4.3") {
             results["DGX4"] = true
           }
         }
@@ -810,5 +847,40 @@ public class LstPallet extends ExtendM3Transaction {
     }
 
     return results
+  }
+
+  /**
+   * Initialize filters
+   */
+  private initFilters() {
+    filterResults = new LinkedHashMap<>()
+
+    for (key in quafiltersInput.keySet()) {
+      if (quafiltersInput.get(key) == true) {
+        filterResults.put(key, false)
+      }
+    }
+
+  }
+
+  /**
+   * Check if filters are equals
+   */
+  private boolean areFiltersEquals() {
+    Set<String> quaFiltersKeys = quafiltersInput.keySet()
+    Collection<Boolean> quaFiltersValues = quafiltersInput.values()
+
+    Set<String> filterResultsKeys = filterResults.keySet()
+    Collection<Boolean> filterResultValues = filterResults.values()
+
+    quaFiltersKeys.each { key ->
+      logger.debug("quaFilters[${key}] = " + quafiltersInput[key])
+    }
+
+    filterResultsKeys.each { key ->
+      logger.debug("filterResultsKeys[${key}] = " + filterResults[key])
+    }
+
+    return quafiltersInput.entrySet().containsAll(filterResults.entrySet())
   }
 }

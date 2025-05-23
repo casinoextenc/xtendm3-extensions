@@ -6,7 +6,7 @@
  * Description : Select records to the EXT030 table.
  * Date         Changed By   Description
  * 20230210     SEAR         QUAX01 - Constraints matrix
- * 20230620     FLEBARS      QUAX01 - evol contrainte 
+ * 20230620     FLEBARS      QUAX01 - evol contrainte
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */

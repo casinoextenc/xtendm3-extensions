@@ -107,6 +107,7 @@ public class UpdAssortHist extends ExtendM3Transaction {
       return
     }
   }
+  // Update EXT021
   Closure<?> ext021Udpater = {
     LockedResult ext021LockedResult ->
       LocalDateTime timeOfCreation = LocalDateTime.now()

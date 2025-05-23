@@ -5,7 +5,7 @@
  * Name : EXT031MI.DelConstrType
  * Description : Delete records from the EXT031 table.
  * Date         Changed By   Description
- * 20230201     SEAR         QUAX01 - Constraints matrix 
+ * 20230201     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 public class DelConstrType extends ExtendM3Transaction {

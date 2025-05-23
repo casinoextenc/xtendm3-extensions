@@ -55,7 +55,10 @@ public class DelAssortCriter extends ExtendM3Transaction {
     ext020Request.set("EXCUNO", cuno)
     ext020Request.set("EXASCD", ascd)
     ext020Request.setInt("EXFDAT", fdat as Integer)
-    if (!ext020Query.readLock(ext020Request, updateCallBack)) {
+    Closure<?> ext020Updater = { LockedResult ext020LockedResult ->
+      ext020LockedResult.delete()
+    }
+    if (!ext020Query.readLock(ext020Request, ext020Updater)) {
       mi.error("L'enregistrement n'existe pas")
       return
     }
@@ -66,9 +69,14 @@ public class DelAssortCriter extends ExtendM3Transaction {
     ext021Request.set("EXCUNO", cuno)
     ext021Request.set("EXASCD", ascd)
     ext021Request.setInt("EXFDAT", fdat as Integer)
-    if (!ext021Query.readAllLock(ext021Request, 4, updateCallBack)) {
+    Closure<?> ext021Reader = { DBContainer ext021Result ->
+      Closure<?> ext021Updater = { LockedResult ext021LockedResult ->
+        ext021LockedResult.delete()
+      }
+      ext021Query.readLock(ext021Result, ext021Updater)
+    }
+    if (!ext021Query.readAll(ext021Request, 4, 10000, ext021Reader)) {
     }
   }
-  Closure<?> updateCallBack = { LockedResult lockedResult -> lockedResult.delete()
-  }
+
 }

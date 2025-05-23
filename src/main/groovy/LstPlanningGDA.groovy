@@ -1,12 +1,12 @@
 /**
- * Name : EXT010MI.AddRefAsso
- * 
- * Description : 
- * This API method to add records in specific table EXT010 Customer Assortment
- * 
- * 
+ * Name : EXT012MI.LstPlanningGDA
+ *
+ * Description :
+ * This API method to list Planning GDA
+ *
+ *
  * Date         Changed By    Description
- * 20230308     SEAR       Creation
+ * 20230308     SEAR          APP02 - Planning GDA
  */
 public class LstPlanningGDA extends ExtendM3Transaction {
   private final MIAPI mi
@@ -17,7 +17,7 @@ public class LstPlanningGDA extends ExtendM3Transaction {
 
   private int currentCompany
   private String errorMessage
-
+  private Integer nbMaxRecord = 10000
 
   public LstPlanningGDA(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility) {
     this.mi = mi
@@ -43,22 +43,22 @@ public class LstPlanningGDA extends ExtendM3Transaction {
     int drgd = (Integer)(mi.in.get("DRGD") != null ? mi.in.get("DRGD") : 0)
     int hrgd = (Integer)(mi.in.get("HRGD") != null ? mi.in.get("HRGD") : 0)
     int nbfilters = 1
-    
-    
+
+
     String customerCode = (mi.in.get("CUNO") != null ? (String)mi.in.get("CUNO") : "")
     String supplierCode = (mi.in.get("SUNO") != null ? (String)mi.in.get("SUNO") : "")
     String Assortment =  (mi.in.get("ASGD") != null ? (String)mi.in.get("ASGD") : "")
     String pickupDate = (mi.in.get("DRGD") != null ? (Integer)mi.in.get("DRGD") : 0)
     String pickuptHour = (mi.in.get("HRGD") != null ? (Integer)mi.in.get("HRGD") : 0)
-    
+
     ExpressionFactory expression = database.getExpressionFactory("EXT012")
     expression = expression.ge("EXDRGD", pickupDate)
-        .and(expression.ge("EXHRGD", pickuptHour))
+      .and(expression.ge("EXHRGD", pickuptHour))
 
     DBAction queryEXT012 = database.table("EXT012")
-        .index("00")
-        .matching(expression)
-        .selection(
+      .index("00")
+      .matching(expression)
+      .selection(
         "EXCONO",
         "EXCUNO",
         "EXSUNO",
@@ -71,31 +71,34 @@ public class LstPlanningGDA extends ExtendM3Transaction {
         "EXLMDT",
         "EXCHNO",
         "EXCHID"
-        )
-        .build()
-        
+      )
+      .build()
+
     DBContainer containerEXT012 = queryEXT012.getContainer()
     containerEXT012.set("EXCONO", currentCompany)
     if (customerCode.length() > 0) {
       containerEXT012.set("EXCUNO", customerCode)
-      nbfilters++;
+      nbfilters++
     }
     if (customerCode.length() > 0 && supplierCode.length() > 0) {
       containerEXT012.set("EXSUNO", supplierCode)
-      nbfilters++;
+      nbfilters++
     }
     if (customerCode.length() > 0 && supplierCode.length() > 0 && Assortment.length() > 0) {
       containerEXT012.set("EXASGD", Assortment)
-      nbfilters++;
+      nbfilters++
     }
 
 
     //Record exists
-    if (!queryEXT012.readAll(containerEXT012, nbfilters, outData)){
+    if (!queryEXT012.readAll(containerEXT012, nbfilters, nbMaxRecord, outData)){
       mi.error("L'enregistrement n'existe pas")
       return
     }
   }
+  /**
+   * Write outData
+   */
   Closure<?> outData = { DBContainer containerEXT012 ->
     String customerCode = containerEXT012.get("EXCUNO")
     String supplierCode = containerEXT012.get("EXSUNO")

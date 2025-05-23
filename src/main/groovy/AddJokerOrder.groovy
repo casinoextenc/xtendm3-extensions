@@ -1,4 +1,3 @@
-
 /**
  * README
  * This extension is used by Mashup
@@ -22,17 +21,19 @@ public class AddJokerOrder extends ExtendM3Transaction {
   private final UtilityAPI utility
   private String parm
   private int currentCompany
-  private String orno_input
-  private String whlo_input
-  private int OOHEAD_ordt
-  private int OOHEAD_cudt
-  private String OOHEAD_ortp
-  private String new_orno
-  private double MITAUN_cofa
+  private String ornoInput
+  private String whloInput
+  private int ooheadOrdt
+  private int ooheadCudt
+  private String ooheadOrtp
+  private String newOrno
+  private String oolineWhlo
+  private double mitaunCofa
   private int dmcf
-  private String MITMAS_puun
+  private String mitmasPuun
 
   private String jobNumber
+  private Integer nbMaxRecord = 10000
 
   public AddJokerOrder(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -47,161 +48,192 @@ public class AddJokerOrder extends ExtendM3Transaction {
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
 
-    currentCompany = (Integer)program.getLDAZD().CONO
-
+    currentCompany = (Integer) program.getLDAZD().CONO
 
     //Get mi inputs
-    jobNumber = (mi.in.get("BJNO") != null ? (String)mi.in.get("BJNO") : program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")))
-    orno_input = (mi.in.get("ORNO") != null ? (String)mi.in.get("ORNO") : "")
-    whlo_input = (mi.in.get("WHLO") != null ? (String)mi.in.get("WHLO") : "")
+    jobNumber = (mi.in.get("BJNO") != null ? (String) mi.in.get("BJNO") : program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")))
+    ornoInput = (mi.in.get("ORNO") != null ? (String) mi.in.get("ORNO") : "")
+    whloInput = (mi.in.get("WHLO") != null ? (String) mi.in.get("WHLO") : "")
 
     //Check if record exists in Table (EXT055)
-    DBAction GetqueryEXT055 = database.table("EXT055").index("00").selection("EXBJNO").build()
-    DBContainer GetContainerEXT055 = GetqueryEXT055.getContainer()
-    GetContainerEXT055.set("EXBJNO", jobNumber)
+    DBAction getQueryEXT055 = database.table("EXT055").index("00").selection("EXBJNO").build()
+    DBContainer getContainerEXT055 = getQueryEXT055.getContainer()
+    getContainerEXT055.set("EXBJNO", jobNumber)
     //Record exists
-    if (!GetqueryEXT055.readAll(GetContainerEXT055, 1, GetEXT055)){
+    if (!getQueryEXT055.readAll(getContainerEXT055, 1, nbMaxRecord, getEXT055)) {
       mi.error("Numéro de job " + jobNumber + " n'existe pas dans la table EXT055")
     }
 
-    DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection("OAORNO","OAORDT","OACUDT", "OAORTP").build()
-    DBContainer OOHEAD = OOHEAD_query.getContainer()
+    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBORNO", "OBWHLO").build()
+    DBContainer oolineContainer = oolineQuery.getContainer()
+    oolineContainer.set("OBCONO", currentCompany)
+    oolineContainer.set("OBORNO", ornoInput)
+
+    oolineWhlo = ""
+
+    if (oolineQuery.readAll(oolineContainer, 2, 1, { DBContainer result ->
+      oolineWhlo = result.get("OBWHLO").toString()
+      logger.debug("Line WHLO : ${oolineWhlo} for ORNO : ${ornoInput}")
+    })) {
+    }
+
+
+    DBAction ooheadQuery = database.table("OOHEAD").index("00").selection("OAORNO", "OAORDT", "OACUDT", "OACUNO", "OAROUT", "OAORTP", "OARLDT", "OAFACI", "OAWHLO", "OARESP", "OASMCD", "OATEDL", "OAMODL", "OAADID", "OACUDT", "OAUCA1", "OAUCA2", "OAUCA3", "OAUCA4", "OAUCA5", "OAUCA6", "OAUCA7", "OAUCA8", "OAUCA9", "OAUDN1", "OAUID1", "OAUID2", "OAUID3").build()
+    DBContainer OOHEAD = ooheadQuery.getContainer()
     OOHEAD.set("OACONO", currentCompany)
-    OOHEAD.set("OAORNO", orno_input)
-    if(!OOHEAD_query.read(OOHEAD)) {
-      mi.error("Le numéro de commande " + orno_input + " n'existe pas")
+    OOHEAD.set("OAORNO", ornoInput)
+    if (!ooheadQuery.read(OOHEAD)) {
+      mi.error("Le numéro de commande " + ornoInput + " n'existe pas")
       return
     } else {
-      OOHEAD_ordt = OOHEAD.getInt("OAORDT")
-      OOHEAD_cudt = OOHEAD.getInt("OACUDT")
-      OOHEAD_ortp = OOHEAD.get("OAORTP")
-    }
+      ooheadOrdt = OOHEAD.getInt("OAORDT")
+      ooheadCudt = OOHEAD.getInt("OACUDT")
+      ooheadOrtp = OOHEAD.get("OAORTP")
 
-    executeOIS100MICpyOrder(currentCompany.toString(), orno_input, OOHEAD_ortp, "1", "1", "1")
+      String cuor = ornoInput + "J"
 
-    DBAction OOHEADUpdate_query = database.table("OOHEAD").index("00").selection("OAORNO").build()
-    DBContainer OOHEADUpdate = OOHEADUpdate_query.getContainer()
-    OOHEAD.set("OACONO", currentCompany)
-    OOHEAD.set("OAORNO", new_orno)
+      Map<String, String> orderParams = [
+        CONO: currentCompany.toString(),
+        ORTP: "R01",
+        CUNO: OOHEAD.get("OACUNO").toString(),
+        ORDT: timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+        CUDT: OOHEAD.get("OACUDT").toString(),
+        CUOR: cuor,
+        FACI: OOHEAD.get("OAFACI").toString(),
+        WHLO: OOHEAD.get("OAWHLO").toString(),
+        RESP: OOHEAD.get("OARESP").toString(),
+        SMCD: OOHEAD.get("OASMCD").toString(),
+        TEDL: OOHEAD.get("OATEDL").toString(),
+        MODL: OOHEAD.get("OAMODL").toString(),
+        ADID: OOHEAD.get("OAADID").toString(),
+        UCA4: OOHEAD.get("OAUCA4").toString(),
+        UCA5: OOHEAD.get("OAUCA5").toString(),
+        UCA6: OOHEAD.get("OAUCA6").toString(),
+        UDN1: "0",
+        UID1: "0",
+        UID2: "0",
+        UID3: "0",
+        RLHM: "2200"
+      ]
 
-    // Update OOHEAD
-    Closure<?> updateCallBack = { LockedResult lockedResult ->
-      int changeNumber = lockedResult.get("OACHNO")
-      lockedResult.set("OACUDT", OOHEAD_cudt)
-      lockedResult.set("OAORDT", OOHEAD_ordt)
-      lockedResult.setInt("OALMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      lockedResult.setInt("OACHNO", changeNumber + 1)
-      lockedResult.set("OACHID", program.getUser())
-      lockedResult.update()
-    }
+      executeOIS100MIAddBatchHead(orderParams)
 
-    if(!OOHEAD_query.readLock(OOHEAD, updateCallBack)) {
     }
 
     // list out data
-    DBAction ListqueryEXT055 = database.table("EXT055").index("00").selection("EXBJNO","EXITNO","EXZQUV","EXZPQA","EXCOFA").build()
-    DBContainer ListContainerEXT055 = ListqueryEXT055.getContainer()
-    ListContainerEXT055.set("EXBJNO", jobNumber)
+    DBAction listqueryEXT055 = database.table("EXT055").index("00").selection("EXBJNO", "EXITNO", "EXZQUV", "EXZPQA", "EXCOFA").build()
+    DBContainer listContainerEXT055 = listqueryEXT055.getContainer()
+    listContainerEXT055.set("EXBJNO", jobNumber)
     //Record exists
-    if (!ListqueryEXT055.readAll(ListContainerEXT055, 1, ListEXT055)){
+    if (!listqueryEXT055.readAll(listContainerEXT055, 1, nbMaxRecord, ListEXT055)) {
     }
-    
+
+    executeOIS100MIConfirm()
+
     // delete workfile
-    DBAction DelQuery = database.table("EXT055").index("00").build()
-    DBContainer DelcontainerEXT055 = DelQuery.getContainer()
-    DelcontainerEXT055.set("EXBJNO", jobNumber)
-    if(!DelQuery.readAllLock(DelcontainerEXT055, 1, deleteCallBack)){
+    DBAction delQuery = database.table("EXT055").index("00").build()
+    DBContainer delcontainerEXT055 = delQuery.getContainer()
+    delcontainerEXT055.set("EXBJNO", jobNumber)
+    if (!delQuery.readAllLock(delcontainerEXT055, 1, deleteCallBack)) {
     }
-    
+  }
+
+  // Execute OIS100MI.AddBatchHead
+  private executeOIS100MIAddBatchHead(params) {
+    Map<String, String> parameters = params as LinkedHashMap
+    parameters.keySet().each { key ->
+      logger.debug("AddBatchHead params = ${key} : " + parameters[key])
+    }
+
+    Closure<?> handlerHead = { Map<String, String> response ->
+      logger.debug("in AddBatchHead wirh response : ${response}")
+      if (response.error != null) {
+        return mi.error("Failed OIS100MI.AddBatchHead: " + response.errorMessage)
+      }
+      logger.debug("New cdv has ORNO : ${newOrno}")
+      newOrno = response.ORNO.trim()
+
+    }
+    miCaller.call("OIS100MI", "AddBatchHead", parameters, handlerHead)
   }
 
   // Execute CRS980MI.CpyOrder
   private executeOIS100MICpyOrder(String CONO, String ORNR, String ORTP, String CORH, String RLDT, String CODT) {
-    def parameters = ["CONO": CONO, "ORNR": ORNR,  "ORTP": "R01", "CORH": CORH, "RLDT": RLDT, "CODT": CODT]
+    Map<String, String> parameters = ["CONO": CONO, "ORNR": ORNR, "ORTP": "R01", "CORH": CORH, "RLDT": RLDT, "CODT": CODT]
+
+    parameters.keySet().each { key ->
+      logger.debug("CopyOrder params = ${key} : " + parameters[key])
+    }
+
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        return mi.error("Failed OIS100MI.CpyOrder: "+ response.errorMessage)
+        return mi.error("Failed OIS100MI.CpyOrder: " + response.errorMessage)
       }
-      new_orno = response.ORNO.trim()
+      newOrno = response.ORNO.trim()
+      logger.debug("Copied cdv has ORNO : ${newOrno}")
     }
     miCaller.call("OIS100MI", "CpyOrder", parameters, handler)
   }
 
+  // Execute OIS100MI.Confirm
+  private executeOIS100MIConfirm() {
+    LinkedHashMap params = ["CONO": currentCompany.toString(), "ORNO": newOrno]
+
+    Closure<?> handlerConfirm = { Map<String, String> response ->
+      if (response.error != null) {
+        return mi.error("Failed OIS100MI.Confirm: " + response.errorMessage)
+      }
+      logger.debug("Confirmed cdv with ORNO : ${newOrno}")
+    }
+
+    miCaller.call("OIS100MI", "Confirm", params, handlerConfirm)
+  }
+
+  // Retrieve EXT055
   Closure<?> ListEXT055 = { DBContainer containerEXT055 ->
 
-    String ItemNumber = containerEXT055.get("EXITNO")
+    logger.debug("in ListEXT055")
+
+    String itemNumber = containerEXT055.get("EXITNO")
     double quantiteUvcEXT055 = containerEXT055.getDouble("EXZQUV")
     double quantitePalEXT055 = containerEXT055.getDouble("EXZPQA")
-	double facteurConversionPalEXT055 = containerEXT055.getDouble("EXCOFA")
+    double facteurConversionPalEXT055 = containerEXT055.getDouble("EXCOFA")
     logger.debug("quantiteUvcEXT055 " + quantiteUvcEXT055)
-	
-	double palQuantity = quantitePalEXT055 * facteurConversionPalEXT055;
-	double TotQuantity = 0
-	
-    /* MITMAS_puun = ""
-    DBAction query_MITMAS = database.table("MITMAS").index("00").selection("MMPUUN","MMHAZI","MMCFI2","MMSUNO").build()
-    DBContainer MITMAS = query_MITMAS.getContainer()
-    MITMAS.set("MMCONO", currentCompany)
-    MITMAS.set("MMITNO", ItemNumber)
-    if(query_MITMAS.read(MITMAS)){
-      MITMAS_puun = MITMAS.get("MMPUUN")
-    }
 
-    double Quantity = quantitePalEXT055
-    double TotQuantity = 0
-    DBAction queryMITAUN00 = database.table("MITAUN").index("00").selection(
-        "MUCONO",
-        "MUITNO",
-        "MUAUTP",
-        "MUALUN",
-        "MUCOFA",
-        "MUDMCF"
-        ).build()
-    DBContainer containerMITAUN = queryMITAUN00.getContainer()
-    containerMITAUN.set("MUCONO", currentCompany)
-    containerMITAUN.set("MUITNO", ItemNumber)
-    containerMITAUN.set("MUAUTP", 1)
-    containerMITAUN.set("MUALUN", MITMAS_puun)
-    if (queryMITAUN00.read(containerMITAUN)) {
-      MITAUN_cofa = containerMITAUN.getDouble("MUCOFA")
-      dmcf = containerMITAUN.getInt("MUDMCF")
-      if (dmcf == 1) {
-        Quantity = quantitePalEXT055 * MITAUN_cofa
-      } else {
-        Quantity = quantitePalEXT055 / MITAUN_cofa
-      }
-    }
-	TotQuantity = Quantity + quantiteUvcEXT055
-	*/
-	
-	TotQuantity = palQuantity + quantiteUvcEXT055
-    
-    /* logger.debug("TotQuantity " + TotQuantity.toString() + " and ALUN : " + MITMAS_puun) */
-	logger.debug("TotQuantity " + TotQuantity.toString())
-    
+    double palQuantity = quantitePalEXT055 * facteurConversionPalEXT055
+    double totQuantity = 0
+
+    totQuantity = palQuantity + quantiteUvcEXT055
+
+    logger.debug("totQuantity " + totQuantity.toString())
+    logger.debug("newOrno " + newOrno.trim().toString())
+    logger.debug("itemNumber " + itemNumber.trim().toString())
+
     // Execute CRS980MI.
-    if (TotQuantity > 0) {
-      executeOIS100MIAddLineBatchEnt(currentCompany.toString(), new_orno, ItemNumber, TotQuantity.toString(), whlo_input, "UVC")
+    if (totQuantity > 0) {
+      executeOIS100MIAddLineBatch(currentCompany.toString(), newOrno.trim(), itemNumber.trim(), totQuantity.toString(), oolineWhlo, "UVC")
     }
   }
 
-  private executeOIS100MIAddLineBatchEnt(String CONO, String ORNO, String ITNO, String ORQT, String WHLO, String ALUN){
-    def parameters = ["CONO": CONO, "ORNO": ORNO, "ITNO": ITNO, "ORQT": ORQT, "WHLO": WHLO, "ALUN": ALUN]
+  // Execute OIS100MI.AddLineBatch
+  private executeOIS100MIAddLineBatch(String CONO, String ORNO, String ITNO, String ORQT, String WHLO, String alun) {
+    Map<String, String> parameters = ["CONO": CONO, "ORNO": ORNO, "ITNO": ITNO, "ORQT": ORQT, "WHLO": WHLO, "ALUN": alun]
+    logger.debug("call OIS100MI AddBatchLine with parameters : ORNO: ${ORNO}, ITNO : ${ITNO}, ORQT: ${ORQT}, WHLO:${WHLO}, ALUN: ${alun}")
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
-        return mi.error("Failed OIS100MI.AddLineBatchEnt: "+ response.errorMessage)
+        return mi.error("Failed OIS100MI.AddBatchLine: " + response.errorMessage)
       }
     }
-    miCaller.call("OIS100MI", "AddLineBatchEnt", parameters, handler)
+    miCaller.call("OIS100MI", "AddBatchLine", parameters, handler)
   }
-  
-  Closure<?> GetEXT055 = { DBContainer containerEXT055 ->
+
+  // Retrieve EXT055
+  Closure<?> getEXT055 = { DBContainer containerEXT055 ->
     return
   }
-  
+
+  // Delete
   Closure<?> deleteCallBack = { LockedResult lockedResult ->
     lockedResult.delete()
   }
 }
-
-

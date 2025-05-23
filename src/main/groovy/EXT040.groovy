@@ -19,7 +19,7 @@
  FLEBARS     2025-04-24  1.1      Changement IDM + SFTP
  RENARN      2025-05-12  1.1.1    Taking into account INFOR standards
  RENARN      2025-05-13  1.1.2    Reading loops have been drastically reduced
- FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239
+ FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239.
  ******************************************************************************************/
 
 import java.time.LocalDateTime

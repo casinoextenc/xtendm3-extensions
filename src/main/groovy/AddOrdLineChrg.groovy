@@ -14,6 +14,7 @@
  YBLUTEAU     2024-08-09   1.3       CMD03 - Prio 7 et SUNO Gold
  YJANNIN      2024-12-11   1.4       CMD03 2.5 - Prio 7
  ARENARD      2025-04-22   1.5       Code has been checked
+ PBEAUDOUIN   2025-05-20   1.6       Change NbrMaxrecord
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -50,7 +51,6 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
   private String crfa
   private boolean recordFound
   private Integer rorc
-  private Integer nbMaxRecord = 10000
 
   public AddOrdLineChrg(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility, MICallerAPI miCaller) {
     this.mi = mi
@@ -307,22 +307,22 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
     requestExt061.set("EXOBV2", a830.trim())
     requestExt061.set("EXOBV3", suno.trim())
     requestExt061.set("EXOBV4", hie3.trim())
-    if (!queryExt061.readAll(requestExt061, 6, nbMaxRecord, outDataExt061)) {
+    if (!queryExt061.readAll(requestExt061, 6, 1000, outDataExt061)) {
       requestExt061.set("EXPREX", " 2")
       requestExt061.set("EXOBV4", hie2.trim())
-      if (!queryExt061.readAll(requestExt061, 6, nbMaxRecord, outDataExt061)) {
+      if (!queryExt061.readAll(requestExt061, 6, 1000, outDataExt061)) {
         requestExt061.set("EXPREX", " 3")
         requestExt061.set("EXOBV4", hie1.trim())
-        if (!queryExt061.readAll(requestExt061, 6, nbMaxRecord, outDataExt061)) {
+        if (!queryExt061.readAll(requestExt061, 6, 1000, outDataExt061)) {
           requestExt061.set("EXPREX", " 4")
           requestExt061.set("EXOBV4", "")
-          if (!queryExt061.readAll(requestExt061, 6, nbMaxRecord, outDataExt061)) {
+          if (!queryExt061.readAll(requestExt061, 6, 1000, outDataExt061)) {
             requestExt061.set("EXPREX", " 5")
             requestExt061.set("EXOBV3", "")
-            if (!queryExt061.readAll(requestExt061, 6, nbMaxRecord, outDataExt061)) {
+            if (!queryExt061.readAll(requestExt061, 6, 1000, outDataExt061)) {
               requestExt061.set("EXPREX", " 6")
               requestExt061.set("EXOBV2", "")
-              if (!queryExt061.readAll(requestExt061, 6, nbMaxRecord, outDataExt061)) {
+              if (!queryExt061.readAll(requestExt061, 6, 1000, outDataExt061)) {
               }
             }
           }

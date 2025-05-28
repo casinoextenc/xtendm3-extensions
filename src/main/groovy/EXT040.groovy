@@ -19,7 +19,7 @@
  FLEBARS     2025-04-24  1.1      Changement IDM + SFTP
  RENARN      2025-05-12  1.1.1    Taking into account INFOR standards
  RENARN      2025-05-13  1.1.2    Reading loops have been drastically reduced
- FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239.
+ FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -67,9 +67,9 @@ public class EXT040 extends ExtendM3Batch {
   private String sigma6
   private String sigma9
   private String sigma9DirectDelivery
-  private String sigma9_NoDirectDelivery
+  private String sigma9NoDirectDelivery
   private String sigma9DirectDeliveryassortment
-  private String sigma9_NoDirectDelivery_assortment
+  private String sigma9NoDirectDeliveryAssortment
   private String stat
   private int chb7
   private String cmde
@@ -87,7 +87,6 @@ public class EXT040 extends ExtendM3Batch {
   private int lineInAlert
   private int lineInControlPrice
 
-  private double currentCOFA
   private double savedCOFA
 
   private String ul
@@ -184,7 +183,8 @@ public class EXT040 extends ExtendM3Batch {
   private String mainAssortment
   private boolean isReedition = false
   private Map<String, String> mithryMap
-
+  private Integer ocusmaN596
+  private Map<String, Map<String, String>> sigma9s
 
   public EXT040(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
     this.logger = logger
@@ -350,7 +350,7 @@ public class EXT040 extends ExtendM3Batch {
       }
     }
     mainAssortment = inCustomer.trim() + "0"
-    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1A230").build()
+    DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1A230", "F1N596").build()
     DBContainer cugex1Request = cugex1Query.getContainer()
     cugex1Request.set("F1CONO", currentCompany)
     cugex1Request.set("F1FILE", "OCUSMA")
@@ -364,9 +364,12 @@ public class EXT040 extends ExtendM3Batch {
     cugex1Request.set("F1PK08", "")
     if (cugex1Query.read(cugex1Request)) {
       String ta230 = cugex1Request.get("F1A230") as String
-      if (ta230.trim().length() > 0) {
+      if (ta230.trim().length() > 0 && ta230.indexOf(inCustomer.trim()) > -1) {
         mainAssortment = ta230.trim()
       }
+      ocusmaN596 = cugex1Request.get("F1N596")
+      if (ocusmaN596 == 0)
+        ocusmaN596 = 30
     }
 
     DBAction oprmtxQuery = database.table("OPRMTX").index("00").selection("DXPRRF").build()
@@ -447,36 +450,25 @@ public class EXT040 extends ExtendM3Batch {
     cugex1MitmasRequest.set("F1PK07", "")
     cugex1MitmasRequest.set("F1PK08", "")
     if (cugex1MitmasQuery.read(cugex1MitmasRequest)) {
-      if (cugex1MitmasRequest.get("F1A830") == "20") {
-        sigma9DirectDelivery = ext040Result.get("EXITNO")
-        sigma9DirectDeliveryassortment = ext040Result.get("EXASCD")
-      } else {
-        DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
-        DBContainer mitaunRequest = mitaunQuery.getContainer()
-        mitaunRequest.set("MUCONO", currentCompany)
-        mitaunRequest.set("MUITNO", ext040Result.get("EXITNO"))
-        mitaunRequest.set("MUAUTP", 1)
-        mitaunRequest.set("MUALUN", "COL")
-        if (cugex1MitmasRequest.get("F1A830") == "30") {
-          savedCOFA = -1
-          sigma9_NoDirectDelivery = ext040Result.get("EXITNO")
-          sigma9_NoDirectDelivery_assortment = ext040Result.get("EXASCD")
-        }
-        if (mitaunQuery.read(mitaunRequest)) {
-          currentCOFA = mitaunRequest.get("MUCOFA")
-          if (savedCOFA == 0) {
-            savedCOFA = currentCOFA
-            sigma9_NoDirectDelivery = ext040Result.get("EXITNO")
-            sigma9_NoDirectDelivery_assortment = ext040Result.get("EXASCD")
-          } else {
-            if (currentCOFA < savedCOFA) {
-              savedCOFA = currentCOFA
-              sigma9_NoDirectDelivery = ext040Result.get("EXITNO")
-              sigma9_NoDirectDelivery_assortment = ext040Result.get("EXASCD")
-            }
-          }
-        }
+      String itno = ext040Result.getString("EXITNO").trim()
+      String ascd = ext040Result.getString("EXASCD").trim()
+      int cofa = 0
+
+      DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()
+      DBContainer mitaunRequest = mitaunQuery.getContainer()
+      mitaunRequest.set("MUCONO", currentCompany)
+      mitaunRequest.set("MUITNO", ext040Result.get("EXITNO"))
+      mitaunRequest.set("MUAUTP", 1)
+      mitaunRequest.set("MUALUN", "COL")
+      if (mitaunQuery.read(mitaunRequest)) {
+        cofa = mitaunRequest.get("MUCOFA") as Integer
       }
+
+      Map<String, String> value = new LinkedHashMap<String, String>()
+      value.put("FLTP", cugex1MitmasRequest.getString("F1A830").trim())
+      value.put("ASCD", ascd)
+      value.put("COFA", "" + cofa)
+      sigma9s.put(itno, value)
     }
   }
 
@@ -487,9 +479,9 @@ public class EXT040 extends ExtendM3Batch {
     sigma6 = ext041Result.get("EXPOPN")
     logMessage("DEBUG", "ext041ReaderWriteInCalendarFile ${sigma6}")
     sigma9DirectDelivery = ""
-    sigma9_NoDirectDelivery = ""
+    sigma9NoDirectDelivery = ""
     sigma9DirectDeliveryassortment = ""
-    sigma9_NoDirectDelivery_assortment = ""
+    sigma9NoDirectDeliveryAssortment = ""
     savedCOFA = 0
     // Read all ITNOs attached to the current POPN
     DBAction ext040Query = database.table("EXT040").index("00").selection("EXITNO", "EXASCD").build()
@@ -498,7 +490,96 @@ public class EXT040 extends ExtendM3Batch {
     ext040Request.set("EXCUNO", inCustomer)
     ext040Request.set("EXCDNN", inCalendar)
     ext040Request.set("EXPOPN", sigma6)
+
+    sigma9s = new TreeMap<String, Map<String, String>>()
     if (!ext040Query.readAll(ext040Request, 4, 200, ext040ReaderWriteInCalendarFile)) {
+    }
+
+
+    //Compute preferential flow type item
+    String itno10 = ""
+    String itno20 = ""
+    String itno30 = ""
+    String itno40 = ""
+
+    String ascd10 = ""
+    String ascd20 = ""
+    String ascd30 = ""
+    String ascd40 = ""
+
+    int cofa10 = 0
+    int cofa20 = 0
+    int cofa30 = 0
+    int cofa40 = 0
+
+    sigma9s.each { key, value ->
+      String itno = key
+      String ascd = value.get("ASCD")
+      String fltp = value.get("FLTP")
+      int cofa = Integer.parseInt(value.get("COFA"))
+      if (fltp == "10") {
+        if ((cofa < cofa10 && cofa != 0) || itno10 == "") {
+          itno10 = itno
+          ascd10 = ascd
+        }
+      }
+      if (fltp == "20") {
+        if ((cofa < cofa20 && cofa != 0) || itno20 == "") {
+          itno20 = itno
+          ascd20 = ascd
+        }
+      }
+      if (fltp == "30") {
+        if ((cofa < cofa30 && cofa != 0) || itno30 == "") {
+          itno30 = itno
+          ascd30 = ascd
+        }
+      }
+      if (fltp == "40") {
+        if ((cofa < cofa40 && cofa != 0) || itno40 == "") {
+          itno40 = itno
+          ascd40 = ascd
+        }
+      }
+    }
+    if (itno20 != "") {
+      sigma9NoDirectDelivery = itno20
+      sigma9NoDirectDeliveryAssortment = ascd20
+    }
+
+    if (ocusmaN596 == 10) {
+      if (itno10 != ""){
+        sigma9NoDirectDelivery = itno10
+        sigma9NoDirectDeliveryAssortment = ascd10
+      } else if (itno30 != "") {
+        sigma9NoDirectDelivery = itno30
+        sigma9NoDirectDeliveryAssortment = ascd30
+      } else if (itno40 != "") {
+        sigma9NoDirectDelivery = itno40
+        sigma9NoDirectDeliveryAssortment = ascd40
+      }
+    } else if (ocusmaN596 == 30){
+      if (itno30 != ""){
+        sigma9NoDirectDelivery = itno30
+        sigma9NoDirectDeliveryAssortment = ascd30
+      } else if (itno10 != "") {
+        sigma9NoDirectDelivery = itno10
+        sigma9NoDirectDeliveryAssortment = ascd10
+      } else if (itno40 != "") {
+        sigma9NoDirectDelivery = itno40
+        sigma9NoDirectDeliveryAssortment = ascd40
+      }
+    } else if (ocusmaN596 == 40){
+      if (itno40 != ""){
+        sigma9NoDirectDelivery = itno40
+        sigma9NoDirectDeliveryAssortment = ascd40
+      } else if (itno30 != "") {
+        sigma9NoDirectDelivery = itno30
+        sigma9NoDirectDeliveryAssortment = ascd10
+      } else if (itno10 != "") {
+        sigma9NoDirectDelivery = itno10
+        sigma9NoDirectDeliveryAssortment = ascd10
+      }
     }
     writeInCalendarFile()
   }
@@ -1139,15 +1220,15 @@ public class EXT040 extends ExtendM3Batch {
       if (ext010Query.readAll(ext010Request, 3, 1, ext010Reader)) {
       }
     }
-    if (sigma9_NoDirectDelivery.trim() != "") {
-      sigma9 = sigma9_NoDirectDelivery
+    if (sigma9NoDirectDelivery.trim() != "") {
+      sigma9 = sigma9NoDirectDelivery
       ExpressionFactory ext010Expression = database.getExpressionFactory("EXT010")
       ext010Expression = ext010Expression.le("EXFVDT", currentDate as String).and(ext010Expression.ge("EXLVDT", currentDate as String))
       DBAction ext010Query = database.table("EXT010").index("02").matching(ext010Expression).selection("EXCMDE").build()
       DBContainer ext010Request = ext010Query.getContainer()
       ext010Request.set("EXCONO", currentCompany)
       ext010Request.set("EXCUNO", inCustomer)
-      ext010Request.set("EXITNO", sigma9_NoDirectDelivery)
+      ext010Request.set("EXITNO", sigma9NoDirectDelivery)
       if (ext010Query.readAll(ext010Request, 3, 1, ext010Reader)) {
       }
     }
@@ -1381,9 +1462,9 @@ public class EXT040 extends ExtendM3Batch {
    * Write to control file
    */
   public void createControlFile() {
-    String server  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
-    String inpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "Path", "", "", "TDTX40")
-    String outpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "OutPutPath", "", "", "TDTX40")
+    String server = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
+    String inpath = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "Path", "", "", "TDTX40")
+    String outpath = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "OutPutPath", "", "", "TDTX40")
 
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
@@ -1403,9 +1484,9 @@ public class EXT040 extends ExtendM3Batch {
    * Create control files Ftp
    */
   public void createControlFilesFtp() {
-    String server  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
-    String inpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "Path", "", "", "TDTX40")
-    String outpath  = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "OutPutPath", "", "", "TDTX40")
+    String server = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "", "TDTX40")
+    String inpath = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "Path", "", "", "TDTX40")
+    String outpath = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "CadencierClient", "OutPutPath", "", "", "TDTX40")
 
 
     logFileName = fileJobNumber + "-" + inCustomer + "-" + inCalendar + "-" + "cadencier-docNumber.xml"

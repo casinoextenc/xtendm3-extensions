@@ -1,6 +1,13 @@
 /**
- *
+ * Name : OIS101MI.SupplyPath
+ * Description :
+ * CMD02 Get supply Path
+ * Date         Changed By    Description
+ * 20221122     FLEBARS       Creation
+ * 20250513     PBEAUDOUIN    Change for approval
+ * 20250527     FLEBARS       Change rule for alternative unit (lines modified 59-60-116)
  */
+
 public class OIS101SupplyPath extends ExtendM3Trigger {
   private final InteractiveAPI interactive;
   private final ProgramAPI program;
@@ -38,13 +45,19 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
   void main() {
     currentCompany = (Integer) program.getLDAZD().CONO
     if (!shouldRun()) return
+
+    interactive.display.fields.each { key, value ->
+      logger.debug("Field Key: ${key}, Value: ${value}")
+      // Add your processing logic here
+    }
+
     sigma6 = interactive.display.fields.WBITNO
     String orno = interactive.display.fields.OAORNO
     orqa = interactive.display.fields.WBORQA
 
     alun = interactive.display.fields.WBALUN
-    alun = alun == null ? "COL" : alun
-    alun = alun.length() == 0 ? "COL" : alun
+    alun = alun == null ? "" : alun
+    alun = alun.length() == 0 ? "" : alun
 
     if (sigma6.length() == 6) {
       ExpressionFactory expression = database.getExpressionFactory("MITPOP")
@@ -59,21 +72,21 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
         return
       }
 
-      DBAction OOHEAD_query = database.table("OOHEAD").index("00").selection(
+      DBAction oohead_query = database.table("OOHEAD").index("00").selection(
         "OAOBLC",
         "OAORTP",
         "OACUNO",
         "OAMODL",
         "OAWHLO").build()
 
-      DBContainer OOHEAD_request = OOHEAD_query.getContainer()
-      OOHEAD_request.set("OACONO", currentCompany)
-      OOHEAD_request.set("OAORNO", orno)
-      if (OOHEAD_query.read(OOHEAD_request)) {
-        ortp = OOHEAD_request.get("OAORTP") as String
-        cuno = OOHEAD_request.get("OACUNO") as String
-        modl = OOHEAD_request.get("OAMODL") as String
-        whlo = OOHEAD_request.get("OAWHLO") as String
+      DBContainer oohead_request = oohead_query.getContainer()
+      oohead_request.set("OACONO", currentCompany)
+      oohead_request.set("OAORNO", orno)
+      if (oohead_query.read(oohead_request)) {
+        ortp = oohead_request.get("OAORTP") as String
+        cuno = oohead_request.get("OACUNO") as String
+        modl = oohead_request.get("OAMODL") as String
+        whlo = oohead_request.get("OAWHLO") as String
 
         DBAction queryCUGEX100 = database.table("CUGEX1").index("00").selection("F1CONO",
           "F1FILE",
@@ -100,7 +113,7 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
             itno = ""
             whlo = ""
             ltyp = ""
-            executeEXT011GetSupplyPath(cuno, ortp, modl, sigma6, whlo, orqa, "0", "1", alun)
+            executeEXT011GetSupplyPath(cuno, ortp, modl, sigma6, whlo, orqa, "0", "0", alun)
             if (errorApi != "") {
               interactive.showCustomError("EXT011.GetSupplyPath", "Erreur : " + errorApi)
             }
@@ -109,10 +122,9 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
               interactive.display.fields.WBITNO = itno
               interactive.display.fields.OBWHLO = whlo
               interactive.display.fields.OBLTYP = ltyp
+              interactive.showCustomInfo("Chemin d'appro trouvé " + itno)
             }
           }
-
-
         }
       }
 

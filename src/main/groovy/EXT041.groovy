@@ -1,13 +1,21 @@
-/**
- * README
- *
- * Name : EXT041
- * Description : Generates the ECOM_PRD_STO file
- * Date         Changed By   Description
- * 20240325     PBEAUDOUIN   INITIAL
- */
+/****************************************************************************************
+ Extension Name: EXT041
+ Type: ExtendM3Transaction
+ Script Author: PBEAUDOUIN
+ Date: 2024-03-25
+ Description:
+ * Generates the ECOM_PRD_STO file
+
+ Revision History:
+ Name          Date        Version  Description of Changes
+ PBEAUDOUIN    2024-03-25  1.0      INITIAL
+ RENARN        2025-05-12  1.1      Taking into account INFOR standards
+ RENARN        2025-05-13  1.1.2    Reading loops have been reduced
+ FLEBARS     2025-05-28  1.1.4    Add expiration date in main method
+ ******************************************************************************************/
 
 
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import mvx.db.common.PositionKey
@@ -73,7 +81,7 @@ public class EXT041 extends ExtendM3Batch {
   private String entrepot
   private String diffusion
   private String parCombien
-  private String nbCouche_palette
+  private String nbCouchePalette
   private String nbColisParCouche
   private String nbColisParPalette
   private String nbUVCParPalette
@@ -99,6 +107,12 @@ public class EXT041 extends ExtendM3Batch {
   }
 
   public void main() {
+    //Expiration Date for data correction extension
+    if (LocalDate.now().isAfter(LocalDate.of(2025, 11, 30))) {
+      logger.debug("Extension signature expired")
+      return
+    }
+
     currentCompany = (Integer) program.getLDAZD().CONO
     // Get job number
     LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -366,7 +380,6 @@ public class EXT041 extends ExtendM3Batch {
   public void writeEcoPrdSto() {
     Closure<?> ext010Reader = { DBContainer EXT010 ->
       initLine()
-      //line = sigma6.trim()+";N;"+supplierCode.trim()+";"+vacode+";N;"+UL.trim()+";"+prixVente.trim()+";"+unitePrixVente.trim()+";20240325;"+parCombien.trim()+";"+nbCouche_palette.trim()+";"+nbColisParCouche.trim()+";"+nbColisParPalette.trim()+";"+nbUVCParPalette.trim()
       line = "<product>\r\n" +
         "<productReference>" + sigma6.trim() + "</productReference>\r\n" +
         "<cancellationMode>N</cancellationMode>\r\n" +
@@ -430,6 +443,9 @@ public class EXT041 extends ExtendM3Batch {
     }
   }
 
+  /**
+   * Retrieve customer information
+   */
   private void retrieveCustomerInfo() {
     customerName = ""
     pltb = ""
@@ -472,7 +488,7 @@ public class EXT041 extends ExtendM3Batch {
     }
 
     parCombien = ""
-    nbCouche_palette = 0
+    nbCouchePalette = 0
     nbColisParCouche = 0
     nbColisParPalette = 0
     nbUVCParPalette = 0
@@ -504,7 +520,7 @@ public class EXT041 extends ExtendM3Batch {
 
     parCombien = cofaCol as String
     if (cofaUco != 0)
-      nbCouche_palette = cofaUpa / cofaUco
+      nbCouchePalette = cofaUpa / cofaUco
     if (cofaCol != 0) {
       nbColisParCouche = cofaUco / cofaCol
       nbColisParPalette = cofaUpa / cofaCol
@@ -572,6 +588,9 @@ public class EXT041 extends ExtendM3Batch {
     }
   }
 
+  /**
+   * Write gap line
+   */
   public void writeGapLine() {
     retrievePreviousCalendar()
     logger.debug("#PB Start Write GapLine new calendar = ${inCalendar} Previous Calendar ${previousCalendar}")
@@ -583,19 +602,18 @@ public class EXT041 extends ExtendM3Batch {
       sigma9 = ext041Result.get("EXITNO")
 
       foundSigma6 = false
-      DBAction query_EXT040 = database.table("EXT040").index("00").selection("EXITNO", "EXASCD", "EXITNO").build()
-      DBContainer EXT040 = query_EXT040.getContainer()
+      DBAction queryExt040 = database.table("EXT040").index("00").selection("EXITNO", "EXASCD", "EXITNO").build()
+      DBContainer EXT040 = queryExt040.getContainer()
       EXT040.set("EXCONO", currentCompany)
       EXT040.set("EXCUNO", inCustomer)
       EXT040.set("EXCDNN", inCalendar)
       EXT040.set("EXPOPN", sigma6)
-      if (!query_EXT040.readAll(EXT040, 4, 1, ext040Reader)) {
+      if (!queryExt040.readAll(EXT040, 4, 1, ext040Reader)) {
         logger.debug("#PB Pas trouve in ext040 Calendar = ${inCalendar} Customer ${inCustomer} popn ${sigma6}")
         foundSigma6 = true
       }
       if (!foundSigma6) {
         initLine()
-        //line = sigma6.trim()+";N;"+supplierCode.trim()+";"+vacode+";N;"+UL.trim()+";"+prixVente.trim()+";"+unitePrixVente.trim()+";20240325;"+parCombien.trim()+";"+nbCouche_palette.trim()+";"+nbColisParCouche.trim()+";"+nbColisParPalette.trim()+";"+nbUVCParPalette.trim()
         line = "<product>\r\n" +
           "<productReference>" + sigma6.trim() + "</productReference>\r\n" +
           "<cancellationMode>O</cancellationMode>\r\n" +
@@ -659,7 +677,7 @@ public class EXT041 extends ExtendM3Batch {
       if (!ext041Query.readAll(ext041Request, 3, 10000, ext041Reader)) {
       }
       nbIteration++
-      if (nbIteration > 5) {//max 50 0000 records
+      if (nbIteration > 3) {//max 50 0000 records
         logMessage("ERROR", "Nombre d'itération trop important cuno:${inCustomer} cdnn:${inCalendar}")
         break
       }
@@ -680,6 +698,9 @@ public class EXT041 extends ExtendM3Batch {
     logMessage("INFO", "End catalogue B2B for customer:${inCustomer} calendar:${inCalendar} nblignes actives:${countLineCancellationNo} nblignes annulees:${countLineCancellationYes}")
   }
 
+  /**
+   * Retrieve previous calendar
+   */
   private void retrievePreviousCalendar() {
     // Retrieve EXT041
     Closure<?> ext041Reader = { DBContainer ext041Result ->
@@ -748,9 +769,14 @@ public class EXT041 extends ExtendM3Batch {
     }
   }
 
+  /**
+   * Get job data from EXTJOB
+   * @param referenceId
+   * @return Optional<String>
+   */
   private Optional<String> getJobData(String referenceId) {
-    def query = database.table("EXTJOB").index("00").selection("EXDATA").build()
-    def container = query.createContainer()
+    DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBContainer container = query.createContainer()
     container.set("EXRFID", referenceId)
     if (query.read(container)) {
       return Optional.of(container.getString("EXDATA"))
@@ -759,16 +785,23 @@ public class EXT041 extends ExtendM3Batch {
     return Optional.empty()
   }
 
-
+/**
+ * Write end file
+ */
   public void writeEndFile() {
-    //logFileName = fileJobNumber + "-" +inCustomer + "-" + inCalendar + "-" + "docNumber.xml"
     logFileName = "ECOM_PRD_STO_" + inCustomer + "_" + creationDate + "_" + creationTime + "-" + "docNumber.xml"
-    //docnumber = fileJobNumber + "-" + inCustomer + "-" + inCalendar
     docnumber = "ECOM_PRD_STO_" + inCustomer + "_" + creationDate + "_" + creationTime
     header = "<?xml version='1.0' encoding='UTF-8' standalone='no'?><LoaddocumentNumber xmlns='http://schema.infor.com/InforOAGIS/2' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' releaseID='9.2' versionID='2.14.6' xsi:schemaLocation='http://schema.infor.com/InforOAGIS/2 http://schema.infor.com/InforOAGIS/BODs/LoaddocumentNumber.xsd'><ApplicationArea><Sender><LogicalID>casino.com</LogicalID><ConfirmationCode>OnError</ConfirmationCode></Sender><CreationDateTime>2023-04-04</CreationDateTime></ApplicationArea><DataArea><Load><TenantID>CASINO_TST</TenantID><AccountingEntityID>100_</AccountingEntityID><ActionCriteria><ActionExpression actionCode='' expressionLanguage=''/></ActionCriteria></Load><documentNumber><DocumentType>ECOM_PRD_STO</DocumentType><DocumentNumber>${docnumber}.xml</DocumentNumber><DocumentPath>/FileImport/COM04/${docnumber}.xml</DocumentPath></documentNumber></DataArea></LoaddocumentNumber>"
     writeInFile(header, "")
   }
 
+  /**
+   * Log EXT875
+   * @param rfid
+   * @param jbnm
+   * @param levl
+   * @param tmsg
+   */
   private void logEXT875(String rfid, String jbnm, String levl, String tmsg) {
     Map parameters = ["RFID": rfid, "JBNM": jbnm, "LEVL": levl, "TMSG": tmsg]
     Closure<?> handler = { Map<String, String> response ->

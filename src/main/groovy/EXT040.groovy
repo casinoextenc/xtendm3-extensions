@@ -20,10 +20,12 @@
  RENARN      2025-05-12  1.1.1    Taking into account INFOR standards
  RENARN      2025-05-13  1.1.2    Reading loops have been drastically reduced
  FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239
+ FLEBARS     2025-05-28  1.1.4    Add expiration date in main method
  ******************************************************************************************/
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.LocalDate
 import mvx.db.common.PositionKey
 import mvx.db.common.PositionEmpty
 
@@ -197,15 +199,22 @@ public class EXT040 extends ExtendM3Batch {
   }
 
   public void main() {
+    //Expiration Date for data correction extension
+    if (LocalDate.now().isAfter(LocalDate.of(2025, 11, 30))) {
+      logger.debug("Extension signature expired")
+      return
+    }
+
     // Get job number
     currentCompany = (Integer) program.getLDAZD().CONO
     LocalDateTime timeOfCreation = LocalDateTime.now()
     fileJobNumber = program.getJobNumber()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
 
+
+
     //log management
     initializeLogManagement()
-
 
     if (batch.getReferenceId().isPresent()) {
       Optional<String> data = getJobData(batch.getReferenceId().get())

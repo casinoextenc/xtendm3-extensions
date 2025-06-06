@@ -11,6 +11,7 @@
  ARENARD                 2023-05-04       1.0              Creation of files and containers
  FLEBARS                 2023-05-04       1.1              Correction – adaptations
  ARENARD                 2025-04-28       1.2              Extension has been fixed
+ MLECLERCQ               2025-05-12       1.3              Removed block/unblock MHDISH BLOP
  ******************************************************************************************/
 
 import java.math.RoundingMode
@@ -29,7 +30,6 @@ public class AddNewDelZ extends ExtendM3Transaction {
 
   private Integer currentCompany
 
-  private HashMap<String, String> blockedIndexes
   private String newDelivery
 
   private String oolineOrno
@@ -411,123 +411,6 @@ public class AddNewDelZ extends ExtendM3Transaction {
     }
   }
 
-  /**
-   * Load relative indexes
-   * An existing delivery is considered available if the following fields are the same or similar:
-   *   CONO - Division
-   *   AGKY - Aggregation key
-   *   CONA - Consignee
-   *   COAA - Consignee address
-   *
-   *   The aggregation key AGKY field is a concatenation of these fields:
-   *   INOU - Direction
-   *   RORC - Reference order category
-   *   MWLO - Departure warehouse
-   *   DPOL - Dispatch policy
-   *   MODL - Delivery method
-   *   TEDL - Delivery terms
-   *   SROT - Requested route
-   *
-   * When checking if the delivery line can be moved to an existing delivery head, M3 will also check:
-   *   If the delivery to move to is not at PGRS status 90
-   *   If the delivery to move to is blocked for new lines (BLOP=1) NOT IN OUR CASE
-   *   If the dispatch policy allows several orders to be managed with the same delivery (MWS010 parm 20)
-   *   If the delivery consolidation code DCC1 is the same on from and to delivery
-   *   If  weight limitations have not been exceeded
-   *   If one of the delivery is a direct delivery with a delivery note ref
-   *
-   * @param dlix
-   */
-  public void blockRelativeIndexes(String dlix, String tlix) {
-    blockedIndexes = new LinkedHashMap()
-
-    if (tlix == "")
-      tlix = 0
-    String cona = ""
-    String coaa = ""
-    String agky = ""
-    String dcc1 = ""
-
-
-    //
-    //  Get datas from original MHDISH
-    //
-    DBAction mhdishQuery = database.table("MHDISH")
-      .index("00")
-      .selection(
-        "OQCONO"
-        , "OQINOU"
-        , "OQDLIX"
-        , "OQCONA"
-        , "OQCOAA"
-        , "OQAGKY"
-        , "OQDCC1"
-      )
-      .build()
-
-    DBContainer mhdishRequest = mhdishQuery.getContainer()
-    mhdishRequest.set("OQCONO", currentCompany)
-    mhdishRequest.set("OQINOU", 1)
-    mhdishRequest.set("OQDLIX", dlix as Long)
-
-    if (mhdishQuery.read(mhdishRequest)) {
-      cona = mhdishRequest.get("OQCONA") as String
-      coaa = mhdishRequest.get("OQCOAA") as String
-      agky = mhdishRequest.get("OQAGKY") as String
-      dcc1 = mhdishRequest.get("OQDCC1") as String
-    }
-
-    //
-    //  Load relative indexes
-    //
-    ExpressionFactory mhdish2Expression = database.getExpressionFactory("MHDISH")
-    mhdish2Expression = mhdish2Expression.eq("OQCOAA", coaa)
-    mhdish2Expression = mhdish2Expression.and(mhdish2Expression.eq("OQAGKY", agky))
-    mhdish2Expression = mhdish2Expression.and(mhdish2Expression.eq("OQDCC1", dcc1))
-    mhdish2Expression = mhdish2Expression.and(mhdish2Expression.lt("OQPGRS", '90'))
-
-    DBAction mhdish2Query = database.table("MHDISH")
-      .matching(mhdish2Expression)
-      .index("50")
-      .selection(
-        "OQCONO"
-        , "OQCONA"
-        , "OQPUSN"
-        , "OQPUTP"
-        , "OQINOU"
-        , "OQDLIX"
-      ).build()
-    logger.debug("loadRelativeIndexes dlix:${dlix} tlix:${tlix}")
-    DBContainer mhdish2Request = mhdishQuery.getContainer()
-    mhdish2Request.set("OQCONO", currentCompany)
-    mhdishRequest.set("OQINOU", 1)
-    mhdishRequest.set("OQCONA", cona)
-
-
-    Closure<?> mhdish2Reader = { DBContainer mhdish2Result ->
-      String curdlix = mhdish2Result.get("OQDLIX") as String
-      logger.debug("curdlix:${curdlix}")
-      if (curdlix != tlix) {
-        blockedIndexes.put(curdlix, curdlix)
-        blopunblopIndex(curdlix, 1)
-      }
-    }
-
-    //Launch query
-    if (!mhdish2Query.readAll(mhdish2Request, 3, 10000, mhdish2Reader)) {
-    }
-  }
-
-  /**
-   * Loop on blockedIndexes call blopunblopIndex to set blop=0
-   */
-  public void unblockingIndexes() {
-    Iterator<String> it = blockedIndexes.keySet().iterator()
-    while (it.hasNext()) {
-      String dlix = it.next()
-      blopunblopIndex(dlix, 0)
-    }
-  }
 
 
   /**
@@ -555,9 +438,7 @@ public class AddNewDelZ extends ExtendM3Transaction {
 
       if (alqt == oolineOrqt || alqt == 0) {
         String theDLIX = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
-        blockRelativeIndexes(dlix, theDLIX)
         executeMWS411MIMoveDelLn(dlix, rorc, ridn, ridl, ridx, theDLIX)
-        unblockingIndexes()
       }
     }
   }
@@ -715,36 +596,6 @@ public class AddNewDelZ extends ExtendM3Transaction {
     miCaller.call("MWS411MI", "MoveDelLn", parameters, handler)
 
   }
-  /**
-   * Blop/unblop index
-   */
-  public void blopunblopIndex(String index, int blop) {
-    /*
-      We have to update MHDISH reocrd in order to lock the delivery
-      then to have ourt new delivery lines on a new delivery heazd
-      it works like interractive program MWS410 option 51 & 52
-      Support Case  : 17334686
-      EHR           : #98882
-    */
-    logger.debug("blopunblopIndex dlix:${index} blop:${blop}")
-    if (index == 0 || !(blop == 0 || blop == 1)) {
-      return
-    }
-
-    DBAction mhdishQuery = database.table("MHDISH").index("00").selection("OQDLIX", "OQBLOP").build()
-    DBContainer mhdishRequest = mhdishQuery.getContainer()
-    mhdishRequest.set("OQCONO", currentCompany)
-    mhdishRequest.set("OQINOU", 1)
-    mhdishRequest.set("OQDLIX", index as Long)
-
-    Closure<?> mhdishUpdater = { LockedResult mdishLockedResult ->
-      mdishLockedResult.set("OQBLOP", blop)
-      mdishLockedResult.update()
-    }
-
-    if (mhdishQuery.readLock(mhdishRequest, mhdishUpdater)) {
-    }
-  }
 
   /**
    * Loop ON EXT057
@@ -872,11 +723,9 @@ public class AddNewDelZ extends ExtendM3Transaction {
 
     //Reduce Qty on original line
     logger.debug("calc new orqa ")
-    double newOrqa = convertQty(this.oolineOrno, oolineAlun, oolineOrqt - ext057Alqt, 0)
+    double newOrqa = convertQty(this.oolineItno, oolineAlun, oolineOrqt - ext057Alqt, 0)
     logger.debug("calc new orqa ${newOrqa}")
-    blockRelativeIndexes(dlix, dlix)
     executeOIS100MIChgLineBatchEnt(oolineOrno, "" + oolinePonr, "" + oolinePosx, oolineRorn, newOrqa as String)
-    unblockingIndexes()
 
     //recreate link with po line
     if (oolineRorc.trim() == "2") {
@@ -885,12 +734,10 @@ public class AddNewDelZ extends ExtendM3Transaction {
     //Create new co line
     if (ext057Alqt > 0) {
       String theDlix = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
-      blockRelativeIndexes(dlix, theDlix)
       newPonr = 0
       newPosx = 0
       logger.debug("calc new line orqa ")
       executeOIS100MIAddOrderLine(oolineOrno, this.oolineItno, ext057Alqt as String, 'UVC', "0", oolineWhlo, oolineDwdz, oolineDwhz, oolineAdid, oolinePide, oolineDip4, oolineDwdt, oolinePldt, oolineSapr)
-      unblockingIndexes()
     }
 
     //realoc
@@ -1018,6 +865,7 @@ public class AddNewDelZ extends ExtendM3Transaction {
    */
   private executeOIS100MIChgLineBatchEnt(String ORNO, String PONR, String POSX, String UCA2, String ORQA) {
     Map<String, String> parameters = ["ORNO": ORNO, "PONR": PONR, "POSX": POSX, "UCA2": UCA2, "ORQA": ORQA]
+    logger.debug("OIS100MI_ChgLineBatchEnt, ORNO is : ${ORNO}")
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Failed OIS100MI.ChgLineBatchEnt: " + response.errorMessage)

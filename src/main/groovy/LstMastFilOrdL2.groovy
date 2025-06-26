@@ -601,7 +601,7 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
         logger.debug("Result for key: ${resultKey} = " + filterResults.get(resultKey))
       }
 
-      filterResults = (LinkedHashMap<String, Boolean>) filterOnEXT036(commandeEXT051,lineEXT051, suffixeEXT051,filterResults )
+      filterResults = (LinkedHashMap<String, Boolean>) filterOnExt037(commandeEXT051,lineEXT051, suffixeEXT051,filterResults )
 
       isRecordValid = filterResults.containsValue(false) ? false : true
 
@@ -784,34 +784,34 @@ public class LstMastFilOrdL2 extends ExtendM3Transaction {
   }
 
   /**
-   * Filter on EXT036
+   * Filter on EXT037
    * @param orno
    * @param ponr
    * @param posx
    * @param filterResults
    * @return
    */
-  private filterOnEXT036(orno, ponr, posx, filterResults){
+  private filterOnExt037(orno, ponr, posx, filterResults){
 
     LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>)filterResults
     posx = posx == null ? 0 : posx
 
-    DBAction queryExt036 = database.table("EXT036").index("00").selection("EXORNO","EXPONR","EXITNO","EXZSTY", "EXZCTY").build()
-    DBContainer containerEXT036 = queryExt036.getContainer()
-    containerEXT036.set("EXCONO", currentCompany)
-    containerEXT036.set("EXORNO", orno)
-    containerEXT036.set("EXPONR", ponr as Integer)
-    containerEXT036.set("EXPOSX", posx  as Integer)
+    DBAction ext037Query = database.table("EXT037").index("00").selection("EXORNO","EXPONR","EXITNO","EXZSTY", "EXZCTY").build()
+    DBContainer ext037Request = ext037Query.getContainer()
+    ext037Request.set("EXCONO", currentCompany)
+    ext037Request.set("EXORNO", orno)
+    ext037Request.set("EXPONR", ponr as Integer)
+    ext037Request.set("EXPOSX", posx  as Integer)
 
     String zcty = ""
     String zsty = ""
     String itno = ""
-    if(queryExt036.readAll(containerEXT036, 4,50, {DBContainer closureEXT036 ->
-      zcty = closureEXT036.get("EXZCTY")
-      zsty = closureEXT036.get("EXZSTY")
-      itno = closureEXT036.get("EXITNO")
+    if(ext037Query.readAll(ext037Request, 4,50, {DBContainer ext037Result ->
+      zcty = ext037Result.get("EXZCTY")
+      zsty = ext037Result.get("EXZSTY")
+      itno = ext037Result.get("EXITNO")
     })){
-      logger.debug("In EXT036 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}" )
+      logger.debug("In EXT037 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}" )
 
       if(results.containsKey("PHYT") && zcty.trim() == "PHYTOSANITAIRE"){
         results["PHYT"] = true

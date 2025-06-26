@@ -1,18 +1,10 @@
-/**
- * Name: EXT038MI.AddConstraint
- * Migration projet GIT
- * old file = EXT030MI_AddConstraint.groovy
- */
-
-/**
- * README
- * This extension is used by Mashup
- *
+/**************************************************************************************** * Name: EXT030MI.AddConstraint
  * Name : EXT038MI.AddPrtContraint
  * Description : Add records to the EXT038 table.
  * Date         Changed By   Description
  * 20250328     MLECLERCQ      QUAX04 - evol print contrainte
- */
+ * 20250626     FLEBARS        Code review for validation
+ ******************************************************************************************/
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -22,8 +14,6 @@ public class AddPrtContraint extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
   private final MICallerAPI miCaller
   private final UtilityAPI utility
 
@@ -38,7 +28,6 @@ public class AddPrtContraint extends ExtendM3Transaction {
   }
 
   public void main() {
-
     Integer currentCompany
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer)program.getLDAZD().CONO
@@ -84,11 +73,11 @@ public class AddPrtContraint extends ExtendM3Transaction {
 
     //Check if record exists in Constraint Code Table (EXT034)
     if (zcod.length() > 0) {
-      DBAction queryEXT034 = database.table("EXT034").index("00").build()
-      DBContainer EXT034 = queryEXT034.getContainer()
-      EXT034.set("EXCONO", currentCompany)
-      EXT034.set("EXZCOD", zcod)
-      if (!queryEXT034.read(EXT034)) {
+      DBAction ext034Query = database.table("EXT034").index("00").build()
+      DBContainer ext034Request = ext034Query.getContainer()
+      ext034Request.set("EXCONO", currentCompany)
+      ext034Request.set("EXZCOD", zcod)
+      if (!ext034Query.read(ext034Request)) {
         mi.error("Code contrainte " + zcod + " n'existe pas")
         return
       }
@@ -105,34 +94,34 @@ public class AddPrtContraint extends ExtendM3Transaction {
 
     //Check if CUNO exist in OCUSMA
     if (cuno.length() > 0) {
-      DBAction queryOCUSMA = database.table("OCUSMA").index("00").build()
-      DBContainer ContainerOCUSMA = queryOCUSMA.getContainer()
-      ContainerOCUSMA.set("OKCONO", currentCompany)
-      ContainerOCUSMA.set("OKCUNO", cuno)
-      if (!queryOCUSMA.read(ContainerOCUSMA)) {
+      DBAction ocusmaQuery = database.table("OCUSMA").index("00").build()
+      DBContainer ocusmaRequest = ocusmaQuery.getContainer()
+      ocusmaRequest.set("OKCONO", currentCompany)
+      ocusmaRequest.set("OKCUNO", cuno)
+      if (!ocusmaQuery.read(ocusmaRequest)) {
         mi.error("Code client " + cuno + " n'existe pas")
         return
       }
     }
     //Check if WHLO Warehouse in MITWHL
     if (whlo.length() > 0) {
-      DBAction queryMITWHL = database.table("MITWHL").index("00").build()
-      DBContainer ContainerMITWHL = queryMITWHL.getContainer()
-      ContainerMITWHL.set("MWCONO", currentCompany)
-      ContainerMITWHL.set("MWWHLO", whlo)
-      if (!queryMITWHL.read(ContainerMITWHL)) {
+      DBAction mitwhlQuery = database.table("MITWHL").index("00").build()
+      DBContainer mitwhlRequest = mitwhlQuery.getContainer()
+      mitwhlRequest.set("MWCONO", currentCompany)
+      mitwhlRequest.set("MWWHLO", whlo)
+      if (!mitwhlQuery.read(mitwhlRequest)) {
         mi.error("Dépôt " + whlo + " n'existe pas")
         return
       }
     }
     //Check if DLIX exist in MHDISH
     if (dlix.length() > 0 && !dlix.equals("0")) {
-      DBAction queryMHDISH = database.table("MHDISH").index("00").build()
-      DBContainer ContainerMHDISH = queryMHDISH.getContainer()
-      ContainerMHDISH.set("OQCONO", currentCompany)
-      ContainerMHDISH.set("OQINOU", 1)
-      ContainerMHDISH.set("OQDLIX", Integer.parseInt(dlix))
-      if(!queryMHDISH.read(ContainerMHDISH)){
+      DBAction mhdishQuery = database.table("MHDISH").index("00").build()
+      DBContainer mhdishRequest = mhdishQuery.getContainer()
+      mhdishRequest.set("OQCONO", currentCompany)
+      mhdishRequest.set("OQINOU", 1)
+      mhdishRequest.set("OQDLIX", Integer.parseInt(dlix))
+      if(!mhdishQuery.read(mhdishRequest)){
         mi.error("Index de livraison n'existe pas.")
         return
       }
@@ -140,12 +129,12 @@ public class AddPrtContraint extends ExtendM3Transaction {
 
     if (conn.length() > 0 && !conn.equals("0")) {
 
-      DBAction queryMHDISH = database.table("MHDISH").index("20").build()
-      DBContainer ContainerMHDISH = queryMHDISH.getContainer()
-      ContainerMHDISH.set("OQCONO", currentCompany)
-      ContainerMHDISH.set("OQINOU", 1)
-      ContainerMHDISH.set("OQCONN", Integer.parseInt(conn))
-      if(!queryMHDISH.readAll(ContainerMHDISH,3,{ DBContainer ResultMHDISH ->
+      DBAction mhdishQuery = database.table("MHDISH").index("20").build()
+      DBContainer ùhdishRequest = mhdishQuery.getContainer()
+      ùhdishRequest.set("OQCONO", currentCompany)
+      ùhdishRequest.set("OQINOU", 1)
+      ùhdishRequest.set("OQCONN", Integer.parseInt(conn))
+      if(!mhdishQuery.readAll(ùhdishRequest,3,{ DBContainer ResultMHDISH ->
       })){
         mi.error("N° de conteneur n'existe pas.")
         return
@@ -153,33 +142,33 @@ public class AddPrtContraint extends ExtendM3Transaction {
     }
 
     if (orno.length() > 0) {
-      DBAction queryOOHEAD = database.table("OOHEAD").index("00").build()
-      DBContainer ContainerOOHEAD = queryOOHEAD.getContainer()
-      ContainerOOHEAD.set("OACONO", currentCompany)
-      ContainerOOHEAD.set("OAORNO", orno)
-      if(!queryOOHEAD.read(ContainerOOHEAD)){
+      DBAction ooheadQuery = database.table("OOHEAD").index("00").build()
+      DBContainer ooheadRequest = ooheadQuery.getContainer()
+      ooheadRequest.set("OACONO", currentCompany)
+      ooheadRequest.set("OAORNO", orno)
+      if(!ooheadQuery.read(ooheadRequest)){
         mi.error("N° de commande n'existe pas")
         return
       }
     }
 
     if (itno.length() > 0) {
-      DBAction queryMITMAS = database.table("MITMAS").index("00").build()
-      DBContainer ContainerMITMAS = queryMITMAS.getContainer()
-      ContainerMITMAS.set("MMCONO", currentCompany)
-      ContainerMITMAS.set("MMITNO", itno)
-      if(!queryMITMAS.read(ContainerMITMAS)){
+      DBAction mitmasQuery = database.table("MITMAS").index("00").build()
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", itno)
+      if(!mitmasQuery.read(mitmasRequest)){
         mi.error("Article n'existe pas")
         return
       }
     }
 
     if (bjno.length() > 0) {
-      DBAction queryEXT038 = database.table("EXT038").index("00").build()
-      DBContainer ContainerEXT038 = queryEXT038.getContainer()
-      ContainerEXT038.set("EXCONO", currentCompany)
-      ContainerEXT038.set("EXBJNO", bjno as Long)
-      if(!queryEXT038.readAll(ContainerEXT038,2,{ DBContainer ResultMHDISH ->
+      DBAction ext038Query = database.table("EXT038").index("00").build()
+      DBContainer ext038Request = ext038Query.getContainer()
+      ext038Request.set("EXCONO", currentCompany)
+      ext038Request.set("EXBJNO", bjno as Long)
+      if(!ext038Query.readAll(ext038Request,2,{ DBContainer ResultMHDISH ->
       })){
         mi.error("N° de job n'existe pas")
         return
@@ -191,43 +180,43 @@ public class AddPrtContraint extends ExtendM3Transaction {
 
     logger.debug("DLIX : ${dlix} , CONN:${conn}, ORNO:${orno}")
 
-    DBAction query = database.table("EXT038").index("00").build()
-    DBContainer EXT038 = query.getContainer()
-    EXT038.set("EXCONO", currentCompany)
-    EXT038.set("EXBJNO",bjno as Long)
-    EXT038.set("EXORNO", orno)
-    EXT038.set("EXPONR", ponr)
-    EXT038.set("EXPOSX", posx)
-    EXT038.set("EXDLIX", Long.parseLong(dlix))
-    EXT038.set("EXWHLO", whlo)
-    EXT038.set("EXBANO", bano)
-    EXT038.set("EXCAMU", camu)
-    EXT038.set("EXZCLI", zcli)
-    EXT038.set("EXORST", orst)
-    EXT038.set("EXSTAT", stat)
-    EXT038.set("EXCONN", Long.parseLong(conn))
-    EXT038.set("EXUCA4", uca4)
-    EXT038.set("EXCUNO", cuno)
-    EXT038.set("EXITNO", itno)
-    EXT038.set("EXZAGR", zagr)
-    EXT038.set("EXZNAG", znag)
-    EXT038.set("EXORQT", orqt)
-    EXT038.set("EXZQCO", zqco)
-    EXT038.set("EXZTGR", ztgr)
-    EXT038.set("EXZTNW", ztnw)
-    EXT038.set("EXZCID", zcid)
-    EXT038.set("EXZCOD", zcod)
-    EXT038.set("EXZCTY", zcty)
-    EXT038.set("EXDOID", doid)
-    EXT038.set("EXADS1", ads1)
-    EXT038.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-    EXT038.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
-    EXT038.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-    EXT038.setInt("EXCHNO", 1)
-    EXT038.set("EXCHID", program.getUser())
+    DBAction ext038Query = database.table("EXT038").index("00").build()
+    DBContainer ext038Request = ext038Query.getContainer()
+    ext038Request.set("EXCONO", currentCompany)
+    ext038Request.set("EXBJNO",bjno as Long)
+    ext038Request.set("EXORNO", orno)
+    ext038Request.set("EXPONR", ponr)
+    ext038Request.set("EXPOSX", posx)
+    ext038Request.set("EXDLIX", Long.parseLong(dlix))
+    ext038Request.set("EXWHLO", whlo)
+    ext038Request.set("EXBANO", bano)
+    ext038Request.set("EXCAMU", camu)
+    ext038Request.set("EXZCLI", zcli)
+    ext038Request.set("EXORST", orst)
+    ext038Request.set("EXSTAT", stat)
+    ext038Request.set("EXCONN", Long.parseLong(conn))
+    ext038Request.set("EXUCA4", uca4)
+    ext038Request.set("EXCUNO", cuno)
+    ext038Request.set("EXITNO", itno)
+    ext038Request.set("EXZAGR", zagr)
+    ext038Request.set("EXZNAG", znag)
+    ext038Request.set("EXORQT", orqt)
+    ext038Request.set("EXZQCO", zqco)
+    ext038Request.set("EXZTGR", ztgr)
+    ext038Request.set("EXZTNW", ztnw)
+    ext038Request.set("EXZCID", zcid)
+    ext038Request.set("EXZCOD", zcod)
+    ext038Request.set("EXZCTY", zcty)
+    ext038Request.set("EXDOID", doid)
+    ext038Request.set("EXADS1", ads1)
+    ext038Request.setInt("EXRGDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+    ext038Request.setInt("EXRGTM", timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as Integer)
+    ext038Request.setInt("EXLMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
+    ext038Request.setInt("EXCHNO", 1)
+    ext038Request.set("EXCHID", program.getUser())
 
-    if (!query.read(EXT038)) {
-      query.insert(EXT038)
+    if (!ext038Query.read(ext038Request)) {
+      ext038Query.insert(ext038Request)
       mi.outData.put("BJNO", isNewBjno ? bjno : "")
       mi.write()
     } else {

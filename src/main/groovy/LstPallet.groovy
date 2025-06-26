@@ -781,36 +781,36 @@ public class LstPallet extends ExtendM3Transaction {
   }
 
   /**
-   * Filter on EXT036
+   * Filter on EXT037
    */
   private filterOnExt036(orno, ponr, posx, filterResults) {
 
     LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>) filterResults
     posx = posx == null ? 0 : posx
 
-    DBAction ext036Query = database.table("EXT036").index("00").selection("EXORNO", "EXPONR", "EXITNO", "EXZSTY", "EXZCTY").build()
-    DBContainer ext036Request = ext036Query.getContainer()
-    ext036Request.set("EXCONO", currentCompany)
-    ext036Request.set("EXORNO", orno)
-    ext036Request.set("EXPONR", ponr as Integer)
-    ext036Request.set("EXPOSX", posx as Integer)
+    DBAction ext037Query = database.table("EXT037").index("00").selection("EXORNO", "EXPONR", "EXITNO", "EXZSTY", "EXZCTY").build()
+    DBContainer ext037Request = ext037Query.getContainer()
+    ext037Request.set("EXCONO", currentCompany)
+    ext037Request.set("EXORNO", orno)
+    ext037Request.set("EXPONR", ponr as Integer)
+    ext037Request.set("EXPOSX", posx as Integer)
 
     String zcty = ""
     String zsty = ""
     String itno = ""
-    if (ext036Query.readAll(ext036Request, 4, 50, { DBContainer ext036Reader ->
-      zcty = ext036Reader.get("EXZCTY")
-      zsty = ext036Reader.get("EXZSTY")
-      itno = ext036Reader.get("EXITNO")
+    if (ext037Query.readAll(ext037Request, 4, 50, { DBContainer ext037Reader ->
+      zcty = ext037Reader.get("EXZCTY")
+      zsty = ext037Reader.get("EXZSTY")
+      itno = ext037Reader.get("EXITNO")
     })) {
-      logger.debug("In EXT036 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}")
+      logger.debug("In EXT037 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}")
 
       if (results.containsKey("PHYT") && zcty.trim() == "PHYTOSANITAIRE") {
         results["PHYT"] = true
       }
 
       if (results.containsKey("SANI") && zcty.trim() == "SANITAIRE") {
-        logger.debug("In EXT036 , SANI = " + zcty.trim())
+        logger.debug("In EXT037 , SANI = " + zcty.trim())
         results["SANI"] = true
       }
 

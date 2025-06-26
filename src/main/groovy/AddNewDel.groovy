@@ -13,6 +13,8 @@
  ARENARD                 2025-04-28       1.2              Extension has been fixed
  MLECLERCQ               2025-05-12       1.3              Removed block/unblock MHDISH BLOP
  FLEBARS                 2025-05-06       1.4              re add block/unblock MHDISH BLOP after receiving customer accpetance risk document
+ FLEBARS                 2025-06-18       1.5              reduce the number of reading records remove reads on mitplo
+ FLEBARS                 2025-06-20       1.6              apply xtendm3 team remarks
  ******************************************************************************************/
 
 import java.math.RoundingMode
@@ -169,6 +171,7 @@ public class AddNewDel extends ExtendM3Transaction {
     double cofa = currentItemUnit["COFA"] as Double
     int dccd = currentItemUnit["DCCD"] as Integer
     double result = 0
+    cofa = cofa == 0 ? 1 : cofa // Avoid division by zero
 
     //convert from base unms
     if (orqt != 0)
@@ -322,11 +325,11 @@ public class AddNewDel extends ExtendM3Transaction {
       DBContainer mitaloRequest = mitaloQuery.getContainer()
       mitaloRequest.set("MQCONO", currentCompany)
       mitaloRequest.set("MQTTYP", 31)
-      if (mitaloQuery.readAll(mitaloRequest, 2, 10000, mitaloReader)) {
+      if (mitaloQuery.readAll(mitaloRequest, 2, 1000, mitaloReader)) {
       }
     }
 
-    if (!ext059Query.readAll(ext059Request, 2, 10000, ext059Reader)) {
+    if (!ext059Query.readAll(ext059Request, 2, 2000, ext059Reader)) {
       in60 = true
       msgd = "Aucune données pour le job " + bjno
     }
@@ -354,7 +357,7 @@ public class AddNewDel extends ExtendM3Transaction {
       if (dlix == 0)
         dlix = mhdislResult.get("URDLIX") as long
     }
-    if (!mhdislQuery.readAll(mhdislRequest, 5, 10000, mhdislReader)) {
+    if (!mhdislQuery.readAll(mhdislRequest, 5, 1, mhdislReader)) {
       mi.error("L'enregistrement n'existe pas")
       return 0
     }
@@ -369,11 +372,7 @@ public class AddNewDel extends ExtendM3Transaction {
   public void lineTransfer() {
     logger.debug("Method lineTransfer")
     newDelivery = ""
-    ExpressionFactory ext057Expression = database.getExpressionFactory("EXT057")
-
-
     DBAction ext057Query = database.table("EXT057").index("10")
-      .matching(ext057Expression)
       .selection("EXCONO",
         "EXORNO",
         "EXPONR",
@@ -384,7 +383,7 @@ public class AddNewDel extends ExtendM3Transaction {
         "EXTLIX").build()
     DBContainer ext057request = ext057Query.getContainer()
     ext057request.set("EXBJNO", bjno)
-    if (!ext057Query.readAll(ext057request, 1, 10000,ext057ReaderLineTransfer)) {
+    if (!ext057Query.readAll(ext057request, 1, 2000,ext057ReaderLineTransfer)) {
     }
   }
 
@@ -392,11 +391,9 @@ public class AddNewDel extends ExtendM3Transaction {
    * Prepare transfer
    */
   public void prepareTransfer() {
-    ExpressionFactory ext057Expression = database.getExpressionFactory("EXT057")
     DBAction ext057Query = database
       .table("EXT057")
       .index("10")
-      .matching(ext057Expression)
       .selection("EXCONO",
         "EXORNO",
         "EXPONR",
@@ -409,7 +406,7 @@ public class AddNewDel extends ExtendM3Transaction {
       .build()
     DBContainer ext057Request = ext057Query.getContainer()
     ext057Request.set("EXBJNO", bjno)
-    if (!ext057Query.readAll(ext057Request, 1, 10000,ext057ReaderPrepareTransfer)) {
+    if (!ext057Query.readAll(ext057Request, 1, 2000,ext057ReaderPrepareTransfer)) {
     }
   }
 
@@ -708,8 +705,6 @@ public class AddNewDel extends ExtendM3Transaction {
       if (response.TLIX != null)
         newDelivery = response.TLIX.trim()
 
-      //logger.debug(String.format("call after executeMWS411MIMoveDelLn : DLIX=%s, RORC=%s, RIDN=%s, RIDL=%s, RIDX=%s, TLIX=%s", dlix, rorc, RIDN, RIDL, ridx, tlix))
-
       if (response.error != null) {
         return mi.error("Failed MWS411MI.MoveDelLn: " + response.errorMessage)
       }
@@ -778,47 +773,6 @@ public class AddNewDel extends ExtendM3Transaction {
   public void transferLinePartial(String dlix, String tlix, String cams) {
     logger.debug("method breakLinkedOrders")
 
-    //Save MITPLO and MITALO RECORDS
-    LinkedList<Object> mitplos = new LinkedList<Object>()
-    DBAction mitploQuery = database.table("MITPLO").index("10").selection(
-      "MOWHLO"
-      , "MOITNO"
-      , "MOPLDT"
-      , "MOTIHM"
-      , "MOORCA"
-      , "MORIDN"
-      , "MORIDL"
-      , "MORIDX"
-      , "MORIDI"
-      , "MOSTAT"
-      , "MOALQT").build()
-    DBContainer mitploRequest = mitploQuery.getContainer()
-    mitploRequest.set("MOCONO", currentCompany)
-    mitploRequest.set("MOORCA", "311")
-    mitploRequest.set("MORIDN", oolineOrno)
-    mitploRequest.set("MORIDL", oolinePonr)
-    mitploRequest.set("MORIDX", oolinePosx)
-
-    Closure<?> mitploReader = { DBContainer mitploResult ->
-      //Define return object structure
-      Map<String, String> mitploData = [
-        "MOWHLO"  : "" + mitploResult.get("MOWHLO")
-        , "MOITNO": "" + mitploResult.get("MOITNO")
-        , "MOPLDT": "" + mitploResult.get("MOPLDT")
-        , "MOTIHM": "" + mitploResult.get("MOTIHM")
-        , "MOORCA": "" + mitploResult.get("MOORCA")
-        , "MORIDN": "" + mitploResult.get("MORIDN")
-        , "MORIDL": "" + mitploResult.get("MORIDL")
-        , "MORIDX": "" + mitploResult.get("MORIDX")
-        , "MORIDI": "" + mitploResult.get("MORIDI")
-        , "MOSTAT": "" + mitploResult.get("MOSTAT")
-        , "MOALQT": "" + mitploResult.get("MOALQT")
-      ]
-      mitplos.add(mitploData)
-    }
-    mitploQuery.readAll(mitploRequest, 5, 10000, mitploReader)
-
-
     //Save MITALO RECORDS
     LinkedList<Map<String, String>> mitalos = new LinkedList<Map<String, String>>()
     DBAction mitaloQuery = database.table("MITALO").index("10").selection(
@@ -858,7 +812,7 @@ public class AddNewDel extends ExtendM3Transaction {
       mitalos.add(mitaloData)
     }
 
-    mitaloQuery.readAll(mitaloQueryrequest, 6, 10000, mitaloReader)
+    mitaloQuery.readAll(mitaloQueryrequest, 6, 1000, mitaloReader)
 
 
     logger.debug("oolineRORL:${oolineRorl} oolineRORC:${oolineRorc}")

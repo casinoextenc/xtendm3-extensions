@@ -1125,6 +1125,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       double cofa = resultMITAUN.getDouble("MUCOFA")
       String dmcf = resultMITAUN.getInt("MUDMCF")
 
+      cofa = cofa == 0 ? 1 : cofa
       cofa = "2".equals(dmcf) ? 1 / cofa : cofa
       cofa = new BigDecimal(Double.toString(cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
       if ("UPA".equals(alun)) {

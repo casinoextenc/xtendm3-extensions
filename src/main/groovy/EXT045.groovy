@@ -1,14 +1,19 @@
-/**
- * README
- * This extension is used by SHS010
- *
- * Name : EXT045
- * Description : allows to plan and submit the schedule job EXT040 for all customers
- * Date         Changed By   Description
- * 20231215     RENARN       COMX02 - Cadencier
- * 20240806     FLEBARS     Evolution 20, 52, 56
- * 20250418     FLEBARS     Mise en conformite du code pr validation
- */
+/****************************************************************************************
+ Extension Name: EXT045
+ Type: ExtendM3Transaction
+ Script Author: RENARN
+ Date: 2023-12-15
+ Description:
+ * allows to plan and submit the schedule job EXT040 for all customers
+
+ Revision History:
+ Name                    Date         Version   Description of Changes
+ RENARN                  2023-12-15   1.0       COMX02 - Cadencier
+ FLEBARS                 2024-08-06   1.1       Evolution 20, 52, 56
+ FLEBARS                 2025-04-18   1.2       Mise en conformité du code pour validation
+ RENARN                  2025-05-12   1.3       Taking into account INFOR standards
+ ******************************************************************************************/
+
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -76,8 +81,8 @@ public class EXT045 extends ExtendM3Batch {
   }
   // Get job data
   private Optional<String> getJobData(String referenceId) {
-    def query = database.table("EXTJOB").index("00").selection("EXDATA").build()
-    def container = query.createContainer()
+    DBAction query = database.table("EXTJOB").index("00").selection("EXDATA").build()
+    DBContainer container = query.createContainer()
     container.set("EXRFID", referenceId)
     if (query.read(container)) {
       logger.debug("EXDATA = " + container.getString("EXDATA"))
@@ -113,6 +118,10 @@ public class EXT045 extends ExtendM3Batch {
     }
   }
 
+  /**
+   * Read OCUSMA
+   * @param ocusmaResult
+   */
   Closure<?> ocusmaReader = { DBContainer ocusmaResult ->
     String cuno = ocusmaResult.getString("OKCUNO").trim()
 
@@ -155,10 +164,13 @@ public class EXT045 extends ExtendM3Batch {
       EXT042.set("EXCHID", program.getUser())
       query.insert(EXT042)
     }
+
     allContacts = "1"
     schedule = "1"
+
     logMessage("INFO", "Customer ${cuno} - Calendar ${calendar} - Assortment ${tAssortment} - All contacts ${allContacts} - Schedule ${schedule}")
     executeEXT820MISubmitBatch(currentCompany as String, "EXT040", cuno, calendar, allContacts, schedule, "", "", "", "", "")
+
   }
 
   /**
@@ -168,7 +180,7 @@ public class EXT045 extends ExtendM3Batch {
    * @return
    */
   private executeEXT040MIRtvNextCalendar(String CONO, String CUNO) {
-    def parameters = ["CONO": CONO, "CUNO": CUNO]
+    Map<String, String> parameters = ["CONO": CONO, "CUNO": CUNO]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
       } else {
@@ -178,9 +190,8 @@ public class EXT045 extends ExtendM3Batch {
     miCaller.call("EXT040MI", "RtvNextCalendar", parameters, handler)
   }
   // Execute EXT820MI.SubmitBatch
-  //private executeEXT820MISubmitBatch(String CONO, String JOID, String P001, String P002, String P003, String P004, String P005, String P006, String P007, String P008, String P009){
   private executeEXT820MISubmitBatch(String CONO, String JOID, String P001, String P002, String P003, String P004, String P005, String P006, String P007, String P008, String P009) {
-    def parameters = ["CONO": CONO, "JOID": JOID, "P001": P001, "P002": P002, "P003": P003, "P004": P004, "P005": P005, "P006": P006, "P007": P007, "P008": P008, "P009": P009]
+    Map<String, String> parameters = ["CONO": CONO, "JOID": JOID, "P001": P001, "P002": P002, "P003": P003, "P004": P004, "P005": P005, "P006": P006, "P007": P007, "P008": P008, "P009": P009]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
       } else {
@@ -229,7 +240,6 @@ public class EXT045 extends ExtendM3Batch {
   // Log
   void log(String message) {
     in60 = true
-    //logger.debug(message)
     message = LocalDateTime.now().toString() + ";" + message
     Closure<?> consumer = { PrintWriter printWriter ->
       printWriter.println(message)

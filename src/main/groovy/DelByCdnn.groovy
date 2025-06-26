@@ -8,7 +8,7 @@
  * Date         Changed By   Description
  * 20240930     PBEAUDOUIN   COMX02 - Cadencier
  * 20250416     ARENARD      The code has been checked
-
+ * 20250610     FLEBARS      Apply xtendm3 remarks
  */
 public class DelByCdnn extends ExtendM3Transaction {
   private final MIAPI mi
@@ -38,12 +38,14 @@ public class DelByCdnn extends ExtendM3Transaction {
       cuno = mi.in.get("CUNO")
     } else {
       mi.error("Code Client obligatoire")
+      return
     }
 
     if (mi.in.get("CDNN") != null) {
       cdnn = mi.in.get("CDNN")
     } else {
       mi.error("Code Cadencier obligatoire")
+      return
     }
 
 
@@ -64,6 +66,7 @@ public class DelByCdnn extends ExtendM3Transaction {
     //Loop on records
     if (!ext040Query.readAll(ext040Request, 3, 10000,ext040Reader)) {
       mi.error("L'enregistrement n'existe pas")
+      return
     }
   }
 }

@@ -7,6 +7,7 @@
  * 20230201     SEAR	       COMX02 - Cadencier
  * 20240605     FLEBARS      COMX02 - Cadencier
  * 20250416     ARENARD      The code has been checked
+ * 20250610     FLEBARS      Apply xtendm3 remarks
  */
 public class DelByAscd extends ExtendM3Transaction {
   private final MIAPI mi
@@ -36,6 +37,7 @@ public class DelByAscd extends ExtendM3Transaction {
       cuno = mi.in.get("CUNO")
     } else {
       mi.error("Code Client obligatoire")
+      return
     }
 
     if (mi.in.get("ASCD") != null) {
@@ -62,6 +64,7 @@ public class DelByAscd extends ExtendM3Transaction {
     //Loop on records
     if (!ext040Query.readAll(ext040Request, 3, 10000,ext040Reader)) {
       mi.error("L'enregistrement n'existe pas")
+      return
     }
   }
 }

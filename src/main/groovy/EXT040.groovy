@@ -458,6 +458,7 @@ public class EXT040 extends ExtendM3Batch {
     cugex1MitmasRequest.set("F1PK06", "")
     cugex1MitmasRequest.set("F1PK07", "")
     cugex1MitmasRequest.set("F1PK08", "")
+    logMessage("DEBUG", "ext040ReaderWriteInCalendarFile EXITNO: ${ext040Result.get("EXITNO")}, EXASCD: ${ext040Result.get("EXASCD")}")
     if (cugex1MitmasQuery.read(cugex1MitmasRequest)) {
       String itno = ext040Result.getString("EXITNO").trim()
       String ascd = ext040Result.getString("EXASCD").trim()
@@ -552,8 +553,8 @@ public class EXT040 extends ExtendM3Batch {
       }
     }
     if (itno20 != "") {
-      sigma9NoDirectDelivery = itno20
-      sigma9NoDirectDeliveryAssortment = ascd20
+      sigma9DirectDelivery = itno20
+      sigma9DirectDeliveryassortment = ascd20
     }
 
     if (ocusmaN596 == 10) {
@@ -590,6 +591,7 @@ public class EXT040 extends ExtendM3Batch {
         sigma9NoDirectDeliveryAssortment = ascd10
       }
     }
+    logMessage("DEBUG", "ext040ReaderWriteInCalendarFile sigma9NoDirectDelivery: ${sigma9NoDirectDelivery}, sigma9NoDirectDelivery: ${sigma9NoDirectDelivery}")
     writeInCalendarFile()
   }
   /**

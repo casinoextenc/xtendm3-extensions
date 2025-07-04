@@ -12,6 +12,7 @@
  FLEBARS                 2024-08-06   1.1       Evolution 20, 52, 56
  FLEBARS                 2025-04-18   1.2       Mise en conformité du code pour validation
  RENARN                  2025-05-12   1.3       Taking into account INFOR standards
+ FLEBARS                 2025-07-04   1.4       Add control in OASCUS
  ******************************************************************************************/
 
 
@@ -168,9 +169,25 @@ public class EXT045 extends ExtendM3Batch {
     allContacts = "1"
     schedule = "1"
 
-    logMessage("INFO", "Customer ${cuno} - Calendar ${calendar} - Assortment ${tAssortment} - All contacts ${allContacts} - Schedule ${schedule}")
-    executeEXT820MISubmitBatch(currentCompany as String, "EXT040", cuno, calendar, allContacts, schedule, "", "", "", "", "")
-
+    String todaydat = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+    ExpressionFactory oascusExpression = database.getExpressionFactory("OASCUS")
+    oascusExpression = oascusExpression.le("OCFDAT", todaydat)
+    oascusExpression = oascusExpression.and(oascusExpression.ge("OCTDAT", todaydat))
+    DBAction oascusQuery = database.table("OASCUS")
+      .index("00")
+      .matching(oascusExpression)
+      .selection("OCCONO", "OCASCD", "OCCUNO", "OCFDAT").build()
+    DBContainer oascusRequest = oascusQuery.getContainer()
+    oascusRequest.set("OCCONO", currentCompany)
+    oascusRequest.set("OCASCD", tAssortment)
+    oascusRequest.set("OCCUNO", cuno)
+    if (!oascusQuery.readAll(oascusRequest, 3, 1, { DBContainer oascusResult ->
+    })) {
+      logMessage("ERROR", "Assortiment client inexistant Customer ${cuno} - Calendar ${calendar} - Assortment ${tAssortment} - All contacts ${allContacts} - Schedule ${schedule}")
+    } else {
+      logMessage("INFO", "Customer ${cuno} - Calendar ${calendar} - Assortment ${tAssortment} - All contacts ${allContacts} - Schedule ${schedule}")
+      executeEXT820MISubmitBatch(currentCompany as String, "EXT040", cuno, calendar, allContacts, schedule, "", "", "", "", "")
+    }
   }
 
   /**

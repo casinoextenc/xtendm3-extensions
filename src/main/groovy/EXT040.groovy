@@ -21,6 +21,7 @@
  RENARN      2025-05-13  1.1.2    Reading loops have been drastically reduced
  FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239
  FLEBARS     2025-05-28  1.1.4    Add expiration date in main method
+ FLEBARS     2025-07-04  1.1.5    Changes rules for mail addresses
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -210,7 +211,6 @@ public class EXT040 extends ExtendM3Batch {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     fileJobNumber = program.getJobNumber()
     jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
-
 
 
     //log management
@@ -558,7 +558,7 @@ public class EXT040 extends ExtendM3Batch {
     }
 
     if (ocusmaN596 == 10) {
-      if (itno10 != ""){
+      if (itno10 != "") {
         sigma9NoDirectDelivery = itno10
         sigma9NoDirectDeliveryAssortment = ascd10
       } else if (itno30 != "") {
@@ -568,8 +568,8 @@ public class EXT040 extends ExtendM3Batch {
         sigma9NoDirectDelivery = itno40
         sigma9NoDirectDeliveryAssortment = ascd40
       }
-    } else if (ocusmaN596 == 30){
-      if (itno30 != ""){
+    } else if (ocusmaN596 == 30) {
+      if (itno30 != "") {
         sigma9NoDirectDelivery = itno30
         sigma9NoDirectDeliveryAssortment = ascd30
       } else if (itno10 != "") {
@@ -579,8 +579,8 @@ public class EXT040 extends ExtendM3Batch {
         sigma9NoDirectDelivery = itno40
         sigma9NoDirectDeliveryAssortment = ascd40
       }
-    } else if (ocusmaN596 == 40){
-      if (itno40 != ""){
+    } else if (ocusmaN596 == 40) {
+      if (itno40 != "") {
         sigma9NoDirectDelivery = itno40
         sigma9NoDirectDeliveryAssortment = ascd40
       } else if (itno30 != "") {
@@ -751,10 +751,16 @@ public class EXT040 extends ExtendM3Batch {
    */
   Closure<?> ccuconReader = { DBContainer ccuconResult ->
     line = ccuconResult.get("CCEMAL")
+    String rftp = ccuconResult.get("CCRFTP")
     countLines++
     lines += line + (countLines < 5000 ? "\r\n" : "")
     if (countLines == 5000) {
-      writeInFile("", lines)
+      if (logFileName.contains("mailsClients.txt") && !rftp.startsWith("I")) {
+        writeInFile("", lines)
+      }
+      if (logFileName.contains("mailsInternes.txt") && rftp.startsWith("I")) {
+        writeInFile("", lines)
+      }
       countLines = 0
       lines = ""
     }
@@ -1003,7 +1009,7 @@ public class EXT040 extends ExtendM3Batch {
     lines = ""
 
     if (inAllContacts == 1) {
-      DBAction ccuconQuery = database.table("CCUCON").index("10").selection("CCEMAL").build()
+      DBAction ccuconQuery = database.table("CCUCON").index("10").selection("CCEMAL", "CCRFTP").build()
       DBContainer ccuconRequest = ccuconQuery.getContainer()
       ccuconRequest.set("CCCONO", currentCompany)
       ccuconRequest.set("CCERTP", 1)
@@ -1035,12 +1041,10 @@ public class EXT040 extends ExtendM3Batch {
     lines = ""
 
     if (inSchedule == 1) {
-      ExpressionFactory ccuconExpression = database.getExpressionFactory("CCUCON")
-      ccuconExpression = ccuconExpression.eq("CCRFTP", "I-COM")
-      DBAction ccuconQuery = database.table("CCUCON").index("10").matching(ccuconExpression).selection("CCEMAL").build()
+      DBAction ccuconQuery = database.table("CCUCON").index("10").selection("CCEMAL", "CCRFTP").build()
       DBContainer ccuconRequest = ccuconQuery.getContainer()
       ccuconRequest.set("CCCONO", currentCompany)
-      ccuconRequest.set("CCERTP", 0)
+      ccuconRequest.set("CCERTP", 1)
       ccuconRequest.set("CCEMRE", inCustomer)
       if (!ccuconQuery.readAll(ccuconRequest, 3, 100, ccuconReader)) {
       }

@@ -6,6 +6,8 @@
  * Description : Change order head
  * Date         Changed By   Description
  * 20230413     RENARN       LOG28 - Creation of files and containers
+ * 20250425     RENARN       LOG28 - Added executeOIS100MIUpdUserDefCOH
+ * 20250702     FLEBARS      LOG28 - renvoi des erreurs appel apis OIS100MI
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -43,29 +45,24 @@ public class ChgOrderHead extends ExtendM3Transaction {
     String uca4 = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
     String uca5 = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
     String uca6 = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
-    DBAction ooheadQuery = database.table("OOHEAD").index("00").selection("OAORNO").build()
-    DBContainer OOHEAD = ooheadQuery.getContainer()
-    OOHEAD.set("OACONO", currentCompany)
-    OOHEAD.set("OAORNO", orno)
 
-    // Update OOHEAD
-    Closure<?> updateCallBack = { LockedResult lockedResult ->
-      LocalDateTime timeOfCreation = LocalDateTime.now()
-      int changeNumber = lockedResult.get("OACHNO")
-      if (mi.in.get("UCA4") != null)
-        lockedResult.set("OAUCA4", uca4)
-      if (mi.in.get("UCA5") != null)
-        lockedResult.set("OAUCA5", uca5)
-      if (mi.in.get("UCA6") != null)
-        lockedResult.set("OAUCA6", uca6)
-      lockedResult.setInt("OALMDT", timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer)
-      lockedResult.setInt("OACHNO", changeNumber + 1)
-      lockedResult.set("OACHID", program.getUser())
-      lockedResult.update()
+    executeOIS100MIUpdUserDefCOH(orno, uca4, uca5, uca6)
+  }
+  /**
+   * This method is used to call the MI OIS100MI UpdUserDefCOH
+   * @param ORNO Order number
+   * @param UCA4 User defined field 4
+   * @param UCA5 User defined field 5
+   * @param UCA6 User defined field 6
+   */
+  private executeOIS100MIUpdUserDefCOH(String ORNO, String UCA4, String UCA5, String UCA6){
+    Map<String, String> parameters = ["ORNO": ORNO, "UCA4": UCA4, "UCA5": UCA5, "UCA6": UCA6]
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        mi.error(response.errorMessage)
+      } else {
+      }
     }
-
-    if(!ooheadQuery.readLock(OOHEAD, updateCallBack)) {
-      mi.error("Le numéro de commande " + orno + " n'existe pas")
-    }
+    miCaller.call("OIS100MI", "UpdUserDefCOH", parameters, handler)
   }
 }

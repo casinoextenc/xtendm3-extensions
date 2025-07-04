@@ -11,6 +11,7 @@
  20230524     SEAR         LOG28 - Creation of files and containers
  20240319     MLECLERCQ    LOG28 - filters
  20250428     FLEBARS      Code review for infor validation
+ 20250627     FLEBARS      Quality filter modification for LAIT & PETFOOD
  ******************************************************************************************/
 
 import java.math.RoundingMode
@@ -22,8 +23,7 @@ public class LstPallet extends ExtendM3Transaction {
   private final LoggerAPI logger
   private final ProgramAPI program
   private final DatabaseAPI database
-  private final SessionAPI session
-  private final TransactionAPI transaction
+
   private final MICallerAPI miCaller
   private final UtilityAPI utility
   private boolean sameWarehouse
@@ -79,7 +79,8 @@ public class LstPallet extends ExtendM3Transaction {
   private String suno
 
   private Map<String, Boolean> quafiltersInput
-  private LinkedHashMap<String, Boolean> filterResults
+  private Map<String, Boolean> filterResults
+  private Map<String, String[]> ext034Map
 
   private String dgx4
 
@@ -109,7 +110,7 @@ public class LstPallet extends ExtendM3Transaction {
     }
 
     quafiltersInput = new HashMap<String, Boolean>()
-    filterResults = new LinkedHashMap<String, Boolean>()
+    filterResults = new HashMap<String, Boolean>()
 
     //Get mi inputs
     whloInput = (mi.in.get("WHLO") != null ? (String) mi.in.get("WHLO") : "")
@@ -119,18 +120,21 @@ public class LstPallet extends ExtendM3Transaction {
     cunoInput = (mi.in.get("CUNO") != null ? (String) mi.in.get("CUNO") : "")
     dlixInput = (Long) (mi.in.get("DLIX") != null ? mi.in.get("DLIX") : 0)
 
-    quafiltersInput["PHYT"] = (mi.in.get("PHYT") != null ? (Boolean) mi.in.get("PHYT") : false)
-    quafiltersInput["SANI"] = (mi.in.get("SANI") != null ? (Boolean) mi.in.get("SANI") : false)
-    quafiltersInput["PETF"] = (mi.in.get("PETF") != null ? (Boolean) mi.in.get("PETF") : false)
-    quafiltersInput["LAIT"] = (mi.in.get("LAIT") != null ? (Boolean) mi.in.get("LAIT") : false)
-    quafiltersInput["ALCO"] = (mi.in.get("ALCO") != null ? (Boolean) mi.in.get("ALCO") : false)
-    quafiltersInput["BIER"] = (mi.in.get("BIER") != null ? (Boolean) mi.in.get("BIER") : false)
-    quafiltersInput["VIN1"] = (mi.in.get("VIN1") != null ? (Boolean) mi.in.get("VIN1") : false)
-    quafiltersInput["CHAM"] = (mi.in.get("CHAM") != null ? (Boolean) mi.in.get("CHAM") : false)
-    quafiltersInput["DGX1"] = (mi.in.get("DGX1") != null ? (Boolean) mi.in.get("DGX1") : false)
-    quafiltersInput["DGX4"] = (mi.in.get("DGX4") != null ? (Boolean) mi.in.get("DGX4") : false)
-    quafiltersInput["ISO1"] = (mi.in.get("ISO1") != null ? (Boolean) mi.in.get("ISO1") : false)
-    quafiltersInput["DPH1"] = (mi.in.get("DPH1") != null ? (Boolean) mi.in.get("DPH1") : false)
+    quafiltersInput["PHYT"] = (mi.in.get("PHYT") as Integer) == 1 ? true : false
+    quafiltersInput["SANI"] = (mi.in.get("SANI") as Integer) == 1 ? true : false
+    quafiltersInput["PETF"] = (mi.in.get("PETF") as Integer) == 1 ? true : false
+    quafiltersInput["LAIT"] = (mi.in.get("LAIT") as Integer) == 1 ? true : false
+    quafiltersInput["ALCO"] = (mi.in.get("ALCO") as Integer) == 1 ? true : false
+    quafiltersInput["BIER"] = (mi.in.get("BIER") as Integer) == 1 ? true : false
+    quafiltersInput["VIN1"] = (mi.in.get("VIN1") as Integer) == 1 ? true : false
+    quafiltersInput["CHAM"] = (mi.in.get("CHAM") as Integer) == 1 ? true : false
+    quafiltersInput["DGX1"] = (mi.in.get("DGX1") as Integer) == 1 ? true : false
+    quafiltersInput["DGX4"] = (mi.in.get("DGX4") as Integer) == 1 ? true : false
+    quafiltersInput["ISO1"] = (mi.in.get("ISO1") as Integer) == 1 ? true : false
+    quafiltersInput["DPH1"] = (mi.in.get("DPH1") as Integer) == 1 ? true : false
+
+    logger.debug("quafiltersInput ${quafiltersInput}")
+
 
     // check warehouse
     DBAction mitwhlQuery = database.table("MITWHL").index("00").selection("MWWHLO").build()
@@ -228,7 +232,7 @@ public class LstPallet extends ExtendM3Transaction {
     if (!ext052Query.readAll(ext052Request, 1, nbMaxRecord, ext052Reader)) {
     }
 
-    Closure<?> ext052LReader = { DBContainer ext052Result ->
+    Closure<?> ext052DeleteReader = { DBContainer ext052Result ->
       Closure<?> ext052Deleter = { LockedResult ext052LockedResult ->
         ext052LockedResult.delete()
       }
@@ -236,7 +240,7 @@ public class LstPallet extends ExtendM3Transaction {
     }
 
     //Record exists
-    if (!ext052Query.readAll(ext052Request, 1, nbMaxRecord, ext052LReader)) {
+    if (!ext052Query.readAll(ext052Request, 1, nbMaxRecord, ext052DeleteReader)) {
     }
   }
 
@@ -248,10 +252,13 @@ public class LstPallet extends ExtendM3Transaction {
     semaine = ooheadResult.get("OAUCA5")
     annee = ooheadResult.get("OAUCA6")
     cunoOohead = ooheadResult.get("OACUNO")
-    logger.debug("found OOHEAD : " + commande)
 
-    initFilters()
 
+    filterResults = new HashMap<String, Boolean>()
+    quafiltersInput.each { key, value ->
+      if (value)
+        filterResults.put(key, false)
+    }
     // Get MITLO
     ExpressionFactory mitaloExpression = database.getExpressionFactory("MITALO")
     mitaloExpression = (mitaloExpression.eq("MQWHLO", whloInput))
@@ -263,9 +270,7 @@ public class LstPallet extends ExtendM3Transaction {
     mitaloRequest.set("MQRIDN", commande)
     if (mitaloQuery.readAll(mitaloRequest, 3, nbMaxRecord, mitaloReader)) {
     }
-    logger.debug("commande : " + commande)
-    logger.debug("dossier : " + dossier + "semaine : " + semaine + "annee : " + annee)
-    logger.debug("sameWarehouse : " + sameWarehouse)
+    logger.debug("commande:${commande} dossier:${dossier} semaine:${semaine} annee:${annee}")
   }
 
   // data MITALO
@@ -278,10 +283,6 @@ public class LstPallet extends ExtendM3Transaction {
     alqtMitalo = mitaloResult.get("MQALQT")
     whloMitalo = mitaloResult.get("MQWHLO")
     itemNumber = mitaloResult.get("MQITNO")
-
-    logger.debug("found MITALO RIDN: " + ridnMitalo)
-    logger.debug("found MITALO RIDL: " + ridlMitalo)
-    logger.debug("found MITALO RIDI: " + ridiMitalo)
 
     if (ridiMitalo == 0) {
       DBAction mhdislQuery = database.table("MHDISL").index("10").selection("URDLIX").build()
@@ -328,15 +329,9 @@ public class LstPallet extends ExtendM3Transaction {
     if (mhdishQuery.read(mhdishRequest)) {
       connMhdish = mhdishRequest.get("OQCONN")
       rscdMhdish = mhdishRequest.get("OQRSCD")
-      logger.debug("found MHDISH CONN: " + connMhdish)
     }
 
-    logger.debug("sameIndex: " + sameIndex)
-    logger.debug("sameWarehouse: " + sameWarehouse)
-    logger.debug("sameCustomer: " + sameCustomer)
-
     if (sameIndex && sameWarehouse && sameCustomer) {
-      logger.debug("valide line")
 
       spunOoline = ""
       // Get OOLINE
@@ -390,21 +385,17 @@ public class LstPallet extends ExtendM3Transaction {
           if (!filterResults.get("BIER") || !filterResults.get("VIN1")) {
             String cfi4 = mitmasRequest.get("MMCFI4")
             cfi4 = cfi4.trim()
-            //Don't need to check if both are already true
-            filterResults = (LinkedHashMap<String, Boolean>) filterBeerAndWine(cfi4, filterResults)
+            filterResults = (HashMap<String, Boolean>) filterBeerAndWine(cfi4, filterResults)
+            logger.debug("filterResults after beer and wine: " + filterResults)
           }
-
-          logger.debug("Bier or wine filters, their values are : " + filterResults.get("BIER") + ", " + filterResults.get("VIN1") + " for PAL: ${camuMitalo}")
         }
       }
 
       if (quafiltersInput.get("ISO1") || quafiltersInput.get("DPH1")) {
-        filterResults = (LinkedHashMap<String, Boolean>) filterOnCugex(itemNumber, filterResults)
-        logger.debug("ISO or DPH filters, their values are : " + filterResults.get("ISO1") + ", " + filterResults.get("DPH1"))
+        filterResults = (HashMap<String, Boolean>) filterOnCugex(itemNumber, filterResults)
+        logger.debug("filterResults after filterOnCugex: " + filterResults)
       }
 
-      logger.debug("suno = " + suno)
-      logger.debug("itemNumber = " + itemNumber)
       popn = ""
       ExpressionFactory mitpopExpression = database.getExpressionFactory("MITPOP")
       mitpopExpression = mitpopExpression.eq("MPREMK", "SIGMA6")
@@ -416,9 +407,7 @@ public class LstPallet extends ExtendM3Transaction {
       mitpopRequest.set("MPITNO", itemNumber)
       if (!mitpopQuery.readAll(mitpopRequest, 4, nbMaxRecord, mitpopReader)) {
       }
-      logger.debug("popn = " + popn)
 
-      logger.debug("faciOoline = " + faciOoline)
       csno = ""
       orco = ""
       DBAction mitfacQuery = database.table("MITFAC").index("00").selection("M9CSNO", "M9ORCO").build()
@@ -430,7 +419,6 @@ public class LstPallet extends ExtendM3Transaction {
         csno = mitfacRequest.get("M9CSNO")
         orco = mitfacRequest.get("M9ORCO")
       }
-      logger.debug("csno = ${csno} and orco = ${orco}")
 
       sanitary = 0
       sensitive = 0
@@ -469,7 +457,6 @@ public class LstPallet extends ExtendM3Transaction {
 
         boolean alcool = (boolean) ext032Request.get("EXZALC")
 
-        logger.debug("Filtre alcool ? : " + quafiltersInput["ALCO"] + " , EXT032 ZALC = ${alcool}")
         if (quafiltersInput.get("ALCO") && !filterResults.get("ALCO")) {
           //If alcool already true, don't need to check
           if (alcool) {
@@ -478,7 +465,6 @@ public class LstPallet extends ExtendM3Transaction {
         }
 
       }
-      logger.debug("sanitary = " + sanitary)
 
       allocatedQuantityUB = alqtMitalo
 
@@ -495,29 +481,21 @@ public class LstPallet extends ExtendM3Transaction {
       mitaunRequest.set("MUALUN", "COL")
 
       if (mitaunQuery.read(mitaunRequest)) {
-        Double cofa = mitaunRequest.get("MUCOFA")
-        logger.debug("MUCOFA = ${cofa}")
+        Double cofa = mitaunRequest.get("MUCOFA") as Double
+        if (cofa == 0) {
+          cofa = 1
+        }
         nbOfCols = dAlqt / cofa
         nbOfCols = new BigDecimal(nbOfCols).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-
-        logger.debug("nbOfCols = ${nbOfCols}")
-      } else {
-        logger.debug("record not found in MITAUN")
       }
-
-
-      logger.debug("line OK")
 
       if (quafiltersInput.containsValue(true)) {
 
-        filterResults = (LinkedHashMap<String, Boolean>) filterOnExt036(commande, lineNumber, lineSuffix, filterResults)
+        filterResults = filterOnExt037(commande, lineNumber, lineSuffix, quafiltersInput)
 
-        for (resultKey in filterResults.keySet()) {
-          logger.debug("Result for key: ${resultKey} = " + filterResults.get(resultKey) + " for PAL = ${camuMitalo}")
-        }
 
-        boolean eq = areFiltersEquals()
-        logger.debug("filters equals = ${eq}")
+        logger.debug("filterResults before writeline : " + filterResults + " " + (filterResults.containsValue(false)))
+        boolean eq = !filterResults.containsValue(false)
         isRecordValid = eq ? 1 : 0
 
       } else {
@@ -631,19 +609,7 @@ public class LstPallet extends ExtendM3Transaction {
       }
 
       isRecordValid = 0
-
-      initFilters()
-
     }
-  }
-
-  /**
-   * Retrieve MHDISL data
-   */
-  Closure<?> DataMHDISL = { DBContainer containerMHDISL ->
-    lineIndex = containerMHDISL.getLong("URDLIX")
-    sameIndex = true
-    foundLineIndex = true
   }
 
   /**
@@ -670,9 +636,6 @@ public class LstPallet extends ExtendM3Transaction {
     String shipmentExt052 = ext052Result.get("EXCONN")
     String reasonCodeExt052 = ext052Result.get("EXRSCD")
     String filterExt052 = ext052Result.get("EXFILT")
-    logger.debug("EXT052 RSCD = " + ext052Result.get("EXRSCD"))
-    logger.debug("reasonCodeExt052 = " + reasonCodeExt052)
-
 
     mi.outData.put("UCA4", dossierExt052)
     mi.outData.put("UCA5", semaineExt052)
@@ -709,52 +672,42 @@ public class LstPallet extends ExtendM3Transaction {
   Closure<?> mitpopReader = { DBContainer mitpopResult ->
     popn = mitpopResult.get("MPPOPN")
   }
-  /**
-   * Delete
-   */
-  Closure<?> deleteCallBack = { LockedResult lockedResult ->
-    lockedResult.delete()
-  }
+
   /**
    * Retrieve MHDISL data
    */
   Closure<?> mhdislReader = { DBContainer mhdislResult ->
     ridiMitalo = mhdislResult.get("URDLIX")
-    logger.debug("found MHDISL RIDI: " + ridiMitalo)
   }
 
   /**
    * Filter beer and wine
    */
-  private filterBeerAndWine(cfi4, filterResults) {
-    logger.debug("MMCFI4 : ${cfi4}")
-
+  private Map<String, Boolean> filterBeerAndWine(String cfi4, Map<String, Boolean> lFilterResults) {
+    logger.debug("filterBeerAndWine itno:${itemNumber} cfi4:${cfi4}")
     if (cfi4 == "S" || cfi4 == "T") {
-      filterResults["BIER"] = true
+      lFilterResults["BIER"] = true
     } else if (cfi4 == "1" || cfi4 == "2" || cfi4 == "3" || cfi4 == "4" || cfi4 == "5" || cfi4 == "6" || cfi4 == "9"
       || cfi4 == "B" || cfi4 == "C" || cfi4 == "D" || cfi4 == "K" || cfi4 == "L" || cfi4 == "M" || cfi4 == "N"
       || cfi4 == "Q" || cfi4 == "U" || cfi4 == "X"
     ) {
-      filterResults["VIN1"] = true
+      lFilterResults["VIN1"] = true
     }
-
-    return filterResults
+    return lFilterResults
   }
 
   /**
    * Filter on CUGEX1
    */
-  private filterOnCugex(itno, filterResults) {
-
-    LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>) filterResults
+  private filterOnCugex(String itno, Map<String, Boolean> filterResults) {
+    logger.debug("filterOnCugex itno:${itno}")
+    HashMap<String, Boolean> results = (HashMap<String, Boolean>) filterResults
 
     DBAction cugex1Query = database.table("CUGEX1").index("00").selection("F1CHB9", "F1CHB6").build()
     DBContainer cugex1Request = cugex1Query.getContainer()
     cugex1Request.set("F1CONO", currentCompany)
     cugex1Request.set("F1FILE", "MITMAS")
     cugex1Request.set("F1PK01", itno)
-
-    logger.debug("In function filterOnCugex with ITNO: ${itno}")
 
     int chb6 = 0
     int chb9 = 0
@@ -763,7 +716,6 @@ public class LstPallet extends ExtendM3Transaction {
       chb6 = cugex1Result.get("F1CHB6")
       chb9 = cugex1Result.get("F1CHB9")
     })) {
-      logger.debug("Get filters in Cugex : CHB6 = " + cugex1Request.get("F1CHB6") + " and CHB9 = " + cugex1Request.get("F1CHB9") + "pour Article=${itno}")
       if (chb6 == 1) {
         if (results.containsKey("DPH1")) {
           results["DPH1"] = true
@@ -783,61 +735,71 @@ public class LstPallet extends ExtendM3Transaction {
   /**
    * Filter on EXT037
    */
-  private filterOnExt036(orno, ponr, posx, filterResults) {
+  private HashMap<String, Boolean> filterOnExt037(String orno, int ponr, int posx, Map<String, Boolean> quafiltersInput) {
 
-    LinkedHashMap<String, Boolean> results = (LinkedHashMap<String, Boolean>) filterResults
+    logger.debug("filterOnExt037 orno:${orno} ponr:${ponr} posx:${posx}")
+
+    HashMap<String, Boolean> results = (HashMap<String, Boolean>)filterResults
     posx = posx == null ? 0 : posx
 
-    DBAction ext037Query = database.table("EXT037").index("00").selection("EXORNO", "EXPONR", "EXITNO", "EXZSTY", "EXZCTY").build()
+    logger.debug("quafiltersInput " + quafiltersInput)
+
+    DBAction ext037Query = database.table("EXT037").index("00").selection("EXORNO", "EXPONR", "EXITNO", "EXZCTY", "EXZCOD").build()
     DBContainer ext037Request = ext037Query.getContainer()
     ext037Request.set("EXCONO", currentCompany)
     ext037Request.set("EXORNO", orno)
     ext037Request.set("EXPONR", ponr as Integer)
     ext037Request.set("EXPOSX", posx as Integer)
+    ext037Request.set("EXDLIX", 0)
 
     String zcty = ""
-    String zsty = ""
+    String zcod = ""
     String itno = ""
-    if (ext037Query.readAll(ext037Request, 4, 50, { DBContainer ext037Reader ->
-      zcty = ext037Reader.get("EXZCTY")
-      zsty = ext037Reader.get("EXZSTY")
-      itno = ext037Reader.get("EXITNO")
+    String zsty = ""
+    if (ext037Query.readAll(ext037Request, 5, 50, { DBContainer ext037Reader ->
+      zcty = ext037Reader.getString("EXZCTY").trim()
+      zcod = ext037Reader.getString("EXZCOD").trim()
+      itno = ext037Reader.getString("EXITNO").trim()
     })) {
-      logger.debug("In EXT037 ZCTY=${zcty} and ZSTY=${zsty} for ORNO:${orno} and PONR:${ponr}")
+      logger.debug("In EXT037 ZCTY=${zcty} and ZSTY=${zcod} for ORNO:${orno} and PONR:${ponr}")
+      getExt034Data(zcod)
+      zsty = ext034Map.get(zcod)[1]
 
-      if (results.containsKey("PHYT") && zcty.trim() == "PHYTOSANITAIRE") {
+
+      if (quafiltersInput.get("PHYT") && zcty.trim() == "PHYTOSANITAIRE") {
         results["PHYT"] = true
       }
 
-      if (results.containsKey("SANI") && zcty.trim() == "SANITAIRE") {
+      if (quafiltersInput.get("SANI") && zcty.trim() == "SANITAIRE") {
         logger.debug("In EXT037 , SANI = " + zcty.trim())
         results["SANI"] = true
       }
 
-      if (results.containsKey("PETF") && zsty.trim() == "PET") {
+      if (quafiltersInput.get("PETF") && zsty.trim() == "PETFOOD") {
+        logger.debug("In EXT037 , PETF = " + zcty.trim())
         results["PETF"] = true
       }
 
-      if (results.containsKey("LAIT") && zsty.trim() == "LAI") {
+      if (quafiltersInput.get("LAIT") && zsty.trim() == "LAIT") {
         results["LAIT"] = true
       }
 
-      if (results.containsKey("CHAM") && zsty.trim() == "CHA") {
+      if (quafiltersInput.get("CHAM") && zcod.trim() == "CHA") {
         results["CHAM"] = true
       }
 
-      if (results.containsKey("DGX1") && zsty.trim() == "DGX") {
+      if (quafiltersInput.get("DGX1") && zcod.trim() == "DGX") {
         results["DGX1"] = true
       }
 
-      if (results.containsKey("DGX4") && zsty.trim() == "DGX") {
+      if (quafiltersInput.get("DGX4") && zcod.trim() == "DGX") {
         DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMHAC1").build()
         DBContainer mitmasRequest = mitmasQuery.getContainer()
         mitmasRequest.set("MMCONO", currentCompany)
         mitmasRequest.set("MMITNO", itno)
 
         if (mitmasQuery.read(mitmasRequest)) {
-          String haci = mitmasRequest.get("MMHAC1")
+          String haci = mitmasRequest.getString("MMHAC1").trim()
           if (haci == "4.1" || haci == "4.2" || haci == "4.3") {
             results["DGX4"] = true
           }
@@ -845,42 +807,29 @@ public class LstPallet extends ExtendM3Transaction {
       }
 
     }
-
     return results
   }
 
   /**
-   * Initialize filters
+   * Retrieve EXT034 data
+   * @param zcod
    */
-  private initFilters() {
-    filterResults = new LinkedHashMap<>()
-
-    for (key in quafiltersInput.keySet()) {
-      if (quafiltersInput.get(key) == true) {
-        filterResults.put(key, false)
-      }
+  public void getExt034Data(String zcod){
+    if (ext034Map == null) {
+      ext034Map = new HashMap<String, String[]>()
     }
-
+    if (ext034Map.containsKey(zcod)) {
+      return
+    }
+    DBAction ext034Query = database.table("EXT034").index("00").selection("EXZDES", "EXZCTY", "EXZSTY").build()
+    DBContainer ext034Request = ext034Query.getContainer()
+    ext034Request.set("EXCONO", currentCompany)
+    ext034Request.set("EXZCOD", zcod)
+    if (ext034Query.read(ext034Request)){
+      String zcty = ext034Request.getString("EXZCTY").trim()
+      String zsty = ext034Request.getString("EXZSTY").trim()
+      ext034Map.put(zcod, [zcty, zsty].toArray(new String[0]))
+    }
   }
 
-  /**
-   * Check if filters are equals
-   */
-  private boolean areFiltersEquals() {
-    Set<String> quaFiltersKeys = quafiltersInput.keySet()
-    Collection<Boolean> quaFiltersValues = quafiltersInput.values()
-
-    Set<String> filterResultsKeys = filterResults.keySet()
-    Collection<Boolean> filterResultValues = filterResults.values()
-
-    quaFiltersKeys.each { key ->
-      logger.debug("quaFilters[${key}] = " + quafiltersInput[key])
-    }
-
-    filterResultsKeys.each { key ->
-      logger.debug("filterResultsKeys[${key}] = " + filterResults[key])
-    }
-
-    return quafiltersInput.entrySet().containsAll(filterResults.entrySet())
-  }
 }

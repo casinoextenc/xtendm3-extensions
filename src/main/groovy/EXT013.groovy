@@ -113,6 +113,8 @@ public class EXT013 extends ExtendM3Batch {
   private Integer ponr
   private Integer posx
   private String itno
+  private String itnonok
+  private String titn
   private String fitn
   private double orqt
   private double lnam
@@ -121,6 +123,7 @@ public class EXT013 extends ExtendM3Batch {
   private String repi
   private String ean13
   private String itds
+  private String itdsnok
   private String rscd
   private String rsc1
   private double grweItem
@@ -421,8 +424,8 @@ public class EXT013 extends ExtendM3Batch {
     }
 
     // récap totaux intégrés
-    double dVol3 = new BigDecimal(vol3).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    String sVol3 = String.format("%.3f", dVol3)
+    double dVol3 = new BigDecimal(vol3).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+    String sVol3 = String.format("%.6f", dVol3)
     double dGrwe = new BigDecimal(grwe).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sGrwe = String.format("%.3f", dGrwe)
     double dNewe = new BigDecimal(newe).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
@@ -430,11 +433,12 @@ public class EXT013 extends ExtendM3Batch {
     double dTotVal = new BigDecimal(totVal).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sTotVal = String.format("%.3f", dTotVal)
     Double dtotEquivPal = totEquivPal
+    String stotEquivPal = String.format("%.2f", dtotEquivPal)
     totIntegre = "Volume total;" + sVol3
     totIntegres = totIntegres += totIntegre + "\r\n"
     totIntegre = "Total Colis;" + totCol
     totIntegres = totIntegres += totIntegre + "\r\n"
-    totIntegre = "Total palette reconstituée;" + dtotEquivPal
+    totIntegre = "Total palette reconstituée;" + stotEquivPal
     totIntegres = totIntegres += totIntegre + "\r\n"
     totIntegre = "Total poids brut;" + sGrwe
     totIntegres = totIntegres += totIntegre + "\r\n"
@@ -444,8 +448,8 @@ public class EXT013 extends ExtendM3Batch {
     totIntegres = totIntegres += totIntegre
 
     // récap totaux rejetés
-    double dVolTotRej = new BigDecimal(volTotRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
-    String sVolTotRej = String.format("%.3f", dVolTotRej)
+    double dVolTotRej = new BigDecimal(volTotRej).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+    String sVolTotRej = String.format("%.6f", dVolTotRej)
     double dTotBrutRej = new BigDecimal(totBrutRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
     String sTotBrutRej = String.format("%.3f", dTotBrutRej)
     double dTotNetRej = new BigDecimal(totNetRej).setScale(3, RoundingMode.HALF_EVEN).doubleValue()
@@ -604,11 +608,14 @@ public class EXT013 extends ExtendM3Batch {
       pcb = 0
       ean13 = ""
       itds = ""
+      itdsnok = ""
+      itnonok = ""
 
       totLignesRecues++
       totLignesintegrees++
       logger.debug("outdataOxline ${totLignesintegrees} + ${totLignesRecues} + ${ponr}")
       errorCode = retrieveError(inOrderNumber, ponr, posx)
+      errorCode = errorCode.trim()
       logger.debug("outdataOxline retrieveError return errorCode  ${errorCode}")
       if (errorCode == "") {
         errorCode = rscd
@@ -620,11 +627,40 @@ public class EXT013 extends ExtendM3Batch {
 
       typeError = getErrorDescription(cuno, errorCode)
 
-      if (itno.startsWith("NOK-S6"))
-        itno = fitn
+      Closure<?> outdatamitmasnok = { DBContainer mitmasnok ->
+        logger.debug("#PB NOK SIGMA9 + "+ itnonok +" POUR "+itno)
+        itnonok = mitmasnok.getString("MMITNO")
+        itds = mitmasnok.getString("MMITDS")
+        logger.debug("#PB NOK SIGMA9 + "+ itnonok +" POUR "+itno)
 
-      ean13 = getEAN(itno)
-      pcb = getItemPCB(itno)
+        ean13 = getEAN(itnonok)
+      }
+
+      if (itno.startsWith("NOK-S")){
+        itno = fitn
+        titn = fitn+"9999"
+        ExpressionFactory expressionMitmasNok = database.getExpressionFactory("MITMAS")
+        expressionMitmasNok = expressionMitmasNok.gt("MMITNO", itno)
+        expressionMitmasNok = expressionMitmasNok.and(expressionMitmasNok.lt("MMITNO", titn))
+        DBAction queryMitmas00nok = database.table("MITMAS").index("00").matching(expressionMitmasNok).selection(
+          "MMITNO","MMITDS").build()
+
+        DBContainer mitmasnok = queryMitmas00nok.getContainer()
+        mitmasnok.set("MMCONO", currentCompany)
+        logger.debug("#PB ITNO START WITH NOK"+ itno +" jusqua "+titn)
+
+        if (!queryMitmas00nok.readAll(mitmasnok, 1, 1, outdatamitmasnok)) {
+          logger.debug("#PB NOK SIGMA9 COMMENCE PAR "+ itno +" jusqua "+titn)
+        }
+      }else{
+        ean13 = getEAN(itno)
+        pcb = getItemPCB(itno)
+      }
+
+
+
+
+
 
       executeOIS320MIGetPriceLine(cuno, itno, dateIntegration, "UVC", orqt, ortp)
       getItemInfos(itno)
@@ -661,7 +697,7 @@ public class EXT013 extends ExtendM3Batch {
         blockingError = true
 
       // map repartition sous totaux par type d'erreurs
-      if (errorCode != "0" && blockingError) {
+      if (errorCode != "0" && errorCode != "75" && blockingError) {
         totSsligneError = 1
         String key = errorCode
         String value = errorCode
@@ -685,15 +721,19 @@ public class EXT013 extends ExtendM3Batch {
       int IntOrqt = (int) Math.round(orqt)
       int IntUdn6 = (int) Math.round(udn6)
       int IntPcb = (int) Math.round(pcb)
-      double volLine = new BigDecimal(orqt * vol3Item).setScale(3, RoundingMode.HALF_UP).doubleValue()
-      String svolLine = String.format("%.3f", volLine)
+      double volLine = new BigDecimal(orqt * vol3Item).setScale(6, RoundingMode.HALF_UP).doubleValue()
+      String svolLine = String.format("%.6f", volLine)
+      logger.debug("svolLine ${svolLine}")
 
-      if (blockingError) {
+      if (errorCode != "75" && blockingError) {
         double valeur = new BigDecimal(nepr * orqt).setScale(3, RoundingMode.HALF_UP).doubleValue()
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_UP).doubleValue()
 
-        blocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + "0" + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + dequivPal + ";" + typeError + ";" + commItem
+        logger.debug("blocline ponr:${ponr} itno:${itno}")
+        itno = itno.padRight(6)
+        blocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + "0" + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + typeError + ";" + commItem
+        logger.debug("blocline svolLine ${svolLine}")
         bloclines += blocline + "\r\n"
         totLignesintegrees--
         totLignesRejeteesBloquantes++
@@ -712,12 +752,15 @@ public class EXT013 extends ExtendM3Batch {
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
 
-        if (errorCode != "0") {
+        logger.debug("nonBlocline ponr:${ponr} itno:${itno} errorCode:${errorCode}")
+
+        if (errorCode != "0" && errorCode != "75") {
           logger.debug("nonBlocline errorCode " + errorCode)
           nonBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + String.format("%.2f", dequivPal) + ";" + typeError + ";" + commItem
+          logger.debug("nonBlocline svolLine ${svolLine}")
           nonBloclines += nonBlocline + "\r\n"
+          totLignesErreursInformation++
         }
-        totLignesErreursInformation++
         totEquivPal = totEquivPal + dequivPal
         totVal = totVal + valeur
         double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_UP).doubleValue()
@@ -730,7 +773,8 @@ public class EXT013 extends ExtendM3Batch {
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
 
-        replacedBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + dequivPal + ";" + typeError + ";" + commItem
+        replacedBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + typeError + ";" + commItem
+        logger.debug("svolLine ${svolLine}")
         replacedBloclines += replacedBlocline + "\r\n"
         totLignesSubstituees++
         totEquivPal = totEquivPal + dequivPal
@@ -742,7 +786,8 @@ public class EXT013 extends ExtendM3Batch {
       if (udn6 != orqt && udn6 != 0 && orqt != 0) {
         double qteArrondie = new BigDecimal((orqt / udn6) * 100).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
         int pourcentageArrondie = (int) Math.round(qteArrondie)
-        roundedline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + IntUdn6 + ";" + svolLine + ";" + +IntPcb + ";" + pourcentageArrondie
+        roundedline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + +IntPcb + ";" + pourcentageArrondie
+        logger.debug("roundedline svolLine ${svolLine}")
         roundedlines += roundedline + "\r\n"
       }
 
@@ -889,8 +934,10 @@ public class EXT013 extends ExtendM3Batch {
     /**
      * Read MITPOP records
      */
+    logger.debug("#PB GETean itno = "+ITNO  )
     Closure<?> readMITPOP = { DBContainer resultMITPOP ->
       EAN13 = resultMITPOP.getString("MPPOPN").trim()
+      logger.debug("#PB GETean EAN + "+EAN13  )
     }
     queryMITPOP.readAll(containerMITPOP, 4, nbMaxRecord, readMITPOP)
 
@@ -1086,7 +1133,7 @@ public class EXT013 extends ExtendM3Batch {
    * @param itno
    */
   public void getItemInfos(String ITNO) {
-    itds = ""
+
     grweItem = 0
     neweItem = 0
     vol3Item = 0
@@ -1238,7 +1285,7 @@ public class EXT013 extends ExtendM3Batch {
    */
   public void writeBlokingAnomalyLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "BlokingLines" + "-" + "rapport.txt"
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Palette reconstituée" + ";" + "Type erreur" + ";" + "Commentaire Article"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";"+ "Type erreur" +";" + "Commentaire Article"
     logMessage(header, bloclines)
   }
 
@@ -1271,7 +1318,7 @@ public class EXT013 extends ExtendM3Batch {
    */
   public void writeRoundedLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RoundedLine" + "-" + "rapport.txt"
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Qté fichier" + ";" + "Quantité commandée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "taux arrondi %"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Qté intégrée"+ ";" + "Volume intégré" + ";" + "PCB" + ";" + "taux arrondi %"
     logMessage(header, roundedlines)
   }
 

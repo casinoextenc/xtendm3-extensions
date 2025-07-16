@@ -3,7 +3,7 @@
  * Description : Add records to the EXT038 table.
  * Date         Changed By   Description
  * 20250328     MLECLERCQ      QUAX04 - evol print contrainte
- * 20250626     FLEBARS        Code review for validation
+ * 20250626     FLEBARS         Code reiview for validation
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -120,7 +120,7 @@ public class AddPrtContraint extends ExtendM3Transaction {
       DBContainer mhdishRequest = mhdishQuery.getContainer()
       mhdishRequest.set("OQCONO", currentCompany)
       mhdishRequest.set("OQINOU", 1)
-      mhdishRequest.set("OQDLIX", Integer.parseInt(dlix))
+      mhdishRequest.set("OQDLIX", Long.parseLong(dlix))
       if(!mhdishQuery.read(mhdishRequest)){
         mi.error("Index de livraison n'existe pas.")
         return
@@ -168,7 +168,7 @@ public class AddPrtContraint extends ExtendM3Transaction {
       DBContainer ext038Request = ext038Query.getContainer()
       ext038Request.set("EXCONO", currentCompany)
       ext038Request.set("EXBJNO", bjno as Long)
-      if(!ext038Query.readAll(ext038Request,2,{ DBContainer ResultMHDISH ->
+      if(!ext038Query.readAll(ext038Request,2,10000, { DBContainer resultMHDISH ->
       })){
         mi.error("N° de job n'existe pas")
         return

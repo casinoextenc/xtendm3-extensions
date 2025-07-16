@@ -253,7 +253,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 } else if (!"20".equals(stat)) {
                   addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "article fournisseur non actif", rem1, hie2, asgd)
                 } else if (orqa < loqt) {
-                  addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "qté commandé ${orqa} dépasse mini commande ${loqt}", rem1, hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "qté commandé ${orqa} inférieure au mini commande ${loqt}", rem1, hie2, asgd)
                 }
               } else {
                 addResponse(0, activeFltp, itno, fwhl, 1, suld, orqa, "article fournisseur non trouvé", "", hie2, asgd)
@@ -1125,7 +1125,6 @@ public class GetSupplyPath extends ExtendM3Transaction {
       double cofa = resultMITAUN.getDouble("MUCOFA")
       String dmcf = resultMITAUN.getInt("MUDMCF")
 
-      cofa = cofa == 0 ? 1 : cofa
       cofa = "2".equals(dmcf) ? 1 / cofa : cofa
       cofa = new BigDecimal(Double.toString(cofa)).setScale(6, RoundingMode.HALF_UP).doubleValue()
       if ("UPA".equals(alun)) {

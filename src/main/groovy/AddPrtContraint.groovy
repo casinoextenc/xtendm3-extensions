@@ -1,9 +1,15 @@
-/**************************************************************************************** * Name: EXT030MI.AddConstraint
- * Name : EXT038MI.AddPrtContraint
- * Description : Add records to the EXT038 table.
- * Date         Changed By   Description
- * 20250328     MLECLERCQ      QUAX04 - evol print contrainte
- * 20250626     FLEBARS         Code reiview for validation
+/****************************************************************************************
+ * Extension Name : EXT038MI.AddPrtContraint
+ * Type: ExtendM3Transaction :
+ * Description :  Add print contraint to the EXT038 table
+ * Script Author: Maxime MLECLERCQ
+ * Date : 20250328
+ *
+ * Revision History:
+ * Name        Date        Version  Description of Changes
+ * MLECLERCQ  20250328    1.0.0    QUAX04 - evol print contrainte
+ * FLEBARS    20250626    1.0.1    QUAX04 - Code reiview for validation
+ *
  ******************************************************************************************/
 
 import java.time.LocalDateTime

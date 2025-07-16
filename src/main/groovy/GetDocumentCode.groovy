@@ -5,7 +5,7 @@
  * Name : EXT035MI.GetDocumentCode
  * Description : Retrieve records from the EXT035 table.
  * Date         Changed By   Description
- * 20210125     SEAR         QUAX01 - Constraints matrix 
+ * 20210125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
  */
 public class GetDocumentCode extends ExtendM3Transaction {

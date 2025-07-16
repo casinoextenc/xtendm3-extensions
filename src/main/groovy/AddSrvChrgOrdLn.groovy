@@ -221,7 +221,6 @@ public class AddSrvChrgOrdLn extends ExtendM3Transaction {
       // Search corresponding service charge order
       ExpressionFactory ooheadFrExpression = database.getExpressionFactory("OOHEAD")
       ooheadFrExpression = ooheadFrExpression.eq("OAOFNO", inOrno)
-      //ooheadFrExpression = ooheadFrExpression.and(ooheadFrExpression.eq("OAUDN3", inDlix.toString()))
 
       DBAction ooheadFrQuery = database.table("OOHEAD").index("00").matching(ooheadFrExpression).selection("OACONO", "OAORNO").build()
       DBContainer ooheadFrRequest = ooheadQuery.getContainer()

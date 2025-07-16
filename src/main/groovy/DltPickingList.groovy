@@ -12,8 +12,6 @@
  ARENARD                 2025-04-16  1.1        The code has been checked
  ARENARD                 2025-04-25  1.2        Program header formatted
  ******************************************************************************************/
-
-
 public class DltPickingList extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database

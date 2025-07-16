@@ -7,7 +7,6 @@
  * Date         Changed By   Description
  * 20230413     RENARN       LOG28 - Creation of files and containers
  * 20250425     RENARN       LOG28 - Added executeOIS100MIUpdUserDefCOH
- * 20250702     FLEBARS      LOG28 - renvoi des erreurs appel apis OIS100MI
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

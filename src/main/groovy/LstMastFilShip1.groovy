@@ -11,6 +11,7 @@
  SEAR                    2023-05-11       1.0              LOG28 - Creation of files and containers
  MLECLERCQ               2023-08-18       1.1              LOG28 - Correction ZNBC filter for 0 <> null
  ARENARD                 2025-04-28       1.2              Extension has been fixed
+ MLECLERCQ               2025-05-13       1.3              Added OBORST > 20 filter on OOLINE
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -80,6 +81,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
     oolineExp = oolineExp.eq("OBWHLO", whloInput)
     oolineExp = oolineExp.and(oolineExp.lt("OBORST", "44"))
+    oolineExp = oolineExp.and(oolineExp.gt("OBORST", "20"))
 
     DBAction oolineQuery = database.table("OOLINE").index("00").matching(oolineExp).selection("OBWHLO").build()
     DBContainer oolineRequest = oolineQuery.getContainer()

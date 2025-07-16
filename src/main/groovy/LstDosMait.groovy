@@ -1,17 +1,23 @@
-/**
- * README
- * This extension is used by Mashup
- *
- * Name : EXT050MI.LstDosMait
- * Description : batch template
- * Date         Changed By   Description
- * 20230511     SEAR         LOG28 - Creation of files and containers
- * 20230811     MLECLERCQ    LOG28 - bugs correction
- * 20230818     MLECLERCQ    LOG28 - REJECT ORTP = C20
- * 20230818     MLECLERCQ    LOG28 - ROUT from OOLINE instead of OOHEAD
- * 20230818     MLECLERCQ    LOG28 - Corrected FRLD instead of FLRD in Mi Inputs
- * 20240430     MLECLERCQ    LOG28 - added country name
- */
+/****************************************************************************************
+ Extension Name: EXT050MI.LstDosMait
+ Type: ExtendM3Transaction
+ Script Author: SEAR
+ Date: 2023-05-11
+ Description:
+ * batch template
+
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ SEAR                    2023-05-11       1.0              LOG28 - Creation of files and containers
+ MLECLERCQ               2023-08-11       1.1              LOG28 - bugs correction
+ MLECLERCQ               2023-08-18       1.2              LOG28 - REJECT ORTP = C20
+ MLECLERCQ               2023-08-18       1.3              LOG28 - ROUT from OOLINE instead of OOHEAD
+ MLECLERCQ               2023-08-18       1.4              LOG28 - Corrected FRLD instead of FLRD in Mi Inputs
+ MLECLERCQ               2024-04-30       1.5              LOG28 - added country name
+ ARENARD                 2025-04-28       1.6              Output fields description added
+ MLECLERCQ               2025-05-13       1.7              Added OBORST > 20 filter on OOLINE
+ ******************************************************************************************/
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -99,6 +105,7 @@ public class LstDosMait extends ExtendM3Transaction {
     ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
     oolineExp = oolineExp.eq("OBWHLO", whloInput)
     oolineExp = oolineExp.and(oolineExp.lt("OBORST", "44"))
+    oolineExp = oolineExp.and(oolineExp.gt("OBORST", "20"))
 
     DBAction oolineQuery = database.table("OOLINE").index("00").matching(oolineExp).selection("OBORNO","OBWHLO","OBROUT").build()
     DBContainer oolineRequest = oolineQuery.getContainer()
@@ -192,6 +199,7 @@ public class LstDosMait extends ExtendM3Transaction {
         getCountryName(cscd)
         getMassification(cuno, rldt, orno)
       }
+      logger.debug("Out ORNO: ${orno}")
       //set output data
       mi.outData.put("ORNO", orno)
       mi.outData.put("ORTP", ortp)

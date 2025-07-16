@@ -11,15 +11,15 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 public class CpySchedSetting extends ExtendM3Transaction {
-  private final MIAPI mi;
-  private final LoggerAPI logger;
+  private final MIAPI mi
+  private final LoggerAPI logger
   private final ProgramAPI program
-  private final DatabaseAPI database;
-  private final SessionAPI session;
+  private final DatabaseAPI database
+  private final SessionAPI session
   private final TransactionAPI transaction
 
   public CpySchedSetting(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
-    this.mi = mi;
+    this.mi = mi
     this.database = database
     this.program = program
   }

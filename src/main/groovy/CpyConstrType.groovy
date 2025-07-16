@@ -7,7 +7,6 @@
  * Date         Changed By   Description
  * 20230125     SEAR         QUAX01 - Constraints matrix
  * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
- * 20240716     FLEBARS      QUAX01 - Controle code pour validation Infor Retours
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -31,12 +30,7 @@ public class CpyConstrType extends ExtendM3Transaction {
     if (mi.in.get("CONO") == null) {
       currentCompany = (Integer) program.getLDAZD().CONO
     } else {
-      currentCompany = mi.in.get("CONO") as int
-      String currentUser = program.getUser()
-      if (!checkCompany(currentCompany, currentUser)) {
-        mi.error("Company ${currentCompany} does not exist for the user ${currentUser}")
-        return
-      }
+      currentCompany = mi.in.get("CONO")
     }
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
@@ -61,23 +55,4 @@ public class CpyConstrType extends ExtendM3Transaction {
       mi.error("L'enregistrement n'existe pas")
     }
   }
-
-  /**
-   *  Check if CONO is alowed for user
-   * @param cono
-   * @param user
-   * @return true if alowed false otherwise
-   */
-  private boolean checkCompany(int cono, String user) {
-    DBAction csyusrQuery = database.table("CSYUSR").index("00").build()
-    DBContainer csyusrRequest = csyusrQuery.getContainer()
-    csyusrRequest.set("CRCONO", cono)
-    csyusrRequest.set("CRDIVI", '')
-    csyusrRequest.set("CRRESP", user)
-    if (!csyusrQuery.read(csyusrRequest)) {
-      return false
-    }
-    return true
-  }
-
 }

@@ -12,6 +12,8 @@
  YJANNIN     2025-01-08    1.1      QUA04 Editions qualité
  YJANNIN     2025-01-30    1.2      QUA04 Controle code pour validation Infor
  ARENARD     2025-04-22    1.3      Code has been checked
+ FLEBARS     2025-04-25    1.4      Minor modifications
+ PBEAUDOUIN  2025-05-20    1.5      Change for approval
  ******************************************************************************************/
 
 import java.math.RoundingMode
@@ -57,8 +59,8 @@ public class EXT030 extends ExtendM3Batch {
   private String detailLine4
   private String detailLines4
   private String totalLine
-  private String MailLine
-  private String MailLines
+  private String mailLine
+  private String mailLines
   private String docnumber
   private String orno
   private String cuno
@@ -274,8 +276,8 @@ public class EXT030 extends ExtendM3Batch {
     logger.debug("User is ${program.getUser()}")
 
     // retrouver le mail du user
-    MailLine = ""
-    MailLines = ""
+    mailLine = ""
+    mailLines = ""
     getMailUser()
 
     //open directory
@@ -483,8 +485,6 @@ public class EXT030 extends ExtendM3Batch {
           formattedAdr.trim() + ";" +
           lineTrqtCOL.trim() + ";" +
           lineTrqt.trim() + ";" +
-          //    String.valueOf(dLineTotGrwe).toString().trim() + ";" +
-          //    String.valueOf(dLineTotNewe).toString().trim() + ";" +
           String.format("%.3f", dLineTotGrwe).toString().trim() + ";" +
           String.format("%.3f", dLineTotNewe).toString().trim() + ";" +
           lineCsno.trim() + ";" +
@@ -532,7 +532,12 @@ public class EXT030 extends ExtendM3Batch {
           }
 
           writeRapportTotalLineFile(savTitle)
-          if ((savEndTitle != "") && (savEndTitle != title.substring(0, title.lastIndexOf('_')))) {
+          String partTitle = title
+          if (title.lastIndexOf('_')>0){
+            partTitle = title.substring(0,title.lastIndexOf('_'))
+          }
+
+          if ((savEndTitle != "") && (savEndTitle != partTitle )) {
             writeEndFile(savEndTitle)
           }
           totCol = Integer.parseInt(lineTrqtCOL)
@@ -543,7 +548,11 @@ public class EXT030 extends ExtendM3Batch {
         }
 
         savTitle = title
-        savEndTitle = title.substring(0, title.lastIndexOf('_'))
+        savEndTitle = title
+        if (title.lastIndexOf('_')>0) {
+          savEndTitle = title.substring(0, title.lastIndexOf('_'))
+        }
+
         savDoid = lineDoid.trim()
 
       }
@@ -580,12 +589,14 @@ public class EXT030 extends ExtendM3Batch {
       writeRapportTotalLineFile(savTitle)
 
       if (savTitle != "") {
-        writeEndFile(savTitle.substring(0, savTitle.lastIndexOf('_')))
+        String writeSavetitle = savTitle
+        if ( savTitle.lastIndexOf('_')>0) {
+          writeSavetitle =  savTitle.substring(0,savTitle.lastIndexOf('_'))
+        }
+        writeEndFile(writeSavetitle)
       }
       logger.debug("#PB Savendtitle " + savEndTitle)
       logger.debug("#PB savetittle " + savTitle)
-
-
     }
 
     deleteEXTJOB()
@@ -625,7 +636,6 @@ public class EXT030 extends ExtendM3Batch {
     expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXBANO", ext038Bano))
     expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXZCID", ext038Zcid.toString()))
     expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXZCOD", ext038Zcod))
-    //expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXZCLI", ext038Zcli.toString()))
     expressionEXT037 = expressionEXT037.and(expressionEXT037.eq("EXCUNO", ext038Cuno))
     DBAction ext037QueryOrno = database.table("EXT037")
       .index("00")
@@ -662,7 +672,7 @@ public class EXT030 extends ExtendM3Batch {
     ext037RequestOrno.set("EXORNO", ext038Orno)
     ext037RequestOrno.set("EXPONR", ext038Ponr)
     ext037RequestOrno.set("EXPOSX", ext038Posx)
-    //ext037RequestOrno.set("EXDLIX", ext038Dlix)
+
     if (ext037QueryOrno.readAll(ext037RequestOrno, 4, nbMaxRecord, ext037Reader)) {
       logger.debug("In !ext037QueryOrno.readAll out of closure")
     } else {
@@ -881,7 +891,6 @@ public class EXT030 extends ExtendM3Batch {
       siret = ""
     }
 
-    //String key = orno.trim() + "#" + doid.trim() + "#" + uca4.trim() + "#" + String.valueOf(dlix).trim() + "#" + zcod.trim() + "#" + cuno.trim()
     String key = transactionNumber.trim() + "#" + doid.trim() + "#" + zcod.trim()
     if (!headerMap.containsKey(key)) {
       String value = transactionNumber
@@ -1018,7 +1027,7 @@ public class EXT030 extends ExtendM3Batch {
     Closure<?> readMITPOP = { DBContainer resultMITPOP ->
       EAN13 = resultMITPOP.getString("MPPOPN").trim()
     }
-    queryMITPOP.readAll(containerMITPOP, 4, nbMaxRecord, readMITPOP)
+    queryMITPOP.readAll(containerMITPOP, 4, 1, readMITPOP)
 
     return EAN13
   }
@@ -1045,7 +1054,7 @@ public class EXT030 extends ExtendM3Batch {
     Closure<?> readMITPOP = { DBContainer resultMITPOP ->
       SIGMA6 = resultMITPOP.getString("MPPOPN").trim()
     }
-    queryMITPOP.readAll(containerMITPOP, 4, nbMaxRecord, readMITPOP)
+    queryMITPOP.readAll(containerMITPOP, 4, 1, readMITPOP)
 
     return SIGMA6
   }
@@ -1083,7 +1092,7 @@ public class EXT030 extends ExtendM3Batch {
    * @return The SIRET code for the specified item number.
    */
   public String getDescriptionCSYTAB(String constant, String lang, String key) {
-    String CTPARM = ""
+    String ctparm = ""
     DBAction queryCSYTAB = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
     DBContainer CSYTAB = queryCSYTAB.getContainer()
     CSYTAB.set("CTCONO", currentCompany)
@@ -1092,9 +1101,13 @@ public class EXT030 extends ExtendM3Batch {
     CSYTAB.set("CTSTKY", key)
     if (queryCSYTAB.read(CSYTAB)) {
       if ("TEDL".equalsIgnoreCase(constant)) {
-        CTPARM = CSYTAB.getString("CTPARM").trim().substring(0, 36)
+        ctparm = CSYTAB.getString("CTPARM")==null ?"" : CSYTAB.getString("CTPARM").trim()
+        if (ctparm!="" && ctparm.length()>36) {
+          ctparm = ctparm.substring(0, 36)
+        }
+
       } else {
-        CTPARM = CSYTAB.getString("CTTX40").trim()
+        ctparm = CSYTAB.getString("CTTX40").trim()
       }
     } else {
       DBAction queryCSYTAB1 = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
@@ -1105,13 +1118,18 @@ public class EXT030 extends ExtendM3Batch {
       CSYTAB1.set("CTSTKY", key)
       if (queryCSYTAB1.read(CSYTAB1)) {
         if ("TEDL".equalsIgnoreCase(constant)) {
-          CTPARM = CSYTAB1.getString("CTPARM").trim().substring(0, 36)
+
+          ctparm =  CSYTAB1.getString("CTPARM") == null ? "" : CSYTAB1.getString("CTPARM").trim()
+          if (ctparm!="" && ctparm.length()>36) {
+            ctparm = ctparm.substring(0, 36)
+          }
+
         } else {
-          CTPARM = CSYTAB1.getString("CTTX40").trim()
+          ctparm = CSYTAB1.getString("CTTX40").trim()
         }
       }
     }
-    return CTPARM
+    return ctparm
   }
 
   /**
@@ -1252,7 +1270,7 @@ public class EXT030 extends ExtendM3Batch {
     containerCEMAIL.set("CBEMKY", program.getUser())
 
     Closure<?> readCEMAIL = { DBContainer resultCEMAIL ->
-      MailLines = resultCEMAIL.getString("CBEMAL").trim()
+      mailLines = resultCEMAIL.getString("CBEMAL").trim()
     }
     queryCEMAIL.readAll(containerCEMAIL, 3, nbMaxRecord, readCEMAIL)
 
@@ -1424,7 +1442,7 @@ public class EXT030 extends ExtendM3Batch {
   public void writeMailFile(String title) {
     logFileName = title + "-" + "MailFile.txt"
     header = "Adresses Mail"
-    logMessage(header, MailLines)
+    logMessage(header, mailLines)
   }
 
   /**
@@ -1454,7 +1472,6 @@ public class EXT030 extends ExtendM3Batch {
    * @param line The line information for the log message.
    */
   void logMessage(String header, String line) {
-    //if (!logFileName.endsWith("docNumber.xml"))
     if (header.trim() != "") {
       log(header + "\r\n")
     }

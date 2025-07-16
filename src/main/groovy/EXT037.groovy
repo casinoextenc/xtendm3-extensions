@@ -10,6 +10,7 @@
  Name       Date         Version   Description of Changes
  YJANNIN    2024-12-13   1.0       QUAX02 - Constraint engine
  ARENARD    2025-04-22   1.1       Code has been checked
+ PBEAUDOUIN 2025-05-20   1.2       Code Change for approval
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -135,7 +136,7 @@ public class EXT037 extends ExtendM3Batch {
       mhdishRequest.set("OQCONO", currentCompany)
       mhdishRequest.set("OQINOU", 1)
       mhdishRequest.set("OQCONN", inCONN)
-      if (!mhdishQuery20.readAll(mhdishRequest, 3, nbMaxRecord, mhdishReader)) {
+      if (!mhdishQuery20.readAll(mhdishRequest, 3, 1000, mhdishReader)) {
       }
 
     }
@@ -418,7 +419,7 @@ public class EXT037 extends ExtendM3Batch {
       DBContainer mhdislRequest = mhdislQuery.getContainer()
       mhdislRequest.set("URCONO", currentCompany)
       mhdislRequest.set("URDLIX", dlix)
-      if (!mhdislQuery.readAll(mhdislRequest, 2, nbMaxRecord, mhdislReader)) {
+      if (!mhdislQuery.readAll(mhdislRequest, 2, 10000, mhdislReader)) {
       }
     }
 
@@ -515,7 +516,7 @@ public class EXT037 extends ExtendM3Batch {
     mittraRequest.set("MTRIDX", posx)
     mittraRequest.set("MTRIDI", dlix)
     mittraRequest.set("MTITNO", datasLine["ITNO"])
-    if (!mittraQuery.readAll(mittraRequest, 7, nbMaxRecord, mittraReader)) {
+    if (!mittraQuery.readAll(mittraRequest, 7, 1000, mittraReader)) {
       datasItra = [
         "BANO"  : ""
         , "CAMU": ""
@@ -755,7 +756,7 @@ public class EXT037 extends ExtendM3Batch {
       sig6 = mitpopResult.getString("MPPOPN").trim()
     }
 
-    if (!mitpopQuery.readAll(mitpopRequest, 4, nbMaxRecord, mitpopReader)) {
+    if (!mitpopQuery.readAll(mitpopRequest, 4, 1, mitpopReader)) {
     }
 
     //Get infos from MITFAC
@@ -886,41 +887,28 @@ public class EXT037 extends ExtendM3Batch {
    * Query on EXT030 (Constraint matrix)
    */
   public void getLineEXT030() {
-    String orno = datasLine["ORNO"]
-    int ponr = datasLine["PONR"] as Integer
-    int posx = datasLine["POSX"] as Integer
-
-    String cuno = datasOrder["CUNO"]
-    String cscd = datasOrder["CSCD"]
-
-    String hazi = datasItem["HAZI"]
-    String hie5 = datasItem["HIE5"]
-    String cfi4 = datasItem["CFI4"]
-    String suno = datasItem["SUNO"]
-    String prod = datasItem["PROD"]
-    String sig6 = datasItem["SIG6"]
-    String grwe = datasItem["GRWE"]
-    String newe = datasItem["NEWE"]
-    String ztgr = datasItem["ZTGR"]
-    String ztnw = datasItem["ZTNW"]
-    String csno = datasItem["CSNO"]
-    String orco = datasItem["ORCO"]
-    String zali = datasItem["ZALI"]
-    String zalc = datasItem["ZALC"]
-    String zsan = datasItem["ZSAN"]
-    String zcap = datasItem["ZCAP"]
-    String zca1 = datasItem["ZCA1"]
-    String zca2 = datasItem["ZCA2"]
-    String zca3 = datasItem["ZCA3"]
-    String zca4 = datasItem["ZCA4"]
-    String zca5 = datasItem["ZCA5"]
-    String zca6 = datasItem["ZCA6"]
-    String zca7 = datasItem["ZCA7"]
-    String zca8 = datasItem["ZCA8"]
-    String zori = datasItem["ZORI"]
-    String zphy = datasItem["ZPHY"]
-    String zagr = datasItem["ZAGR"]
-    String znag = datasItem["ZNAG"]
+    String cuno = datasOrder["CUNO"] == null ? "" : datasOrder["CUNO"]
+    String cscd = datasOrder["CSCD"] == null ? "" : datasOrder["CSCD"]
+    String hazi = datasItem["HAZI"] == null ? "" : datasItem["HAZI"]
+    String hie5 = datasItem["HIE5"] == null ? "" : datasItem["HIE5"]
+    String cfi4 = datasItem["CFI4"] == null ? "" : datasItem["CFI4"]
+    String sig6 = datasItem["SIG6"] == null ? "" : datasItem["SIG6"]
+    String csno = datasItem["CSNO"] == null ? "" : datasItem["CSNO"]
+    String orco = datasItem["ORCO"] == null ? "" : datasItem["ORCO"]
+    String zali = datasItem["ZALI"] == null ? "" : datasItem["ZALI"]
+    String zalc = datasItem["ZALC"] == null ? "" : datasItem["ZALC"]
+    String zsan = datasItem["ZSAN"] == null ? "" : datasItem["ZSAN"]
+    String zca1 = datasItem["ZCA1"] == null ? "" : datasItem["ZCA1"]
+    String zca2 = datasItem["ZCA2"] == null ? "" : datasItem["ZCA2"]
+    String zca3 = datasItem["ZCA3"] == null ? "" : datasItem["ZCA3"]
+    String zca4 = datasItem["ZCA4"] == null ? "" : datasItem["ZCA4"]
+    String zca5 = datasItem["ZCA5"] == null ? "" : datasItem["ZCA5"]
+    String zca6 = datasItem["ZCA6"] == null ? "" : datasItem["ZCA6"]
+    String zca7 = datasItem["ZCA7"] == null ? "" : datasItem["ZCA7"]
+    String zca8 = datasItem["ZCA8"] == null ? "" : datasItem["ZCA8"]
+    String zori = datasItem["ZORI"] == null ? "" : datasItem["ZORI"]
+    String zphy = datasItem["ZPHY"] == null ? "" : datasItem["ZPHY"]
+    String znag = datasItem["ZNAG"] == null ? "" : datasItem["ZNAG"]
 
     ExpressionFactory ext030Expression = database.getExpressionFactory("EXT030")
     ext030Expression = (ext030Expression.eq("EXCUNO", cuno)).or(ext030Expression.eq("EXCUNO", ""))
@@ -930,6 +918,7 @@ public class EXT037 extends ExtendM3Batch {
     ext030Expression = ext030Expression.and((ext030Expression.eq("EXHAZI", hazi as String)).or(ext030Expression.eq("EXHAZI", "2")))
 
     if (hie5 != "") {
+      hie5 = hie5.padRight(11)
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXHIE0", hie5)).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 2) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 4) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 7) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 9) + "*")).or(ext030Expression.eq("EXHIE0", hie5.substring(0, 11) + "*")).or(ext030Expression.eq("EXHIE0", "")))
     } else {
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXHIE0", hie5)).or(ext030Expression.eq("EXHIE0", "")))
@@ -937,10 +926,10 @@ public class EXT037 extends ExtendM3Batch {
 
     ext030Expression = ext030Expression.and((ext030Expression.eq("EXCFI4", cfi4)).or(ext030Expression.eq("EXCFI4", "")))
 
-
     ext030Expression = ext030Expression.and((ext030Expression.eq("EXPOPN", sig6)).or(ext030Expression.eq("EXPOPN", "")))
 
     if (csno != "") {
+      csno = csno.padRight(16)
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSNO", csno)).or(ext030Expression.eq("EXCSNO", csno.substring(0, 1) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 2) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 3) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 4) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 5) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 6) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 7) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 8) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 9) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 10) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 11) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 12) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 13) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 14) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 15) + "*")).or(ext030Expression.eq("EXCSNO", csno.substring(0, 16) + "*")).or(ext030Expression.eq("EXCSNO", "")))
     } else {
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXCSNO", csno)).or(ext030Expression.eq("EXCSNO", "")))
@@ -957,6 +946,7 @@ public class EXT037 extends ExtendM3Batch {
     ext030Expression = ext030Expression.and((ext030Expression.eq("EXZCAS", zca1)).or(ext030Expression.eq("EXZCAS", zca2)).or(ext030Expression.eq("EXZCAS", zca3)).or(ext030Expression.eq("EXZCAS", zca4)).or(ext030Expression.eq("EXZCAS", zca5)).or(ext030Expression.eq("EXZCAS", zca6)).or(ext030Expression.eq("EXZCAS", zca7)).or(ext030Expression.eq("EXZCAS", zca8)).or(ext030Expression.eq("EXZCAS", "")))
 
     if (znag != "") {
+      znag = znag.padRight(4)
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXZNAG", znag)).or(ext030Expression.eq("EXZNAG", znag.substring(0, 4) + "*")).or(ext030Expression.eq("EXZNAG", "")))
     } else {
       ext030Expression = ext030Expression.and((ext030Expression.eq("EXZNAG", znag)).or(ext030Expression.eq("EXZNAG", "")))
@@ -1340,7 +1330,6 @@ public class EXT037 extends ExtendM3Batch {
       lockedResult.set("EXZTGR", ztgr)
       lockedResult.set("EXZTNW", ztnw)
       if (zsty != null)
-      //lockedResult.set("EXZSTY", zsty)
         if (orst == "99") {
           lockedResult.set("EXSTAT", "90")
         } else {

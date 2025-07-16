@@ -1,14 +1,18 @@
-/**
- * Name : EXT013MI.AddOrUpdRmk
- *
- * Description :
- * This API method to add or update records in specific table EXT013
- *
- *
- * Date         Changed By    Description
- * 20230329     FLEBARS       CMD08 - Rapport d'intégration de demande
- * 20250410     ARENARD       Extension has been fixed
- */
+/****************************************************************************************
+ Extension Name: EXT013MI.AddOrUpdRmk
+ Type: ExtendM3Transaction
+ Script Author: FLEBARS
+ Date: 2023-03-29
+ Description:
+ * This API method adds or updates records in the specific table EXT013.
+
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ FLEBARS                 2023-03-29       1.0              CMD08 - Rapport d'intégration de demande
+ ARENARD                 2025-04-10       1.1              Extension has been fixed
+ ARENARD                 2025-04-25       1.2              Added check for order line number
+ ******************************************************************************************/
+
 public class AddOrUpdRmk extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
@@ -57,6 +61,23 @@ public class AddOrUpdRmk extends ExtendM3Transaction {
       }
     } else {
       mi.error("Le N° de commande est obligatoire")
+      return;
+    }
+
+    // Check order line
+    if(mi.in.get("PONR") != null && mi.in.get("PONR") != ""){
+      DBAction queryOXLINE = database.table("OXLINE").index("00").build();
+      DBContainer OXLINE = queryOXLINE.getContainer();
+      OXLINE.set("OBCONO", currentCompany);
+      OXLINE.set("OBORNO", mi.in.get("ORNO"));
+      OXLINE.set("OBPONR", mi.in.get("PONR"));
+      OXLINE.set("OBPOSX", mi.in.get("POSX"));
+      if(!queryOXLINE.read(OXLINE)){
+        mi.error("La ligne de commande " + (mi.in.get("PONR") as Integer) + " n'existe pas")
+        return;
+      }
+    } else {
+      mi.error("Le N° de ligne de commande est obligatoire")
       return;
     }
 

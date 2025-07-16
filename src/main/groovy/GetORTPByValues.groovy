@@ -9,6 +9,7 @@ import java.math.RoundingMode
  * Date         Changed By    Description
  * 20221212     FLEBARS       Creation EXT011
  * 20250415     ARENARD       The code has been checked
+ * 20250513     PBEAUDOUIN    The code has been changed for approval
  */
 public class GetORTPByValues extends ExtendM3Transaction {
   private final MIAPI mi
@@ -68,7 +69,7 @@ public class GetORTPByValues extends ExtendM3Transaction {
     containerCUGEX1.set("F1FILE", "OOTYPE")
 
     //Record exists
-    if (!queryCUGEX1.readAll(containerCUGEX1, 1, nbMaxRecord, outData)){
+    if (!queryCUGEX1.readAll(containerCUGEX1, 2, 1, outData)){
       mi.error("L'enregistrement n'existe pas")
       return
     }

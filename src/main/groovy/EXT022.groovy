@@ -14,6 +14,7 @@ import mvx.db.common.PositionEmpty
  * 20240620     FLEBARS      COMX01 - Controle code pour validation Infor
  * 20240409     PBEAUDOUIN   COMX01 - Check for approval
  * 20240417     Sear         COMX01 - Check for approval
+ * 20250515     PBEAUDOUIN   COMX01 - trim on sule variable line 1218
  */
 
 public class EXT022 extends ExtendM3Batch {
@@ -1215,6 +1216,7 @@ public class EXT022 extends ExtendM3Batch {
     itno = ext010Result.get("EXITNO")
     cmde = ext010Result.get("EXCMDE")
     sule = ext010Result.get("EXSULE")
+    sule = sule.trim()
     suld = ext010Result.get("EXSULD")
     ext010Fvdt = ext010Result.get("EXFVDT") as Integer
     ext010Lvdt = ext010Result.get("EXLVDT") as Integer

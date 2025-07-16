@@ -1,14 +1,12 @@
-
-
 /**
  * README
  * This extension is used by Mashup
- * Name : EXT041MI.DelByCdnn
- * Description : Delete records from the EXT041 table.
+ * Name : EXT040MI.DelByCdnn
+ * Description : Delete records from the EXT040 table.
  * Date         Changed By   Description
- * 20240605     FLEBARS      COMX02 - Cadencier
+ * 20240930     PBEAUDOUIN   COMX02 - Cadencier
  * 20250416     ARENARD      The code has been checked
-
+ * 20250610     FLEBARS      Apply xtendm3 remarks
  */
 public class DelByCdnn extends ExtendM3Transaction {
   private final MIAPI mi
@@ -38,31 +36,36 @@ public class DelByCdnn extends ExtendM3Transaction {
       cuno = mi.in.get("CUNO")
     } else {
       mi.error("Code Client obligatoire")
+      return
     }
 
     if (mi.in.get("CDNN") != null) {
       cdnn = mi.in.get("CDNN")
     } else {
       mi.error("Code Cadencier obligatoire")
+      return
     }
 
 
-    DBAction ext041Query = database.table("EXT041").index("00").build()
-    DBContainer ext041Request = ext041Query.getContainer()
-    ext041Request.set("EXCONO", currentCompany)
-    ext041Request.set("EXCUNO", cuno)
-    ext041Request.set("EXCDNN", cdnn)
-    Closure<?> ext041Updater = { LockedResult ext041LockedResult ->
-      ext041LockedResult.delete()
+    DBAction ext040Query = database.table("EXT040").index("10").build()
+    DBContainer ext040Request = ext040Query.getContainer()
+    ext040Request.set("EXCONO", currentCompany)
+    ext040Request.set("EXCUNO", cuno)
+    ext040Request.set("EXCDNN", cdnn)
+    Closure<?> ext040Updater = { LockedResult ext040LockedResult ->
+      ext040LockedResult.delete()
     }
+
     //Read closure
-    Closure<?> ext041Reader = { DBContainer ext041Result ->
-      ext041Query.readLock(ext041Result, ext041Updater)
+    Closure<?> ext040Reader = { DBContainer ext040Result ->
+      ext040Query.readLock(ext040Result, ext040Updater)
     }
 
     //Loop on records
-    if (!ext041Query.readAll(ext041Request, 3, 10000,ext041Reader)) {
+    if (!ext040Query.readAll(ext040Request, 3, 10000,ext040Reader)) {
       mi.error("L'enregistrement n'existe pas")
+      return
     }
   }
 }
+

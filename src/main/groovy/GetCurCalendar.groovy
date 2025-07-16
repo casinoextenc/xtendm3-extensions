@@ -7,6 +7,7 @@
  * Date         Changed By   Description
  * 20240124     YVOYOU       COMX02 - Cadencier
  * 20250416     ARENARD      The code has been checked
+ * 20250617     FLEBARS      Add comment on output CDNN for validation
  */
 import java.time.LocalDateTime
 import java.time.LocalDate

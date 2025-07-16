@@ -12,10 +12,10 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 public class SubmitBatch extends ExtendM3Transaction {
-  private final MIAPI mi;
-  private final MICallerAPI miCaller;
-  private final DatabaseAPI database;
-  private final LoggerAPI logger;
+  private final MIAPI mi
+  private final MICallerAPI miCaller
+  private final DatabaseAPI database
+  private final LoggerAPI logger
   private final ProgramAPI program
   private String referenceId
   private String jobId
@@ -65,10 +65,10 @@ public class SubmitBatch extends ExtendM3Transaction {
   private String p010 = ""
 
   public SubmitBatch(MIAPI mi, MICallerAPI miCaller, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
-    this.mi = mi;
-    this.miCaller = miCaller;
-    this.database = database;
-    this.logger = logger;
+    this.mi = mi
+    this.miCaller = miCaller
+    this.database = database
+    this.logger = logger
     this.program = program
   }
 
@@ -182,9 +182,9 @@ public class SubmitBatch extends ExtendM3Transaction {
    *  - UUID - UUID number inputed by user
    */
   void callSHS010MI() {
-    logger.debug("Calling SHS010MI tx30/tx60/xcat/scty/xnow" + tx30 + "/" + tx60 + "/" + xcat + "/" + scty + "/" + xnow);
+    logger.debug("Calling SHS010MI tx30/tx60/xcat/scty/xnow" + tx30 + "/" + tx60 + "/" + xcat + "/" + scty + "/" + xnow)
     Closure<?> callback = {Map<String, String> result ->
-      logger.debug("Result is: ${result}");
+      logger.debug("Result is: ${result}")
     }
     def params = [
       "JOB": jobId,
@@ -218,11 +218,11 @@ public class SubmitBatch extends ExtendM3Transaction {
       "JSCA": jsca,
       "PETP": petp,
       "TIZO": tizo,
-      "UUID": referenceId];
-    miCaller.call("SHS010MI", "SchedXM3Job", params, callback);
+      "UUID": referenceId]
+    miCaller.call("SHS010MI", "SchedXM3Job", params, callback)
     // This method is calling SHS010MI to execute with inputed parameters. More info about MICaller API is available in the doc
   }
-
+  // Setup data
   public void setupData(String referenceId, String data){
     LocalDateTime timeOfCreation = LocalDateTime.now()
     def query = database.table("EXTJOB").index("00").selection("EXRFID", "EXDATA").build()
@@ -269,6 +269,7 @@ public class SubmitBatch extends ExtendM3Transaction {
       }
     }
   }
+  // Retrieve EXT820
   Closure<?> outData = { DBContainer EXT820 ->
     foundEXT820 = true
     tx30 = EXT820.get("EXTX30")

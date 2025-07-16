@@ -11,12 +11,12 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 public class DelSchedSetting extends ExtendM3Transaction {
-  private final MIAPI mi;
+  private final MIAPI mi
   private final DatabaseAPI database
   private final ProgramAPI program
 
   public DelSchedSetting(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
-    this.mi = mi;
+    this.mi = mi
     this.database = database
     this.program = program
   }
@@ -39,6 +39,7 @@ public class DelSchedSetting extends ExtendM3Transaction {
       return
     }
   }
+  // Delete EXT820
   Closure<?> updateCallBack = { LockedResult lockedResult ->
     lockedResult.delete()
   }

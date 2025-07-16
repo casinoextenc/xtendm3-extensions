@@ -1,26 +1,4 @@
-/**
- *  DateUtil
- *    imported from https://infor-cloud.github.io/xtendm3/docs/examples
- *
- * This utily is used to factorize work with numerics
- *
- * Date         Changed By    Description
- * 20240605     FLEBARS      QUAX01 - Controle code pour validation Infor
- */
 public class NumberUtil extends ExtendM3Utility {
-
-  /**
-   * Check if number is valid
-   * @param number Number
-   * @param decimalSeparator Decimal separator
-   * @return {@code true} if number is a valid number
-   */
-  public boolean isValidInteger(String number) {
-    if (toInteger(number, "").isPresent()) {
-      return true
-    }
-    return false
-  }
 
   /**
    * Check if number is valid

@@ -11,12 +11,12 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 public class UpdSchedSetting extends ExtendM3Transaction {
-  private final MIAPI mi;
+  private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
-  private final MICallerAPI miCaller;
-  private final ProgramAPI program;
-  private final UtilityAPI utility;
+  private final MICallerAPI miCaller
+  private final ProgramAPI program
+  private final UtilityAPI utility
   private final TextFilesAPI textFiles
   private final ExtensionAPI extension
   private String currentDate
@@ -51,11 +51,11 @@ public class UpdSchedSetting extends ExtendM3Transaction {
   public boolean selectionExist
 
   public UpdSchedSetting(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program,UtilityAPI utility, TextFilesAPI textFiles, MICallerAPI miCaller, ExtensionAPI extension) {
-    this.mi = mi;
+    this.mi = mi
     this.database = database
     this.logger = logger
     this.program = program
-    this.utility = utility;
+    this.utility = utility
     this.textFiles = textFiles
     this.miCaller = miCaller
     this.extension = extension
@@ -303,29 +303,29 @@ public class UpdSchedSetting extends ExtendM3Transaction {
         xrdy == 98 ||
         xrdy == 99) {
       } else {
-        mi.error("Par jour " + (xrdy as String) + " est invalide");
-        return;
+        mi.error("Par jour " + (xrdy as String) + " est invalide")
+        return
       }
     }
     // Check specific date
     if(mi.in.get("XJDT") != null){
-      xjdt = mi.in.get("XJDT");
+      xjdt = mi.in.get("XJDT")
       logger.debug("xjdt = " + xjdt)
       if (!utility.call("DateUtil", "isDateValid", xjdt, "yyyyMMdd")) {
-        mi.error("Date spécifique " + xjdt + " est invalide");
-        return;
+        mi.error("Date spécifique " + xjdt + " est invalide")
+        return
       }
       if ((xjdt as Integer) <= (currentDate as Integer)) {
-        mi.error("Date spécifique doit être supérieure à la date du jour");
-        return;
+        mi.error("Date spécifique doit être supérieure à la date du jour")
+        return
       }
     }
     // Check time
     if(mi.in.get("XJTM") != null && mi.in.get("XJTM") != 0){
       xjtm = mi.in.get("XJTM") as Integer
       if(scty.trim() == "4") {
-        mi.error("Heure " + xjtm + " est invalide");
-        return;
+        mi.error("Heure " + xjtm + " est invalide")
+        return
       }
     }
     // Check recovery action
@@ -338,31 +338,31 @@ public class UpdSchedSetting extends ExtendM3Transaction {
     }
     // Check from date
     if(mi.in.get("FDAT") != null && mi.in.get("FDAT") != 0){
-      fdat = mi.in.get("FDAT");
+      fdat = mi.in.get("FDAT")
       if(scty.trim() == "4") {
-        mi.error("Date de début " + fdat + " est invalide");
-        return;
+        mi.error("Date de début " + fdat + " est invalide")
+        return
       }
       if (!utility.call("DateUtil", "isDateValid", fdat, "yyyyMMdd")) {
-        mi.error("Date de début " + fdat + " est invalide");
-        return;
+        mi.error("Date de début " + fdat + " est invalide")
+        return
       }
     }
     // Check to date
     if(mi.in.get("TDAT") != null && mi.in.get("TDAT") != 0){
-      tdat = mi.in.get("TDAT");
+      tdat = mi.in.get("TDAT")
       if(scty.trim() == "4") {
-        mi.error("Date de fin " + tdat + " est invalide");
-        return;
+        mi.error("Date de fin " + tdat + " est invalide")
+        return
       }
       if (!utility.call("DateUtil", "isDateValid", tdat, "yyyyMMdd")) {
-        mi.error("Date de fin " + tdat + " est invalide");
-        return;
+        mi.error("Date de fin " + tdat + " est invalide")
+        return
       }
     }
     if((fdat as Integer) != 0 && (tdat as Integer) != 0 && (fdat as Integer) > (tdat as Integer)) {
-      mi.error("Date de début doit être inférieure à date de fin");
-      return;
+      mi.error("Date de début doit être inférieure à date de fin")
+      return
     }
     if(mi.in.get("JSCA") != null)
       jsca = mi.in.get("JSCA")
@@ -376,61 +376,61 @@ public class UpdSchedSetting extends ExtendM3Transaction {
     }
     // Every mon-sun is allowed to be multi submission,
     // all others are single submission...
-    multiSubmission = 0;
-    singleSubmission = 0;
+    multiSubmission = 0
+    singleSubmission = 0
     if (xemo == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xetu == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xewe == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xeth == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xefr == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xesa == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xesu == "1") {
-      multiSubmission++;
+      multiSubmission++
     }
     if (xnow == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xtod == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xnmo == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xntu == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xnwe == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xnth == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xnfr == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xnsa == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xnsu == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xjdt.trim() != "") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (xemt == "1") {
-      singleSubmission++;
+      singleSubmission++
     }
     if (singleSubmission > 1 || singleSubmission != 0 && multiSubmission != 0) {
       mi.error("Soumissions multiples autorisées uniquement du lundi au dimanche")
@@ -491,6 +491,7 @@ public class UpdSchedSetting extends ExtendM3Transaction {
       return
     }
   }
+  // Update EXT820
   Closure<?> updateCallBack = { LockedResult lockedResult ->
     LocalDateTime timeOfCreation = LocalDateTime.now()
     int changeNumber = lockedResult.get("EXCHNO")
@@ -559,10 +560,13 @@ public class UpdSchedSetting extends ExtendM3Transaction {
     lockedResult.set("EXCHID", program.getUser())
     lockedResult.update()
   }
+  // Retrieve CSHCAL
   Closure<?> outData_CSHCAL = { DBContainer CSHCAL ->
   }
+  // Retrieve CSHCAD
   Closure<?> outData_CSHCAD = { DBContainer CSHCAD ->
   }
+  // Retrieve CUTZON
   Closure<?> outData_CITZON = { DBContainer CITZON ->
   }
 }

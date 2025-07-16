@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 public class LstSchedSetting extends ExtendM3Transaction {
-  private final MIAPI mi;
+  private final MIAPI mi
   private final DatabaseAPI database
   private final LoggerAPI logger
   private final ProgramAPI program
@@ -51,7 +51,7 @@ public class LstSchedSetting extends ExtendM3Transaction {
   private String tizo = ""
 
   public LstSchedSetting(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
-    this.mi = mi;
+    this.mi = mi
     this.database = database
     this.logger = logger
     this.program = program

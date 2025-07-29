@@ -7,9 +7,10 @@
  *
 
  *
- * Date         Changed By    Description
- * 20250225     PBEAUDOUIN    Creation GetSIGMA6
- * 20250415     ARENARD       The code has been checked
+ * Date         Changed By    Version   Description
+ * 20250225     PBEAUDOUIN    1.1       Creation GetSIGMA6
+ * 20250415     ARENARD       1.2       The code has been checked
+ * 20250722     FLEBARS       1.3       Changement des messages d'erreurs
  */
 
 
@@ -65,12 +66,11 @@ public class GetSIGMA6 extends ExtendM3Transaction {
     }
     //Record exists
     if (!mitpop10Query.readAll(mitpop10Request, 4, 1, readMITPOP10)) {
-      mi.error("EAN13 " + gtin + "innexistant")
+      mi.error("EAN13 ${gtin} n'existe pas")
       return
     } else {
       popn = getS6(itno)
     }
-
     mi.outData.put("POPN", popn)
     mi.write()
   }

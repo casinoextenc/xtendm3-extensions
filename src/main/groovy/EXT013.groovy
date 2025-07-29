@@ -4,10 +4,11 @@
  *
  * Name : EXT013
  * Description : Generates sales order integration report
- * Date         Changed By   Description
- * 20231129     SEAR         CMD08 - Rapport d'intégration de demande
- * 20240521     PBEAUDOUIN   Si pas trouvé dans alors lecture
- * 20250410     ARENARD      Extension has been fixed
+ * Date         Changed By  Version   Description
+ * 20231129     SEAR        1.0       CMD08 - Rapport d'intégration de demande
+ * 20240521     PBEAUDOUIN  1.1       Si pas trouvé dans alors lecture
+ * 20250410     ARENARD     1.2       Extension has been fixed
+ * 20250725     FLEBARS     1.3       Add automail process
  */
 import java.math.RoundingMode
 import java.time.DateTimeException
@@ -32,6 +33,8 @@ public class EXT013 extends ExtendM3Batch {
   private String creationDate
   private String creationTime
   private String inOrderNumber
+  private String autoMailI
+  private String autoMailE
   private String confOrderNumber
   private Integer currentDate
   private int rawDataLength
@@ -178,6 +181,8 @@ public class EXT013 extends ExtendM3Batch {
     }
     rawData = data.get()
     inOrderNumber = getFirstParameter()
+    autoMailI = getNextParameter()
+    autoMailE = getNextParameter()
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
@@ -223,7 +228,6 @@ public class EXT013 extends ExtendM3Batch {
     // retrouver le mail du user
     mailLine = ""
     mailLines = ""
-    getMailUser()
 
     // open directory
     textFiles.open(path)
@@ -370,7 +374,11 @@ public class EXT013 extends ExtendM3Batch {
       ntam = OOHEAD.getDouble("OANTAM")
       executecrs610MIGetBasicData(String.valueOf(currentCompany), cuno)
     }
-
+    if (!"1".equals(autoMailI) && !"1".equals(autoMailE)) {
+      getMailUser()
+    } else {
+      getMails(autoMailI, autoMailE)
+    }
     getHeadData()
 
     getLinesData()
@@ -1259,6 +1267,46 @@ public class EXT013 extends ExtendM3Batch {
     miCaller.call("CRS610MI", "GetBasicData", parameters, handler)
   }
 
+  private void getMails(String mailI, String mailE) {
+
+    logger.debug("getMails mailI: " + mailI + " mailE: " + mailE)
+
+
+    DBAction ccuconQuery = database.table("CCUCON")
+      .index("10")
+      .selection(
+        "CCEMAL",
+        "CCRFTP",
+        "CCSTAT")
+      .build()
+    DBContainer ccuconRequest = ccuconQuery.getContainer()
+    ccuconRequest.set("CCCONO", currentCompany)
+    ccuconRequest.set("CCERTP", 0)
+    ccuconRequest.set("CCEMRE", cuno)
+
+    Closure<?> ccuconReader = { DBContainer ccuconResult ->
+      String rftp = ccuconResult.getString("CCRFTP").trim()
+      String emal = ccuconResult.getString("CCEMAL").trim()
+      String stat = ccuconResult.getString("CCSTAT").trim()
+
+      if ("20".equals(stat)){
+        if ("1".equals(mailI) && ("I-ADV".equals(rftp) || "I-COM".equals(rftp))){
+          mailLines += emal + "\r\n"
+          logger.debug("mail " + emal)
+        }
+        if ("1".equals(mailE) && ("E-RDI".equals(rftp))){
+          mailLines += emal + "\r\n"
+          logger.debug("mail " + emal)
+        }
+      }
+    }
+
+
+
+    if (!ccuconQuery.readAll(ccuconRequest, 3, 100, ccuconReader)) {
+    }
+  }
+
   /**
    * Get mail user
    */
@@ -1275,7 +1323,6 @@ public class EXT013 extends ExtendM3Batch {
     }
     queryCEMAIL.readAll(containerCEMAIL, 3, nbMaxRecord, readCEMAIL)
     logger.debug("user : " + program.getUser())
-
   }
 
   /**

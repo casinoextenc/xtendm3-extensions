@@ -24,11 +24,13 @@ import java.time.format.DateTimeFormatter
  *  If the search is unsuccessful, the API send an error message
  *
  *
- * Date         Changed By    Description
- * 20221115     FLEBARS       Creation EXT-CMD02
- * 20240616     FLEBARS       Chemin d appro interactif
- * 20250331     FLEBARS       Evolution type de flux 10
- * 20250415     ARENARD       The code has been checked
+ * Date         Changed By    Version   Description
+ * 20221115     FLEBARS       1.0       Creation EXT-CMD02
+ * 20240616     FLEBARS       1.1       Chemin d appro interactif
+ * 20250331     FLEBARS       1.2       Evolution type de flux 10
+ * 20250415     ARENARD       1.3       The code has been checked
+ * 20250415     FLEBARS       1.4       Modification message & erreur regle arrondi sur stock
+ * 20250722     FLEBARS       1.5       Changement des messages d'erreurs
  */
 public class GetSupplyPath extends ExtendM3Transaction {
   private final MIAPI mi
@@ -213,21 +215,26 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 if (tomu != 0) {//controle mutliples TOMU = 0
                   if (tomu >= 0) {
                     double roundedOrqa = orqa
+                    String rem1 = ""
                     Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
                     if (dtaRoundQty != null) {
                       roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+                      rem1 = dtaRoundQty["REMK"]
                     }
                     logger.debug("tomu:${tomu} roundedOrqa:${roundedOrqa}")
-                    if (roundedOrqa % tomu != 0)
+                    int qt = (int)(roundedOrqa / tomu)
+                    if (qt < roundedOrqa / tomu){
+                      rem1 = rem1.trim() + " arrondi au multiple de dépôt"
+                    }
+                    if (qt == 0)
                       checkQty = false
                   }
                 }
-
                 if (cpcd == "100" && checkQty) {
                   found = true
                   addResponse(1, activeFltp, itno, fwhl, 0, "", orqa, "", "", hie2, asgd)
                 } else if (cpcd != "100") {
-                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "cpcd non correspondant", "", hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "Politique CTP incorrecte", "", hie2, asgd)
                 } else {
                   addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "qté non divisible par multiple dépôt ${tomu}", "", hie2, asgd)
                 }

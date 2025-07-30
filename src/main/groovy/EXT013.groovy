@@ -1271,6 +1271,8 @@ public class EXT013 extends ExtendM3Batch {
 
     logger.debug("getMails mailI: " + mailI + " mailE: " + mailE)
 
+    ExpressionFactory ccuconExpression = database.getExpressionFactory("CCUCON")
+    ccuconExpression = ccuconExpression.le("CCEMRE", cuno)
 
     DBAction ccuconQuery = database.table("CCUCON")
       .index("10")
@@ -1281,8 +1283,6 @@ public class EXT013 extends ExtendM3Batch {
       .build()
     DBContainer ccuconRequest = ccuconQuery.getContainer()
     ccuconRequest.set("CCCONO", currentCompany)
-    ccuconRequest.set("CCERTP", 0)
-    ccuconRequest.set("CCEMRE", cuno)
 
     Closure<?> ccuconReader = { DBContainer ccuconResult ->
       String rftp = ccuconResult.getString("CCRFTP").trim()
@@ -1301,9 +1301,7 @@ public class EXT013 extends ExtendM3Batch {
       }
     }
 
-
-
-    if (!ccuconQuery.readAll(ccuconRequest, 3, 100, ccuconReader)) {
+    if (!ccuconQuery.readAll(ccuconRequest, 1, 100, ccuconReader)) {
     }
   }
 

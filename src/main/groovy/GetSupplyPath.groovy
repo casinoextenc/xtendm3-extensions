@@ -207,6 +207,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
             //10 warehouse flow type
             if ("10".equals(activeFltp)) {
               Map<String, String> mitbalData = getItemDataFromMitbal(fwhl, itno)
+              String rem1 = ""
               if (mitbalData != null) {
                 String cpcd = mitbalData["CPCD"] as String
                 double tomu = Double.parseDouble(mitbalData["TOMU"].toString())
@@ -215,16 +216,17 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 if (tomu != 0) {//controle mutliples TOMU = 0
                   if (tomu >= 0) {
                     double roundedOrqa = orqa
-                    String rem1 = ""
                     Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
                     if (dtaRoundQty != null) {
                       roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
                       rem1 = dtaRoundQty["REMK"]
+                      orqa = roundedOrqa
                     }
                     logger.debug("tomu:${tomu} roundedOrqa:${roundedOrqa}")
                     int qt = (int)(roundedOrqa / tomu)
                     if (qt < roundedOrqa / tomu){
-                      rem1 = rem1.trim() + " arrondi au multiple de dépôt"
+                      rem1 = "arrondi au multiple de dépôt ${qt}*${tomu}"
+                      orqa = qt * tomu
                     }
                     if (qt == 0)
                       checkQty = false
@@ -232,7 +234,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 }
                 if (cpcd == "100" && checkQty) {
                   found = true
-                  addResponse(1, activeFltp, itno, fwhl, 0, "", orqa, "", "", hie2, asgd)
+                  addResponse(1, activeFltp, itno, fwhl, 0, "", orqa, "", rem1, hie2, asgd)
                 } else if (cpcd != "100") {
                   addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "Politique CTP incorrecte", "", hie2, asgd)
                 } else {
@@ -911,6 +913,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       "HIE2": "" + hie2,
       "ASGD": "" + asgd
     ]
+    logger.debug("Response: ${responseData}")
     responses.add(responseData)
   }
 
@@ -1198,7 +1201,6 @@ public class GetSupplyPath extends ExtendM3Transaction {
     double cofUpa = 0
     double cofUdp = 0
     double cofUco = 0
-
 
     try {
       genUpaSup = Double.parseDouble(globalRoundingParametersData["upaSup"].toString())

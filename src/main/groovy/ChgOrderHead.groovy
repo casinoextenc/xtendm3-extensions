@@ -7,6 +7,7 @@
  * Date         Changed By   Version      Description
  * 20230413     RENARN        1.0         LOG28 - Creation of files and containers
  * 20250425     RENARN        1.1         LOG28 - Added executeOIS100MIUpdUserDefCOH
+ * 20250702     FLEBARS       1.1         LOG28 - Return OIS1100MI.UpdUserDefCOH error message
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

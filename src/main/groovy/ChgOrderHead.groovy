@@ -4,9 +4,9 @@
  *
  * Name : EXT050MI.ChgOrderHead
  * Description : Change order head
- * Date         Changed By   Description
- * 20230413     RENARN       LOG28 - Creation of files and containers
- * 20250425     RENARN       LOG28 - Added executeOIS100MIUpdUserDefCOH
+ * Date         Changed By   Version      Description
+ * 20230413     RENARN        1.0         LOG28 - Creation of files and containers
+ * 20250425     RENARN        1.1         LOG28 - Added executeOIS100MIUpdUserDefCOH
  */
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

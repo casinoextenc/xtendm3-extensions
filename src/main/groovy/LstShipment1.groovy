@@ -7,10 +7,11 @@
  List files and containers
 
  Description : List pallet
- Date         Changed By   Description
- 20230511     SEAR         LOG28 - Creation of files and containers
- 20241010     MLECLERCQ    LOG28 - Added palets count per container
- 20250428     FLEBARS      Code review for infor validation
+ Date         Changed By   Version        Description
+ 20230511     SEAR          1.0         on of files and containers
+ 20241010     MLECLERCQ     1.1         LOG28 - Added palets count per container
+ 20250428     FLEBARS       1.2         Code review for infor validation
+ 20250725     MLECLERCQ     1.3         Lnam replaced by OBALQT * OBSAPR
  ******************************************************************************************/
 import java.math.RoundingMode
 import java.time.LocalDateTime
@@ -45,6 +46,7 @@ public class LstShipment1 extends ExtendM3Transaction {
   private double lnamOoline
   private double alqtOoline
   private double orqtOoline
+  private double saprOoline
   private int dmcsOoline
   private double cofsOoline
   private String spunOoline
@@ -186,7 +188,7 @@ public class LstShipment1 extends ExtendM3Transaction {
     }
 
     // get OOLINE
-    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBCUNO","OBORNO","OBPONR","OBPOSX","OBSPUN","OBDMCS","OBCOFS","OBORQT","OBALQT","OBLNAM","OBITNO").build()
+    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBCUNO","OBORNO","OBPONR","OBPOSX","OBSPUN","OBDMCS","OBCOFS","OBORQT","OBALQT","OBSAPR","OBITNO").build()
     DBContainer oolineRequest = oolineQuery.getContainer()
     oolineRequest.set("OBCONO", currentCompany)
     oolineRequest.set("OBORNO", commande)
@@ -197,9 +199,11 @@ public class LstShipment1 extends ExtendM3Transaction {
       cofsOoline = oolineRequest.get("OBCOFS")
       orqtOoline = oolineRequest.get("OBORQT")
       alqtOoline = oolineRequest.get("OBALQT")
-      lnamOoline = oolineRequest.get("OBLNAM")
+      saprOoline = oolineRequest.get("OBSAPR")
       dmcsOoline = oolineRequest.get("OBDMCS")
       ItemNumber = oolineRequest.get("OBITNO")
+
+      lnamOoline = alqtOoline * saprOoline
       logger.debug("OOLINE DATA ORNO:${commande} PONR:${ligneCommande} ITNO:${ItemNumber} DMCS:${dmcsOoline} COFS:${cofsOoline} ORQT:${orqtOoline} ALQT:${alqtOoline}")
 
       // get MITMAS

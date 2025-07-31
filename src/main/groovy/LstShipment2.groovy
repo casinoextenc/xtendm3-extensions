@@ -7,9 +7,10 @@
  List files and containers
 
  Description : List pallet
- Date         Changed By   Description
- 20230601     SEAR         LOG28 - Creation of files and containers
- 20250428     FLEBARS      Code review for infor validation
+ Date         Changed By   Version      Description
+ 20230601     SEAR            1.0       LOG28 - Creation of files and containers
+ 20250428     FLEBARS         1.1       Code review for infor validation
+ 20250725     MLECLERCQ       1.2       Changed quantities based on OBALQT instead of URTRQT and OBLNAM replaced by OBALQT * OBSAPR
  ******************************************************************************************/
 
 
@@ -345,45 +346,21 @@ public class LstShipment2 extends ExtendM3Transaction {
    */
   Closure<?> mhdislReader = { DBContainer mhdislResult ->
 
-    double lineQty = mhdislResult.get("URTRQT")
+    /*double lineQty = mhdislResult.get("URTRQT")
 
     qty += lineQty
-    logger.debug("In MHDISLData, URTRQT = ${lineQty} and qty = ${qty}" )
+    logger.debug("In MHDISLData, URTRQT = ${lineQty} and qty = ${qty}" )*/
 
     itno = mhdislResult.get("URITNO")
     orno = mhdislResult.get("URRIDN")
     line = mhdislResult.get("URRIDL")
+    double lineQty
     //qty = ContainerMHDISL.get("URTRQT")
-    qty = new BigDecimal(qty).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
 
-    DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMGRWE","MMVOL3").build()
-    DBContainer mitmasRequest = mitmasQuery.getContainer()
-    mitmasRequest.set("MMCONO", currentCompany)
-    mitmasRequest.set("MMITNO", itno)
 
-    if(mitmasQuery.read(mitmasRequest)){
 
-      double grweMitmas = mitmasRequest.get("MMGRWE")
-      double vol3Mitmas = mitmasRequest.get("MMVOL3")
 
-      grweMitmas = new BigDecimal(grweMitmas).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      vol3Mitmas = new BigDecimal(vol3Mitmas).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      logger.debug("previousDlixMhdish = ${previousDlixMhdish}, and dlixMhdish = ${dlixMhdish}")
-      if(previousDlixMhdish.equals(dlixMhdish)){
-
-        grwe += grweMitmas * lineQty
-        vol3 += vol3Mitmas * lineQty
-      }else{
-        logger.debug("DLIX is not the same : ")
-        grwe = grweMitmas * lineQty
-        vol3 = vol3Mitmas * lineQty
-      }
-
-      grwe = new BigDecimal(grwe).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-      vol3 = new BigDecimal(vol3).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
-    }
-
-    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBLNAM").build()
+    DBAction oolineQuery = database.table("OOLINE").index("00").selection("OBALQT","OBSAPR").build()
     DBContainer oolineRequest = oolineQuery.getContainer()
     oolineRequest.set("OBCONO", currentCompany)
     oolineRequest.set("OBORNO", orno)
@@ -391,15 +368,50 @@ public class LstShipment2 extends ExtendM3Transaction {
     oolineRequest.set("OBPOSX", 0)
 
     if(oolineQuery.read(oolineRequest)){
-      double lnamOoline = oolineRequest.get("OBLNAM")
-      lnamOoline = new BigDecimal(lnamOoline).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      double sapr = oolineRequest.get("OBSAPR")
+      lineQty = oolineRequest.get("OBALQT")
+      qty = new BigDecimal(qty).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      lineQty = new BigDecimal(lineQty).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      sapr = new BigDecimal(sapr).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+      logger.debug("In OOLINE, OBALQT = ${lineQty} and qty = ${qty}" )
       if(previousDlixMhdish.equals(dlixMhdish)){
-        lnam += lnamOoline
+        lnam += lineQty * sapr
+        qty += lineQty
       }else{
-        lnam = lnamOoline
+
+        lnam = lineQty * sapr
+        qty += lineQty
       }
 
       lnam = new BigDecimal(lnam).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+
+      DBAction mitmasQuery = database.table("MITMAS").index("00").selection("MMGRWE","MMVOL3").build()
+      DBContainer mitmasRequest = mitmasQuery.getContainer()
+      mitmasRequest.set("MMCONO", currentCompany)
+      mitmasRequest.set("MMITNO", itno)
+
+      if(mitmasQuery.read(mitmasRequest)){
+
+        double grweMitmas = mitmasRequest.get("MMGRWE")
+        double vol3Mitmas = mitmasRequest.get("MMVOL3")
+
+        grweMitmas = new BigDecimal(grweMitmas).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+        vol3Mitmas = new BigDecimal(vol3Mitmas).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+        logger.debug("previousDlixMhdish = ${previousDlixMhdish}, and dlixMhdish = ${dlixMhdish}")
+        if(previousDlixMhdish.equals(dlixMhdish)){
+
+          grwe += grweMitmas * lineQty
+          vol3 += vol3Mitmas * lineQty
+        }else{
+          logger.debug("DLIX is not the same : ")
+          grwe = grweMitmas * lineQty
+          vol3 = vol3Mitmas * lineQty
+        }
+
+        grwe = new BigDecimal(grwe).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+        vol3 = new BigDecimal(vol3).setScale(6, RoundingMode.HALF_EVEN).doubleValue()
+      }
     }
 
     DBAction mitaunQuery = database.table("MITAUN").index("00").selection("MUCOFA").build()

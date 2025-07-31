@@ -7,11 +7,11 @@
  List files and containers
 
  Description : List pallet
- Date         Changed By   Description
- 20230524     SEAR         LOG28 - Creation of files and containers
- 20240319     MLECLERCQ    LOG28 - filters
- 20250428     FLEBARS      Code review for infor validation
- 20250627     FLEBARS      Quality filter modification for LAIT & PETFOOD
+ Date         Changed By   Version      Description
+ 20230524     SEAR          1.0         LOG28 - Creation of files and containers
+ 20240319     MLECLERCQ     1.1         LOG28 - filters
+ 20250428     FLEBARS       1.2         Code review for infor validation
+ 20250627     FLEBARS       1.3         Quality filter modification for LAIT & PETFOOD
  ******************************************************************************************/
 
 import java.math.RoundingMode

@@ -31,7 +31,8 @@ import java.time.format.DateTimeFormatter
  * 20250415     ARENARD       1.3       The code has been checked
  * 20250415     FLEBARS       1.4       Modification message & erreur regle arrondi sur stock
  * 20250722     FLEBARS       1.5       Changement des messages d'erreurs
- */
+ * 20250806     FLEBARS       1.6       Changement algo flux stocké
+ * */
 public class GetSupplyPath extends ExtendM3Transaction {
   private final MIAPI mi
   private final DatabaseAPI database
@@ -142,6 +143,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
 
     boolean found = false
     String itno = null
+    String hie2 = null
+    String rem1 = null
+    double roundedOrqa = orqa
 
     //IF ORDER FLTP = 20
     if ("20".equals(orderFltp)) {
@@ -153,7 +157,16 @@ public class GetSupplyPath extends ExtendM3Transaction {
       if (dtaFindItem != null) {
         found = true
         itno = dtaFindItem["ITNO"].toString()
-        addResponse(1, orderFltp, itno, fwhl, 1, (String) dtaFindItem["SUNO"], orqa, "", "", (String) dtaFindItem["HIE2"], (String) dtaFindItem["ASGD"])
+        hie2 = dtaFindItem["HIE2"].toString()
+
+        roundedOrqa = orqa
+        Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
+        if (dtaRoundQty != null) {
+          roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+          rem1 = dtaRoundQty["REMK"]
+        }
+        logger.debug("found fltp:20 itno:${itno} orqa:${orqa} roundedOrqa:${roundedOrqa} remk: rem1:${rem1}")
+        addResponse(1, orderFltp, itno, fwhl, 1, (String) dtaFindItem["SUNO"], roundedOrqa, "", rem1, (String) hie2, (String) dtaFindItem["ASGD"])
       }
     } else {
       //ELSE ORDER FLTP != 20
@@ -162,7 +175,11 @@ public class GetSupplyPath extends ExtendM3Transaction {
       //  40 direct supplier flow type
       //  30 warehouse supplier flow type
       String activeFltp = ""
+      boolean whyNot = false
+      int whyNotindex = -1
+
       for (int step = 0; step < 3; step++) {
+        rem1 = ""
         if (!found) {
           switch (step) {
             case 0:
@@ -185,7 +202,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
           }
           if (dtaFindItem != null) {
             itno = dtaFindItem["ITNO"]
-            String hie2 = dtaFindItem["HIE2"]
+            hie2 = dtaFindItem["HIE2"]
             String sule = dtaFindItem["SULE"]
             String suld = dtaFindItem["SULD"]
             String rscl = dtaFindItem["RSCL"]
@@ -203,11 +220,18 @@ public class GetSupplyPath extends ExtendM3Transaction {
             orqa = new BigDecimal(Double.toString(orqa)).setScale(dccd, RoundingMode.HALF_UP).doubleValue()
             logger.debug("orqa:${orqa} alun:${alun} cofa:${cofa} dmcf:${dmcf} dccd:${dccd}")
 
+            roundedOrqa = orqa
+            Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
+            if (dtaRoundQty != null) {
+              roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+              rem1 = dtaRoundQty["REMK"]
+            }
+            logger.debug("found fltp:${activeFltp} itno:${itno} orqa:${orqa} roundedOrqa:${roundedOrqa} remk: rem1:${rem1}")
+
             //Depending flow type
             //10 warehouse flow type
             if ("10".equals(activeFltp)) {
               Map<String, String> mitbalData = getItemDataFromMitbal(fwhl, itno)
-              String rem1 = ""
               if (mitbalData != null) {
                 String cpcd = mitbalData["CPCD"] as String
                 double tomu = Double.parseDouble(mitbalData["TOMU"].toString())
@@ -215,47 +239,37 @@ public class GetSupplyPath extends ExtendM3Transaction {
                 logger.debug("tomu:${tomu} orqa:${orqa}")
                 if (tomu != 0) {//controle mutliples TOMU = 0
                   if (tomu >= 0) {
-                    double roundedOrqa = orqa
-                    Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
-                    if (dtaRoundQty != null) {
-                      roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
-                      rem1 = dtaRoundQty["REMK"]
-                      orqa = roundedOrqa
-                    }
-                    logger.debug("tomu:${tomu} roundedOrqa:${roundedOrqa}")
-                    int qt = (int)(roundedOrqa / tomu)
-                    if (qt < roundedOrqa / tomu){
-                      rem1 = "arrondi au multiple de dépôt ${qt}*${tomu}"
-                      orqa = qt * tomu
-                    }
-                    if (qt == 0)
+                    logger.debug("fltp:10 tomu:${tomu} roundedOrqa:${roundedOrqa}")
+                    if (roundedOrqa % tomu != 0) {
                       checkQty = false
+                      int cc = (int) (roundedOrqa / tomu)
+                      if (cc > 0) {
+                        roundedOrqa = cc * tomu
+                        rem1 = "Arrondi la quantité commandée ${orqa} pour être un multiple de ${tomu}"
+                        whyNot = true
+                      }
+                    }
                   }
                 }
                 if (cpcd == "100" && checkQty) {
                   found = true
-                  addResponse(1, activeFltp, itno, fwhl, 0, "", orqa, "", rem1, hie2, asgd)
+                  addResponse(1, activeFltp, itno, fwhl, 0, "", roundedOrqa, "", rem1, hie2, asgd)
                 } else if (cpcd != "100") {
-                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "Politique CTP incorrecte", "", hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", roundedOrqa, "Politique CTP incorrecte", rem1, hie2, asgd)
                 } else {
-                  addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "qté non divisible par multiple dépôt ${tomu}", "", hie2, asgd)
+                  addResponse(0, activeFltp, itno, fwhl, 0, "", roundedOrqa, "qté non divisible par multiple dépôt ${tomu}", rem1, hie2, asgd)
+                  if (whyNot)
+                    whyNotindex = responses.size() - 1
                 }
               } else {
-                addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "n'existe pas dans le dépôt", "", hie2, asgd)
+                addResponse(0, activeFltp, itno, fwhl, 0, "", orqa, "n'existe pas dans le dépôt", rem1, hie2, asgd)
               }
             } else if ("40".equals(activeFltp)) {
               //40 direct supplier flow type
               Map<String, String> dtaMITVEN = getItemDataFromMitven(suld, itno)
               if (dtaMITVEN != null) {
                 String stat = dtaMITVEN["ISRS"].toString()
-                String rem1 = ""
-                double roundedOrqa = orqa
                 double loqt = Double.parseDouble(dtaMITVEN["LOQT"].toString())
-                Map<String, String> dtaRoundQty = roundQty(itno, hie2, orqa, flg1)
-                if (dtaRoundQty != null) {
-                  roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
-                  rem1 = (String) dtaRoundQty["REMK"]
-                }
                 if ("20".equals(stat) && roundedOrqa >= loqt) {
                   found = true
                   addResponse(1, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "", rem1, hie2, asgd)
@@ -265,15 +279,22 @@ public class GetSupplyPath extends ExtendM3Transaction {
                   addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "qté commandé ${orqa} inférieure au mini commande ${loqt}", rem1, hie2, asgd)
                 }
               } else {
-                addResponse(0, activeFltp, itno, fwhl, 1, suld, orqa, "article fournisseur non trouvé", "", hie2, asgd)
+                addResponse(0, activeFltp, itno, fwhl, 1, suld, roundedOrqa, "article fournisseur non trouvé", rem1, hie2, asgd)
               }
             } else if ("30".equals(activeFltp)) {
               //30 warehouse supplier flow type
               found = true
-              addResponse(1, activeFltp, itno, fwhl, 1, sule, orqa, "", "", hie2, asgd)
+              addResponse(1, activeFltp, itno, fwhl, 1, sule, roundedOrqa, "", rem1, hie2, asgd)
             }
           }
         }
+      }
+      //restore fltp 10 if not found
+      if (!found && whyNot) {
+        Map<String, String> whyNotReponse = responses.get(whyNotindex)
+        whyNotReponse["FLAG"] = "1"
+        logger.debug("whynot found fltp:${activeFltp} itno:${itno} orqa:${orqa} roundedOrqa:${roundedOrqa} remk: rem1:${rem1}")
+        responses.add(whyNotReponse)
       }
     }
 
@@ -288,6 +309,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
         String rItno = dtaRITN["RITN"]
         String rHie2 = dtaRITN["HIE2"]
         Map<String, String> dtaCUGEX1 = getItemDataFromCugex1Mitmas(itno)
+        logger.debug("replacement item found from itno:${itno} to itno:${rItno}")
         if (dtaCUGEX1 == null) {
           return
         }
@@ -298,6 +320,17 @@ public class GetSupplyPath extends ExtendM3Transaction {
         String rAsgd = ""
         double rOrqa = orqa
         String rRemk = ""
+
+        //Round
+        Map<String, String> dtaRoundQty = roundQty(rItno, rHie2, orqa, flg1)
+        roundedOrqa = orqa
+        String rndRemk = ""
+
+        if (dtaRoundQty != null) {
+          roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
+          rndRemk = (String) dtaRoundQty["REMK"]
+        }
+
         if ("10".equals(rFltp)) {
           rLtyp = 0
           rSuno = ""
@@ -329,17 +362,6 @@ public class GetSupplyPath extends ExtendM3Transaction {
         lastResponse["FLAG"] = "" + 0
         lastResponse["REMK"] = "Remplacé par " + itno
         responses.set(lastIndex, lastResponse)
-
-
-        //Round
-        Map<String, String> dtaRoundQty = roundQty(rItno, rHie2, orqa, flg1)
-        double roundedOrqa = orqa
-        String rndRemk = ""
-
-        if (dtaRoundQty != null) {
-          roundedOrqa = Double.parseDouble((String) dtaRoundQty["ORQA"])
-          rndRemk = (String) dtaRoundQty["REMK"]
-        }
         addResponse(1, rFltp, rItno, rWhlo, rLtyp, rSuno, roundedOrqa, rRemk, rndRemk, rHie2, rAsgd)
       } else {
         //Round Qty for last response
@@ -350,10 +372,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
           double tOrqa = Double.parseDouble((String) lastResponse["ORQA"])
           String tItno = (String) lastResponse["ITNO"]
           String tHie2 = (String) lastResponse["HIE2"]
-          //todo c'est la
 
           Map<String, String> dtaRoundQty = roundQty(tItno, tHie2, tOrqa, flg1)
-          lastResponse["ORQA"] = (String) dtaRoundQty["ORQA"]
+          lastResponse["ORQA"] = "" + dtaRoundQty["ORQA"]
           lastResponse["REMK"] = (String) lastResponse["REMK"] + " " + (String) dtaRoundQty["REMK"]
           responses.set(lastIndex, lastResponse)
         }
@@ -490,7 +511,9 @@ public class GetSupplyPath extends ExtendM3Transaction {
         Map<String, String> cugex1Data = getItemDataFromCugex1Mitmas(itno)
         if (cugex1Data != null) {
           String itemFltp = cugex1Data["FLTP"].toString()
+
           if (itemFltp.equals(fltp)) {
+            logger.debug("findItem cuno:${cuno} popn:${popn} fltp:${fltp} itno:${itno} itemFltp:${itemFltp}")
             Map<String, String> ext010Data = getItemDataFromExt010(cuno, itno)
             if (ext010Data != null) {
               Map<String, String> mitmasData = getItemDataFromMitmas(itno)
@@ -1399,7 +1422,7 @@ public class GetSupplyPath extends ExtendM3Transaction {
       responseObject["DCCD"] = mitaunRequest.get("MUDCCD") as String
       return responseObject
     }
-    return null
+    return responseObject
   }
 
 

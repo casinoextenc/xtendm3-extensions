@@ -2,10 +2,11 @@
  * Name : OIS101MI.SupplyPath
  * Description :
  * CMD02 Get supply Path
- * Date         Changed By    Description
- * 20221122     FLEBARS       Creation
- * 20250513     PBEAUDOUIN    Change for approval
- * 20250527     FLEBARS       Change rule for alternative unit (lines modified 59-60-116)
+ * Date         Changed By    Version     Description
+ * 20221122     FLEBARS       1.0         Creation
+ * 20250513     PBEAUDOUIN    1.1         Change for approval
+ * 20250527     FLEBARS       1.2         Change rule for alternative unit (lines modified 59-60-116)
+ * 20250731     FLEBARS       1.3         Change orqa after supplypath
  */
 
 public class OIS101SupplyPath extends ExtendM3Trigger {
@@ -122,6 +123,7 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
               interactive.display.fields.WBITNO = itno
               interactive.display.fields.OBWHLO = whlo
               interactive.display.fields.OBLTYP = ltyp
+              interactive.display.fields.WBORQA = orqa
               interactive.showCustomInfo("Chemin d'appro trouvé " + itno)
             }
           }
@@ -181,6 +183,11 @@ public class OIS101SupplyPath extends ExtendM3Trigger {
         itno = response.ITNO.trim()
         whlo = response.WHLO.trim()
         ltyp = response.LTYP.trim()
+
+        int rorqa = (int)Double.parseDouble(response.ORQA.trim())
+        if (rorqa != 0) {
+          orqa = response.ORQA.trim()
+        }
       }
     }
     miCaller.call("EXT011MI", "GetSupplyPath", parameters, handler)

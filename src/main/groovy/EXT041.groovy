@@ -11,7 +11,8 @@
  PBEAUDOUIN    2024-03-25  1.0      INITIAL
  RENARN        2025-05-12  1.1      Taking into account INFOR standards
  RENARN        2025-05-13  1.1.2    Reading loops have been reduced
- FLEBARS     2025-05-28  1.1.4    Add expiration date in main method
+ FLEBARS       2025-05-28  1.1.4    Add expiration date in main method
+ FLEBARS       2025-05-28  1.2      Delete EXTJOB record
  ******************************************************************************************/
 
 
@@ -159,6 +160,7 @@ public class EXT041 extends ExtendM3Batch {
     createEcoPrdStoFile()
     writeGapLine()
     writeEndFile()
+    deleteEXTJOB()
   }
 
 
@@ -895,6 +897,22 @@ public class EXT041 extends ExtendM3Batch {
       if (queryMbmtrd.readAll(requestMbmtrd, 3, 1, readerMbmtrd)) {
       }
       return mvxd
+    }
+  }
+  /**
+   * Delete records related to the current job from EXTJOB table
+   * @return
+   */
+  public void deleteEXTJOB() {
+    LocalDateTime timeOfCreation = LocalDateTime.now()
+    DBAction query = database.table("EXTJOB").index("00").build()
+    DBContainer EXTJOB = query.getContainer()
+    EXTJOB.set("EXRFID", batch.getReferenceId().get())
+    // Delete EXTJOB
+    Closure<?> updateCallBack_EXTJOB = { LockedResult lockedResult ->
+      lockedResult.delete()
+    }
+    if (!query.readLock(EXTJOB, updateCallBack_EXTJOB)) {//todo check readll
     }
   }
 }

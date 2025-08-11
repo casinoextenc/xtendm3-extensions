@@ -7,14 +7,14 @@ import mvx.db.common.PositionEmpty
  * Name : EXT022
  * COMX01 Gestion des assortiments clients
  * Description : Select the items based on the criteria contained in EXT021 table and add records to the EXT022 table (EXT022MI.SelAssortItems conversion)
- * Date         Changed By   Description
- * 20220112     YBLUTEAU     COMX01- Add assortment
- * 20230303     ARENARD      Constraints handling has been added and adjustments have been made
- * 20230717     ARENARD      csno handling has been fixed
- * 20240620     FLEBARS      COMX01 - Controle code pour validation Infor
- * 20240409     PBEAUDOUIN   COMX01 - Check for approval
- * 20240417     Sear         COMX01 - Check for approval
- * 20250515     PBEAUDOUIN   COMX01 - trim on sule variable line 1218
+ * Date         Changed By  Version   Description
+ * 20220112     YBLUTEAU      1.0     COMX01- Add assortment
+ * 20230303     ARENARD       1.1     Constraints handling has been added and adjustments have been made
+ * 20230717     ARENARD       1.2     csno handling has been fixed
+ * 20240620     FLEBARS       1.3     COMX01 - Controle code pour validation Infor
+ * 20240409     PBEAUDOUIN    1.4     COMX01 - Check for approval
+ * 20240417     Sear          1.5     COMX01 - Check for approval
+ * 20250515     PBEAUDOUIN    1.6     COMX01 - trim on sule variable line 1218
  */
 
 public class EXT022 extends ExtendM3Batch {

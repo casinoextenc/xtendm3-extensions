@@ -9,6 +9,7 @@
  * 20240521     PBEAUDOUIN  1.1       Si pas trouvé dans alors lecture
  * 20250410     ARENARD     1.2       Extension has been fixed
  * 20250725     FLEBARS     1.3       Add automail process
+ * 20250825     PBEAUDOUIN  1.4       Change for approval request
  */
 import java.math.RoundingMode
 import java.time.DateTimeException
@@ -196,9 +197,7 @@ public class EXT013 extends ExtendM3Batch {
     server = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "Generic", "Server", "", "")
     path = getCRS881("", "EXTENC", "1", "ExtendM3", "I", "RapportIntegration", "Path", "", "")
     share = "\\\\${server}\\${path}\\"
-    logger.debug("#PB share = " + share)
 
-    logger.debug("#PB share = " + share)
     //clear var head
     confOrderNumber = ""
     numMagasin = ""
@@ -228,6 +227,7 @@ public class EXT013 extends ExtendM3Batch {
     // retrouver le mail du user
     mailLine = ""
     mailLines = ""
+
 
     // open directory
     textFiles.open(path)
@@ -292,7 +292,6 @@ public class EXT013 extends ExtendM3Batch {
         orderExist = false
       }
     }
-    logger.debug("found : ${found} - inOrderNumber : ${inOrderNumber} confOrderNumber : ${confOrderNumber}")
     if (!found)
       return
 
@@ -520,7 +519,6 @@ public class EXT013 extends ExtendM3Batch {
    * Get lines data
    */
   public void getLinesData() {
-    logger.debug("getLinesData")
     // clear var lines
     ponr = 0
     posx = 0
@@ -621,10 +619,8 @@ public class EXT013 extends ExtendM3Batch {
 
       totLignesRecues++
       totLignesintegrees++
-      logger.debug("outdataOxline ${totLignesintegrees} + ${totLignesRecues} + ${ponr}")
       errorCode = retrieveError(inOrderNumber, ponr, posx)
       errorCode = errorCode.trim()
-      logger.debug("outdataOxline retrieveError return errorCode  ${errorCode}")
       if (errorCode == "") {
         errorCode = rscd
         if (rsc1 != "")
@@ -636,38 +632,29 @@ public class EXT013 extends ExtendM3Batch {
       typeError = getErrorDescription(cuno, errorCode)
 
       Closure<?> outdatamitmasnok = { DBContainer mitmasnok ->
-        logger.debug("#PB NOK SIGMA9 + "+ itnonok +" POUR "+itno)
         itnonok = mitmasnok.getString("MMITNO")
         itds = mitmasnok.getString("MMITDS")
-        logger.debug("#PB NOK SIGMA9 + "+ itnonok +" POUR "+itno)
 
         ean13 = getEAN(itnonok)
       }
 
-      if (itno.startsWith("NOK-S")){
+      if (itno.startsWith("NOK-S")) {
         itno = fitn
-        titn = fitn+"9999"
+        titn = fitn + "9999"
         ExpressionFactory expressionMitmasNok = database.getExpressionFactory("MITMAS")
         expressionMitmasNok = expressionMitmasNok.gt("MMITNO", itno)
         expressionMitmasNok = expressionMitmasNok.and(expressionMitmasNok.lt("MMITNO", titn))
         DBAction queryMitmas00nok = database.table("MITMAS").index("00").matching(expressionMitmasNok).selection(
-          "MMITNO","MMITDS").build()
+          "MMITNO", "MMITDS").build()
 
         DBContainer mitmasnok = queryMitmas00nok.getContainer()
         mitmasnok.set("MMCONO", currentCompany)
-        logger.debug("#PB ITNO START WITH NOK"+ itno +" jusqua "+titn)
-
         if (!queryMitmas00nok.readAll(mitmasnok, 1, 1, outdatamitmasnok)) {
-          logger.debug("#PB NOK SIGMA9 COMMENCE PAR "+ itno +" jusqua "+titn)
         }
-      }else{
+      } else {
         ean13 = getEAN(itno)
         pcb = getItemPCB(itno)
       }
-
-
-
-
 
 
       executeOIS320MIGetPriceLine(cuno, itno, dateIntegration, "UVC", orqt, ortp)
@@ -731,17 +718,13 @@ public class EXT013 extends ExtendM3Batch {
       int IntPcb = (int) Math.round(pcb)
       double volLine = new BigDecimal(orqt * vol3Item).setScale(6, RoundingMode.HALF_UP).doubleValue()
       String svolLine = String.format("%.6f", volLine)
-      logger.debug("svolLine ${svolLine}")
 
       if (errorCode != "75" && blockingError) {
         double valeur = new BigDecimal(nepr * orqt).setScale(3, RoundingMode.HALF_UP).doubleValue()
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_UP).doubleValue()
-
-        logger.debug("blocline ponr:${ponr} itno:${itno}")
         itno = itno.padRight(6)
         blocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntOrqt + ";" + "0" + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + typeError + ";" + commItem
-        logger.debug("blocline svolLine ${svolLine}")
         bloclines += blocline + "\r\n"
         totLignesintegrees--
         totLignesRejeteesBloquantes++
@@ -760,15 +743,12 @@ public class EXT013 extends ExtendM3Batch {
         String svaleur = String.format("%.3f", valeur)
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
 
-        logger.debug("nonBlocline ponr:${ponr} itno:${itno} errorCode:${errorCode}")
-
         if (errorCode != "0" && errorCode != "75") {
-          logger.debug("nonBlocline errorCode " + errorCode)
           nonBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + String.format("%.2f", dequivPal) + ";" + typeError + ";" + commItem
-          logger.debug("nonBlocline svolLine ${svolLine}")
           nonBloclines += nonBlocline + "\r\n"
           totLignesErreursInformation++
         }
+
         totEquivPal = totEquivPal + dequivPal
         totVal = totVal + valeur
         double equivCol = new BigDecimal(orqt / getItemCoef(itno, "COL")).setScale(2, RoundingMode.HALF_UP).doubleValue()
@@ -782,7 +762,6 @@ public class EXT013 extends ExtendM3Batch {
         double dequivPal = new BigDecimal(orqt / getItemCoef(itno, "UPA")).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
 
         replacedBlocline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + IntPcb + ";" + svaleur + ";" + typeError + ";" + commItem
-        logger.debug("svolLine ${svolLine}")
         replacedBloclines += replacedBlocline + "\r\n"
         totLignesSubstituees++
         totEquivPal = totEquivPal + dequivPal
@@ -795,7 +774,6 @@ public class EXT013 extends ExtendM3Batch {
         double qteArrondie = new BigDecimal((orqt / udn6) * 100).setScale(2, RoundingMode.HALF_EVEN).doubleValue()
         int pourcentageArrondie = (int) Math.round(qteArrondie)
         roundedline = itno.substring(0, 6) + ";" + ean13 + ";" + itds + ";" + IntUdn6 + ";" + IntOrqt + ";" + svolLine + ";" + +IntPcb + ";" + pourcentageArrondie
-        logger.debug("roundedline svolLine ${svolLine}")
         roundedlines += roundedline + "\r\n"
       }
 
@@ -942,10 +920,8 @@ public class EXT013 extends ExtendM3Batch {
     /**
      * Read MITPOP records
      */
-    logger.debug("#PB GETean itno = "+ITNO  )
     Closure<?> readMITPOP = { DBContainer resultMITPOP ->
       EAN13 = resultMITPOP.getString("MPPOPN").trim()
-      logger.debug("#PB GETean EAN + "+EAN13  )
     }
     queryMITPOP.readAll(containerMITPOP, 4, nbMaxRecord, readMITPOP)
 
@@ -1116,7 +1092,6 @@ public class EXT013 extends ExtendM3Batch {
         CTPARM = CSYTAB.getString("CTPARM").trim().substring(0, 36)
       } else {
         CTPARM = CSYTAB.getString("CTTX40").trim()
-        logger.debug("found CSYTAB PARM : " + CSYTAB.getString("CTTX40").trim() + "item : " + itno + " line : " + ponr)
       }
     } else {
       DBAction queryCSYTAB1 = database.table("CSYTAB").index("00").selection("CTPARM", "CTTX40").build()
@@ -1266,10 +1241,12 @@ public class EXT013 extends ExtendM3Batch {
     }
     miCaller.call("CRS610MI", "GetBasicData", parameters, handler)
   }
-
+  /**
+   * get Mails
+   * @param mailI
+   * @param mailE
+   * */
   private void getMails(String mailI, String mailE) {
-
-    logger.debug("getMails mailI: " + mailI + " mailE: " + mailE)
 
     ExpressionFactory ccuconExpression = database.getExpressionFactory("CCUCON")
     ccuconExpression = ccuconExpression.le("CCEMRE", cuno)
@@ -1289,14 +1266,12 @@ public class EXT013 extends ExtendM3Batch {
       String emal = ccuconResult.getString("CCEMAL").trim()
       String stat = ccuconResult.getString("CCSTAT").trim()
 
-      if ("20".equals(stat)){
-        if ("1".equals(mailI) && ("I-ADV".equals(rftp) || "I-COM".equals(rftp))){
+      if ("20".equals(stat)) {
+        if ("1".equals(mailI) && ("I-ADV".equals(rftp) || "I-COM".equals(rftp))) {
           mailLines += emal + "\r\n"
-          logger.debug("mail " + emal)
         }
-        if ("1".equals(mailE) && ("E-RDI".equals(rftp))){
+        if ("1".equals(mailE) && ("E-RDI".equals(rftp))) {
           mailLines += emal + "\r\n"
-          logger.debug("mail " + emal)
         }
       }
     }
@@ -1320,7 +1295,6 @@ public class EXT013 extends ExtendM3Batch {
       mailLines = resultCEMAIL.getString("CBEMAL").trim()
     }
     queryCEMAIL.readAll(containerCEMAIL, 3, nbMaxRecord, readCEMAIL)
-    logger.debug("user : " + program.getUser())
   }
 
   /**
@@ -1330,7 +1304,7 @@ public class EXT013 extends ExtendM3Batch {
    */
   public void writeBlokingAnomalyLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "BlokingLines" + "-" + "rapport.txt"
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";"+ "Type erreur" +";" + "Commentaire Article"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Quantité intégrée" + ";" + "Volume commandé" + ";" + "PCB" + ";" + "Valeur" + ";" + "Type erreur" + ";" + "Commentaire Article"
     logMessage(header, bloclines)
   }
 
@@ -1363,7 +1337,7 @@ public class EXT013 extends ExtendM3Batch {
    */
   public void writeRoundedLineFile() {
     logFileName = fileJobNumber + "-" + confOrderNumber + "-" + "RoundedLine" + "-" + "rapport.txt"
-    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Qté intégrée"+ ";" + "Volume intégré" + ";" + "PCB" + ";" + "taux arrondi %"
+    header = "Article" + ";" + "Code EAN" + ";" + "Libellé article" + ";" + "Quantité commandée" + ";" + "Qté intégrée" + ";" + "Volume intégré" + ";" + "PCB" + ";" + "taux arrondi %"
     logMessage(header, roundedlines)
   }
 
@@ -1469,7 +1443,6 @@ public class EXT013 extends ExtendM3Batch {
     header += "<DocumentPath>${share}</DocumentPath>"
     header += "</Document>"
 
-    logger.debug("#PB Docnumber =" + header)
     logMessage(header, "")
   }
 
@@ -1482,10 +1455,9 @@ public class EXT013 extends ExtendM3Batch {
 
     if (logFileName.endsWith("docNumber.xml"))
 
-      logger.debug("line = " + line)
-    if (header.trim() != "") {
-      log(header)
-    }
+      if (header.trim() != "") {
+        log(header)
+      }
     if (line.trim() != "") {
       log(line)
     }

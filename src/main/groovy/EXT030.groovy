@@ -14,6 +14,7 @@
  ARENARD     2025-04-22    1.3      Code has been checked
  FLEBARS     2025-04-25    1.4      Minor modifications
  PBEAUDOUIN  2025-05-20    1.5      Change for approval
+ FLEBARS     2025-09-11    1.6      New rules for MILOMA.EXPI and MFDT
  ******************************************************************************************/
 
 import java.math.RoundingMode
@@ -44,6 +45,7 @@ public class EXT030 extends ExtendM3Batch {
   private String reference
   private String search
   private Integer currentDate
+  private Integer currentDatePlus2000
   private int rawDataLength
   private int beginIndex
   private int endIndex
@@ -104,12 +106,14 @@ public class EXT030 extends ExtendM3Batch {
   private String prod
   private String suno
   private String itds
+  private String spe1
   private String cua1
   private String cua2
   private String cua3
   private String cua4
   private String pono
   private String town
+  private String cfc0
   private String supplierCscd
   private String supplierSunm
   private String supplierCua1
@@ -231,7 +235,9 @@ public class EXT030 extends ExtendM3Batch {
     transactionNumber = ""
 
     LocalDateTime timeOfCreation = LocalDateTime.now()
+    LocalDateTime timeP2000 = timeOfCreation.plusDays(2000)
     currentDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
+    currentDatePlus2000 = timeP2000.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as Integer
 
     creationDate = timeOfCreation.format(DateTimeFormatter.ofPattern("yyyyMMdd")) as String
     creationTime = timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss")) as String
@@ -763,7 +769,7 @@ public class EXT030 extends ExtendM3Batch {
     } else {
       DBAction queryOCUSMA = database.table("OCUSMA")
         .index("00")
-        .selection("OKCSCD", "OKCUA1", "OKCUA2", "OKCUA3", "OKCUA4", "OKPONO", "OKTOWN")
+        .selection("OKCSCD", "OKCUA1", "OKCUA2", "OKCUA3", "OKCUA4", "OKPONO", "OKTOWN", "OKCFC0")
         .build()
       DBContainer requestOCUSMA = queryOCUSMA.getContainer()
       requestOCUSMA.set("OKCONO", currentCompany)
@@ -776,6 +782,7 @@ public class EXT030 extends ExtendM3Batch {
         cua4 = requestOCUSMA.getString("OKCUA4")
         pono = requestOCUSMA.getString("OKPONO")
         town = requestOCUSMA.getString("OKTOWN")
+        cfc0 = requestOCUSMA.get("OKCFC0") as String
       }
     }
 
@@ -870,8 +877,27 @@ public class EXT030 extends ExtendM3Batch {
     if (queryMILOMA.read(MILOMA)) {
       numLot = MILOMA.getString("LMBRE2")
       numLot = numLot.trim()
-      dateExpiration = MILOMA.getInt("LMEXPI")
-      if (dateFabrication == 0) dateFabrication = MILOMA.getInt("LMMFDT")
+
+      int expi = MILOMA.getInt("LMEXPI")
+      int mfdt = MILOMA.getInt("LMMFDT")
+      if (dateFabrication != 0)
+        mfdt = dateFabrication
+
+      if (spe1.isBlank()) {
+        expi = 0
+        mfdt = 0
+      }
+      if (expi > currentDatePlus2000){
+        expi = 0
+      }
+      if (mfdt > currentDatePlus2000){
+        mfdt = 0
+      }
+      if (mfdt == expi){
+        mfdt = 0
+      }
+      dateExpiration = expi
+      dateFabrication = mfdt
     }
 
     if (numLot == "") {
@@ -1149,7 +1175,8 @@ public class EXT030 extends ExtendM3Batch {
       "MMNEWE",
       "MMITDS",
       "MMPROD",
-      "MMSUNO").build()
+      "MMSUNO",
+      "MMSPE1").build()
     DBContainer MITMAS = queryMITMAS.getContainer()
     MITMAS.set("MMCONO", currentCompany)
     MITMAS.set("MMITNO", ITNO.trim())
@@ -1160,6 +1187,7 @@ public class EXT030 extends ExtendM3Batch {
       prod = MITMAS.getString("MMPROD").trim()
       suno = MITMAS.getString("MMSUNO").trim()
       itds = MITMAS.getString("MMITDS").trim()
+      spe1 = MITMAS.getString("MMSPE1").trim()
     }
   }
 

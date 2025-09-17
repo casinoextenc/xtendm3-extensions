@@ -4,11 +4,12 @@
  * Description :
  * This API method to update records in specific table EXT010 Customer Assortment
  * This API works in mode Add or Upd if does'nt exists
- * Date         Changed By    Description
- * 20221122     FLEBARS       COMX01 - Creation
- * 20240228     FLEBARS       Gestion statuts 20-50
- * 20240620     FLEBARS       COMX01 - Controle code pour validation Infor
- * 20250114     YJANNIN       COMX01 - Historisation
+ * Date         Changed By    Version       Description
+ * 20221122     FLEBARS         1.0         COMX01 - Creation
+ * 20240228     FLEBARS         1.1         Gestion statuts 20-50
+ * 20240620     FLEBARS         1.2         COMX01 - Controle code pour validation Infor
+ * 20250114     YJANNIN         1.3         COMX01 - Historisation
+ * 20250904     FLEBARS         1.4         COMX01 - Add control on MITVEN.ISRS
  */
 
 import java.time.LocalDateTime
@@ -425,14 +426,17 @@ public class UpdRefAsso extends ExtendM3Transaction {
     boolean found = false
     DBAction mitvenQuery = database.table("MITVEN")
       .index("10")
-      .selection("IFSITE")
+      .selection("IFSITE", "IFISRS")
       .build()
     DBContainer containerMitven = mitvenQuery.getContainer()
     containerMitven.set("IFCONO", currentCompany)
     containerMitven.set("IFSUNO", suno)
     containerMitven.set("IFITNO", itno)
     Closure<?> outMitven = { DBContainer mitvenResult ->
-      found = true
+      String isrs = (String) mitvenResult.get("IFISRS")
+      if (isrs == "20") {
+        found = true
+      }
     }
     if (!mitvenQuery.readAll(containerMitven, 3, 1, outMitven)) {
     }

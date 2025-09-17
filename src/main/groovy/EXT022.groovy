@@ -15,6 +15,7 @@ import mvx.db.common.PositionEmpty
  * 20240409     PBEAUDOUIN    1.4     COMX01 - Check for approval
  * 20240417     Sear          1.5     COMX01 - Check for approval
  * 20250515     PBEAUDOUIN    1.6     COMX01 - trim on sule variable line 1218
+ * 20250904     FLEBARS       1.7     COMX01 - Add control on MITVEN.ISRS
  */
 
 public class EXT022 extends ExtendM3Batch {
@@ -564,7 +565,7 @@ public class EXT022 extends ExtendM3Batch {
    */
   public boolean itemSelectionOK() {
     // Status must be greater than or equal to 80
-    if (stat >= "80"){
+    if (stat >= "80") {
       logMessage("DEBUG", "Controle statut article : ITNO:${itno} stat:${stat} KO")
       return false
     }
@@ -982,14 +983,17 @@ public class EXT022 extends ExtendM3Batch {
     boolean found = false
     DBAction mitvenQuery = database.table("MITVEN")
       .index("10")
-      .selection("IFSITE")
+      .selection("IFSITE", "IFISRS")
       .build()
     DBContainer containerMitven = mitvenQuery.getContainer()
     containerMitven.set("IFCONO", currentCompany)
     containerMitven.set("IFSUNO", suno)
     containerMitven.set("IFITNO", itno)
     Closure<?> outMitven = { DBContainer mitvenResult ->
-      found = true
+      String isrs = (String) mitvenResult.get("IFISRS")
+      if (isrs == "20") {
+        found = true
+      }
     }
     if (!mitvenQuery.readAll(containerMitven, 3, 1, outMitven)) {
     }

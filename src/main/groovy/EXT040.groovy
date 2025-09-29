@@ -22,6 +22,9 @@
  FLEBARS     2025-05-23  1.1.3    Fix type appro mantis 78239
  FLEBARS     2025-05-28  1.1.4    Add expiration date in main method
  FLEBARS     2025-07-04  1.1.5    Changes rules for mail addresses
+ FLEBARS     2025-09-17  1.1.6    Change expiration date in main method
+ MLECLERCQ   2025-09-27  1.1.7    Change feed of Cofas to not take only 1st PCB Line & selection of mailsClients
+ MLECLERCQ   2025-09-28  1.1.8    Change the rule to get appr : PPS106MI instead of MITFAC and columns headers of controle-prix
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -36,6 +39,7 @@ public class EXT040 extends ExtendM3Batch {
   private final ProgramAPI program
   private final BatchAPI batch
   private final MICallerAPI miCaller
+
   private final TextFilesAPI textFiles
   private final UtilityAPI utility
 
@@ -188,20 +192,23 @@ public class EXT040 extends ExtendM3Batch {
   private Map<String, String> mithryMap
   private Integer ocusmaN596
   private Map<String, Map<String, String>> sigma9s
+  private String suno
 
   public EXT040(LoggerAPI logger, DatabaseAPI database, ProgramAPI program, BatchAPI batch, MICallerAPI miCaller, TextFilesAPI textFiles, UtilityAPI utility) {
+
     this.logger = logger
     this.database = database
     this.program = program
     this.batch = batch
     this.miCaller = miCaller
+    //this.mi = mi
     this.textFiles = textFiles
     this.utility = utility
   }
 
   public void main() {
     //Expiration Date for data correction extension
-    if (LocalDate.now().isAfter(LocalDate.of(2025, 11, 30))) {
+    if (LocalDate.now().isAfter(LocalDate.of(2025, 12, 31))) {
       logger.debug("Extension signature expired")
       return
     }
@@ -401,7 +408,6 @@ public class EXT040 extends ExtendM3Batch {
    * Retrieve EXT010
    */
   Closure<?> ext010Reader3 = { DBContainer ext010Result ->
-    String suno = ""
     String sule = ext010Result.get("EXSULE")
     String suld = ext010Result.get("EXSULD")
     if (sule.trim() != "") {
@@ -531,24 +537,28 @@ public class EXT040 extends ExtendM3Batch {
         if ((cofa < cofa10 && cofa != 0) || itno10 == "") {
           itno10 = itno
           ascd10 = ascd
+          cofa10 = cofa
         }
       }
       if (fltp == "20") {
         if ((cofa < cofa20 && cofa != 0) || itno20 == "") {
           itno20 = itno
           ascd20 = ascd
+          cofa20 = cofa
         }
       }
       if (fltp == "30") {
         if ((cofa < cofa30 && cofa != 0) || itno30 == "") {
           itno30 = itno
           ascd30 = ascd
+          cofa30 = cofa
         }
       }
       if (fltp == "40") {
         if ((cofa < cofa40 && cofa != 0) || itno40 == "") {
           itno40 = itno
           ascd40 = ascd
+          cofa40 = cofa
         }
       }
     }
@@ -750,17 +760,26 @@ public class EXT040 extends ExtendM3Batch {
    * Retrieve CCUCON
    */
   Closure<?> ccuconReader = { DBContainer ccuconResult ->
-    line = ccuconResult.get("CCEMAL")
+
     String rftp = ccuconResult.get("CCRFTP")
-    countLines++
-    lines += line + (countLines < 5000 ? "\r\n" : "")
+    if (logFileName.contains("mailsClients.txt") && !rftp.startsWith("I")) {
+      line = ccuconResult.get("CCEMAL")
+      logger.debug("CCUCON, in mailsClients, rftp : " + rftp + ", " + (!rftp.startsWith("I")))
+      countLines++
+      lines += line + (countLines < 5000 ? "\r\n" : "")
+    }
+    if (logFileName.contains("mailsInternes.txt") && rftp.startsWith("I")) {
+      line = ccuconResult.get("CCEMAL")
+      logger.debug("CCUCON, in mailsInternes, rftp : " + rftp + ", " + (rftp.startsWith("I")))
+      countLines++
+      lines += line + (countLines < 5000 ? "\r\n" : "")
+    }
+
+    logger.debug("Received RFTP : ${rftp} and mail: ${line}")
+
     if (countLines == 5000) {
-      if (logFileName.contains("mailsClients.txt") && !rftp.startsWith("I")) {
-        writeInFile("", lines)
-      }
-      if (logFileName.contains("mailsInternes.txt") && rftp.startsWith("I")) {
-        writeInFile("", lines)
-      }
+      logger.debug("countlines == 5000")
+      writeInFile("", lines)
       countLines = 0
       lines = ""
     }
@@ -1197,14 +1216,9 @@ public class EXT040 extends ExtendM3Batch {
       sapr = prixVente as double
       appr = 0
       LocalDateTime timeOfCreation = LocalDateTime.now()
-      DBAction mitfacQuery = database.table("MITFAC").index("00").selection("M9APPR").build()
-      DBContainer mitfacRequest = mitfacQuery.getContainer()
-      mitfacRequest.set("M9CONO", currentCompany)
-      mitfacRequest.set("M9FACI", "E10")
-      mitfacRequest.set("M9ITNO", sigma9)
-      if (mitfacQuery.read(mitfacRequest)) {
-        appr = mitfacRequest.get("M9APPR")
-      }
+
+      executePPS106MI_GetPrice(sigma9,suno,'1',currentDate.toString(),'EUR')
+
       if (sapr < appr && !isAlcool)
         writeExt046()
 
@@ -1248,6 +1262,25 @@ public class EXT040 extends ExtendM3Batch {
       }
     }
   }
+
+  private executePPS106MI_GetPrice(String ITNO,String SUNO,String ORQA,String PUDT, String CUCD){
+    logger.debug("Before PPS106MI_GetPrice, ITNO : ${ITNO}, SUNO: ${SUNO}, ORQA: ${ORQA}, PUDT: ${PUDT}, CUCD: ${CUCD}")
+    Map<String,String> parameters = ["ITNO":ITNO,"SUNO":SUNO,"ORQA":ORQA,"PUDT":PUDT, "CUCD":CUCD ]
+
+    Closure<?> handler = { Map<String, String> response ->
+      if (response.error != null) {
+        String header = "MSG"
+        String message = "Failed PPS106MI.GetPrice: " + response.errorMessage
+        logMessage("ERROR", message)
+        return
+      } else {
+      }
+      if (response.PUPR != null)
+        appr = response.PUPR as double
+    }
+    miCaller.call("PPS106MI", "GetPrice", parameters, handler)
+  }
+
 
   /**
    * Write to gap file
@@ -1396,7 +1429,7 @@ public class EXT040 extends ExtendM3Batch {
     writeInFile(header, "")
     line = inCalendar + ";" + creationDate + ";" + creationTime + ";" + inCustomer + ";" + customerName
     writeInFile("", line + "\r\n")
-    header = "Code article" + ";" + "Nom article" + ";" + "Prix de vente" + ";" + "Prix de revient"
+    header = "Code article" + ";" + "Nom article" + ";" + "PCE" + ";" + "PCI"
     writeInFile(header, "")
     countLines = 0
     lines = ""

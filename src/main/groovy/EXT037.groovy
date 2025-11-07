@@ -11,6 +11,7 @@
  YJANNIN    2024-12-13   1.0       QUAX02 - Constraint engine
  ARENARD    2025-04-22   1.1       Code has been checked
  PBEAUDOUIN 2025-05-20   1.2       Code Change for approval
+ PBEAUDOUIN 2025-11-03   1.3       Recalculate EXT037 if status change to 90
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -354,30 +355,6 @@ public class EXT037 extends ExtendM3Batch {
     String pgrs = mhdishResult.get("OQPGRS")
 
     boolean found = false
-    if (pgrs.trim() == "90") {
-      DBAction ext037Query20 = database.table("EXT037")
-        .index("20")
-        .selection(
-          "EXORNO",
-          "EXBANO"
-        ).build()
-
-      DBContainer ext037Request = ext037Query20.getContainer()
-      ext037Request.set("EXCONO", currentCompany)
-      ext037Request.set("EXDLIX", dlix)
-
-      Closure<?> ext037Reader20 = { DBContainer ext037Result ->
-        String bano = ext037Result.get("EXBANO")
-        if (bano.trim() != "") {
-          found = true
-        }
-
-      }
-
-      if (!ext037Query20.readAll(ext037Request, 2, 1, ext037Reader20)) {
-      }
-
-    }
 
     if (!found) {
 

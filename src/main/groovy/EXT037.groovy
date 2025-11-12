@@ -11,7 +11,7 @@
  YJANNIN    2024-12-13   1.0       QUAX02 - Constraint engine
  ARENARD    2025-04-22   1.1       Code has been checked
  PBEAUDOUIN 2025-05-20   1.2       Code Change for approval
- PBEAUDOUIN 2025-11-03   1.3       Recalculate EXT037 if status change to 90
+ FLEBARS    2025-11-03   1.3       Recalculate EXT037 if status change to 90
  ******************************************************************************************/
 
 import java.time.LocalDateTime

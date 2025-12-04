@@ -44,11 +44,6 @@ public class AddNewDelLine extends ExtendM3Transaction {
     LocalDateTime timeOfCreation = LocalDateTime.now()
     currentCompany = (Integer)program.getLDAZD().CONO
 
-    if (mi.in.get("BJNO") == null) {
-      jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
-    } else {
-      jobNumber = (String)mi.in.get("BJNO")
-    }
 
     //Get mi inputs
     String orno = (mi.in.get("ORNO") != null ? (String)mi.in.get("ORNO") : "")
@@ -57,6 +52,14 @@ public class AddNewDelLine extends ExtendM3Transaction {
     double alqt = (double) (mi.in.get("ALQT") != null ? mi.in.get("ALQT") : 0)
     long tlix  = (Long)(mi.in.get("TLIX") != null ? mi.in.get("TLIX") : 0)
     String dlix = null
+
+    if (mi.in.get("BJNO") == null) {
+      jobNumber = program.getJobNumber() + orno
+    } else {
+      jobNumber = (String)mi.in.get("BJNO")
+    }
+
+
 
     DBAction ooheadQuery = database.table("OOHEAD").index("00").selection("OAORNO").build()
     DBContainer OOHEAD = ooheadQuery.getContainer()
@@ -167,6 +170,7 @@ public class AddNewDelLine extends ExtendM3Transaction {
     }
 
     mi.outData.put("BJNO", jobNumber)
+    mi.outData.put("ORNO", orno)
     mi.write()
   }
 }

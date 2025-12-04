@@ -15,6 +15,7 @@
  FLEBARS                 2025-05-06       1.4              re add block/unblock MHDISH BLOP after receiving customer accpetance risk document
  FLEBARS                 2025-06-18       1.5              reduce the number of reading records remove reads on mitplo
  FLEBARS                 2025-06-20       1.6              apply xtendm3 team remarks
+ FLEBARS                 2025-12-03       1.7              Mantis 85777 - Pbm price when changing order line
  ******************************************************************************************/
 
 import java.math.RoundingMode
@@ -553,6 +554,7 @@ public class AddNewDel extends ExtendM3Transaction {
       logger.debug("TETS DDD alqt:${alqt} orqt:${oolineOrqt}")
 
       if (alqt == oolineOrqt || alqt == 0) {
+        logger.debug("Partial Line tlix= ${tlix}, newDelivery=${newDelivery}")
         String theDLIX = tlix.length() > 0 && tlix != "0" ? tlix : newDelivery
         blockRelativeIndexes(dlix, theDLIX)
         executeMWS411MIMoveDelLn(dlix, rorc, ridn, ridl, ridx, theDLIX)
@@ -706,7 +708,7 @@ public class AddNewDel extends ExtendM3Transaction {
         newDelivery = response.TLIX.trim()
 
       if (response.error != null) {
-        return mi.error("Failed MWS411MI.MoveDelLn: " + response.errorMessage)
+        return mi.error("Failed MWS411MI.MoveDelLn: " + response.errorMessage + " ORNO:${ridn} PONR:${ridl} RIDX:${ridx}")
       }
     }
     miCaller.call("MWS411MI", "MoveDelLn", parameters, handler)
@@ -831,7 +833,7 @@ public class AddNewDel extends ExtendM3Transaction {
     double newOrqa = convertQty(this.oolineOrno, oolineAlun, oolineOrqt - ext057Alqt, 0)
     logger.debug("calc new orqa ${newOrqa}")
     blockRelativeIndexes(dlix, dlix)
-    executeOIS100MIChgLineBatchEnt(oolineOrno, "" + oolinePonr, "" + oolinePosx, oolineRorn, newOrqa as String)
+    executeOIS100MIChgLineBatchEnt(oolineOrno, "" + oolinePonr, "" + oolinePosx, oolineRorn, newOrqa as String, oolineSapr)
     unblockingIndexes()
 
     //recreate link with po line
@@ -965,15 +967,15 @@ public class AddNewDel extends ExtendM3Transaction {
 
   /**
    *
-   * @param ORNO
-   * @param PONR
-   * @param POSX
-   * @param UCA2
-   * @param ORQA
+   * @param orno
+   * @param ponr
+   * @param posx
+   * @param uca2
+   * @param orqa
    * @return
    */
-  private executeOIS100MIChgLineBatchEnt(String ORNO, String PONR, String POSX, String UCA2, String ORQA) {
-    Map<String, String> parameters = ["ORNO": ORNO, "PONR": PONR, "POSX": POSX, "UCA2": UCA2, "ORQA": ORQA]
+  private executeOIS100MIChgLineBatchEnt(String orno, String ponr, String posx, String uca2, String orqa, String sapr) {
+    Map<String, String> parameters = ["ORNO": orno, "PONR": ponr, "POSX": posx, "UCA2": uca2, "ORQA": orqa, "SAPR": sapr]
     Closure<?> handler = { Map<String, String> response ->
       if (response.error != null) {
         return mi.error("Failed OIS100MI.ChgLineBatchEnt: " + response.errorMessage)
@@ -984,38 +986,38 @@ public class AddNewDel extends ExtendM3Transaction {
 
   /**
    *
-   * @param ORNO
-   * @param ITNO
-   * @param ORQT
-   * @param ALUN
-   * @param LTYP
-   * @param WHLO
-   * @param DWDZ
-   * @param DWHZ
-   * @param ADID
-   * @param PIDE
-   * @param DIP4
-   * @param DWDT
-   * @param PLDT
-   * @param SAPR
+   * @param orno
+   * @param itno
+   * @param orqt
+   * @param alun
+   * @param ltyp
+   * @param whlo
+   * @param dwdz
+   * @param dwhz
+   * @param adid
+   * @param pide
+   * @param dip4
+   * @param dwdt
+   * @param pldt
+   * @param sapr
    * @return
    */
-  private executeOIS100MIAddOrderLine(String ORNO, String ITNO, String ORQT, String ALUN, String LTYP, String WHLO, String DWDZ, String DWHZ, String ADID, String PIDE, String DIP4, String DWDT, String PLDT, String SAPR) {
+  private executeOIS100MIAddOrderLine(String orno, String itno, String orqt, String alun, String ltyp, String whlo, String dwdz, String dwhz, String adid, String pide, String dip4, String dwdt, String pldt, String sapr) {
     Map<String, String> parameters = [
-      "ORNO": ORNO,
-      "ITNO": ITNO,
-      "ORQT": ORQT,
-      "ALUN": ALUN,
-      "LTYP": LTYP,
-      "WHLO": WHLO,
-      "DWDZ": DWDZ,
-      "DWHZ": DWHZ,
-      "ADID": ADID,
-      "PIDE": PIDE,
-      "DIP4": DIP4,
-      "DWDT": DWDT,
-      "PLDT": PLDT,
-      "SAPR": SAPR,
+      "ORNO": orno,
+      "ITNO": itno,
+      "ORQT": orqt,
+      "ALUN": alun,
+      "LTYP": ltyp,
+      "WHLO": whlo,
+      "DWDZ": dwdz,
+      "DWHZ": dwhz,
+      "ADID": adid,
+      "PIDE": pide,
+      "DIP4": dip4,
+      "DWDT": dwdt,
+      "PLDT": pldt,
+      "SAPR": sapr,
       "OATP": "1",
       "IGWA": "1",
       "OSPM": "1"]

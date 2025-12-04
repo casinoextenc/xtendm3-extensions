@@ -16,6 +16,7 @@
  MLECLERCQ               2024-04-30       1.5              LOG28 - added country name
  ARENARD                 2025-04-28       1.6              Output fields description added
  MLECLERCQ               2025-05-13       1.7              Added OBORST > 20 filter on OOLINE
+ MLECLERCQ               2025-11-14       1.8              Changed read on OOLINE to MITPLO due to volume
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -33,7 +34,6 @@ public class LstDosMait extends ExtendM3Transaction {
 
   int currentCompany
 
-  private String parm
   private String fortInput
   private String tortInput
   private String frldInput
@@ -44,13 +44,13 @@ public class LstDosMait extends ExtendM3Transaction {
   private String cunm
   private String cscd
   private String cscn
-  private Long znbcDradtr
 
   private String rout
   private String massification
 
-  private String jobNumber
   private Integer nbMaxRecord = 10000
+
+  private ArrayList<String> allowedOrders
 
   public LstDosMait(LoggerAPI logger, MIAPI mi, DatabaseAPI database, ProgramAPI program, MICallerAPI miCaller, UtilityAPI utility) {
     this.logger = logger
@@ -98,37 +98,63 @@ public class LstDosMait extends ExtendM3Transaction {
       }
     }
 
-    // Get OOLINE
-    String tmpORNO = ""
-    // TODO AMELIORER FILTRE
-    logger.debug("ameliorer filtre")
-    ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
-    oolineExp = oolineExp.eq("OBWHLO", whloInput)
-    oolineExp = oolineExp.and(oolineExp.lt("OBORST", "44"))
-    oolineExp = oolineExp.and(oolineExp.gt("OBORST", "20"))
+    if(ornoInput!="") {
+      getOolineData(ornoInput)
+    }else{
+      allowedOrders = new ArrayList<String>()
+      // Get OOLINE
+      ExpressionFactory mitploExp = database.getExpressionFactory("MITPLO")
+      mitploExp = mitploExp.lt("MOSTS2", "44")
+      mitploExp = mitploExp.and(mitploExp.gt("MOSTS2", "20"))
+      mitploExp = mitploExp.and(mitploExp.eq("MOORCA","311"))
+      DBAction mitploQuery = database.table("MITPLO").index("00").matching(mitploExp).selection("MORIDN","MOWHLO","MOTRTP").build()
+      DBContainer mitploRequest = mitploQuery.getContainer()
+      mitploRequest.set("MOCONO", currentCompany)
+      mitploRequest.set("MOWHLO", whloInput)
 
+      Closure<?> mitploReader = { DBContainer mitploResult ->
+
+        String orno = mitploResult.get("MORIDN")
+        //rout = oolineResult.get("OBROUT")
+
+        if(allowedOrders.size() > 0){
+          boolean  found = allowedOrders.find { it -> it == orno}
+          if(!found){
+            allowedOrders.add(orno)
+
+            getOolineData(orno)
+          }
+        }else{
+          allowedOrders.add(orno)
+          //rout = oolineResult.get("OBROUT")
+          getOolineData(orno)
+        }
+
+      }
+
+      if (!mitploQuery.readAll(mitploRequest, 2, nbMaxRecord, mitploReader)){
+      }
+    }
+  }
+
+  public void getOolineData(String orno){
+    // Get OOLINE
+    ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")
+    oolineExp = oolineExp.lt("OBORST", "44")
+    oolineExp = oolineExp.and(oolineExp.gt("OBORST", "20"))
+    oolineExp = oolineExp.and(oolineExp.eq("OBWHLO", whloInput))
     DBAction oolineQuery = database.table("OOLINE").index("00").matching(oolineExp).selection("OBORNO","OBWHLO","OBROUT").build()
     DBContainer oolineRequest = oolineQuery.getContainer()
     oolineRequest.set("OBCONO", currentCompany)
+    oolineRequest.set("OBORNO", orno)
 
     Closure<?> oolineReader = { DBContainer oolineResult ->
 
-      String orno = oolineResult.get("OBORNO")
       rout = oolineResult.get("OBROUT")
-      if (orno != tmpORNO){
-        getOOHEAD(orno)
-        tmpORNO = orno
-      }
-
+      getOohead(orno)
     }
 
-    if(ornoInput!="") {
-      oolineRequest.set("OBORNO", ornoInput)
-      if (!oolineQuery.readAll(oolineRequest, 2, nbMaxRecord, oolineReader)){
-      }
-    } else {
-      if (!oolineQuery.readAll(oolineRequest, 1, nbMaxRecord, oolineReader)){
-      }
+    if (!oolineQuery.readAll(oolineRequest, 2, 1, oolineReader)){
     }
   }
 
@@ -137,8 +163,7 @@ public class LstDosMait extends ExtendM3Transaction {
    * @param orno
    * @return
    */
-  public void getOOHEAD(String orno) {
-    logger.debug("getoohead ${orno}")
+  public void getOohead(String orno) {
 
     ExpressionFactory ooheadExp = database.getExpressionFactory("OOHEAD")
     ooheadExp = ooheadExp.eq("OAUCA4", "")
@@ -199,7 +224,6 @@ public class LstDosMait extends ExtendM3Transaction {
         getCountryName(cscd)
         getMassification(cuno, rldt, orno)
       }
-      logger.debug("Out ORNO: ${orno}")
       //set output data
       mi.outData.put("ORNO", orno)
       mi.outData.put("ORTP", ortp)
@@ -256,7 +280,6 @@ public class LstDosMait extends ExtendM3Transaction {
     ext014Request.set("EXCUNO", cuno)
     ext014Request.set("EXWHLO",whloInput)
 
-    logger.debug("in getMassification for orno : ${orno.toString()}")
 
     if (!ext014Query.readAll(ext014Request,3,1,{})) {
       massification = "0"

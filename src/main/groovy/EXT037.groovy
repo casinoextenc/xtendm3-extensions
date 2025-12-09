@@ -12,6 +12,7 @@
  ARENARD    2025-04-22   1.1       Code has been checked
  PBEAUDOUIN 2025-05-20   1.2       Code Change for approval
  FLEBARS    2025-11-03   1.3       Recalculate EXT037 if status change to 90
+ FLEBARS    2025-11-25   1.4       Pbm with Recalculation Mantis 85625
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -125,9 +126,9 @@ public class EXT037 extends ExtendM3Batch {
     documents = new LinkedHashMap<String, String>()
     documentsEXT037 = new LinkedHashMap<String, String>()
 
+    deleteExt037Records(inORNO, inDLIX, inCONN)
 
     if (inCONN != 0) {
-
       //Get infos from MHDISH
       DBAction mhdishQuery20 = database.table("MHDISH")
         .index("20")
@@ -143,8 +144,6 @@ public class EXT037 extends ExtendM3Batch {
     }
 
     if (inDLIX != 0) {
-
-
       //Get infos from MHDISH
       DBAction mhdishQuery00 = database.table("MHDISH")
         .index("00")
@@ -187,27 +186,6 @@ public class EXT037 extends ExtendM3Batch {
         }
 
         if (!found) {
-
-          // clear EXT037
-          DBAction ext037Query20 = database.table("EXT037")
-            .index("20")
-            .selection("EXORNO").build()
-
-          DBContainer ext037Request = ext037Query20.getContainer()
-          ext037Request.set("EXCONO", currentCompany)
-          ext037Request.set("EXDLIX", dlix)
-
-          Closure<?> ext037Updater20 = { LockedResult ext037LockedResult ->
-            ext037LockedResult.delete()
-          }
-
-          Closure<?> ext037Reader20 = { DBContainer ext037Result ->
-            ext037Query20.readLock(ext037Result, ext037Updater20)
-          }
-
-          if (!ext037Query20.readAll(ext037Request, 2, nbMaxRecord, ext037Reader20)) {
-          }
-
           datasDlix = [
             "DLIX"  : "0"
             , "CONN": "0"
@@ -234,27 +212,6 @@ public class EXT037 extends ExtendM3Batch {
     }
 
     if (inORNO.trim() != "" && inORNO != null) {
-      // clear EXT037
-      DBAction ext037Query20 = database.table("EXT037")
-        .index("20")
-        .selection("EXORNO").build()
-
-      DBContainer ext037Request = ext037Query20.getContainer()
-      ext037Request.set("EXCONO", currentCompany)
-      ext037Request.set("EXDLIX", 0)
-      ext037Request.set("EXORNO", inORNO)
-
-      Closure<?> ext037Updater20 = { LockedResult ext037LockedResult ->
-        ext037LockedResult.delete()
-      }
-
-      Closure<?> ext037Reader20 = { DBContainer ext037Result ->
-        ext037Query20.readLock(ext037Result, ext037Updater20)
-      }
-
-      if (!ext037Query20.readAll(ext037Request, 3, nbMaxRecord, ext037Reader20)) {
-      }
-
       //Read OOLINE
       DBAction oolineQuery = database.table("OOLINE")
         .index("00")
@@ -357,27 +314,6 @@ public class EXT037 extends ExtendM3Batch {
     boolean found = false
 
     if (!found) {
-
-      // clear EXT037
-      DBAction ext037Query20 = database.table("EXT037")
-        .index("20")
-        .selection("EXORNO").build()
-
-      DBContainer ext037Request = ext037Query20.getContainer()
-      ext037Request.set("EXCONO", currentCompany)
-      ext037Request.set("EXDLIX", dlix)
-
-      Closure<?> ext037Updater20 = { LockedResult ext037LockedResult ->
-        ext037LockedResult.delete()
-      }
-
-      Closure<?> ext037Reader20 = { DBContainer ext037Result ->
-        ext037Query20.readLock(ext037Result, ext037Updater20)
-      }
-
-      if (!ext037Query20.readAll(ext037Request, 2, nbMaxRecord, ext037Reader20)) {
-      }
-
       datasDlix = [
         "DLIX"  : "0"
         , "CONN": "0"
@@ -529,6 +465,46 @@ public class EXT037 extends ExtendM3Batch {
 
     manageLine()
 
+  }
+
+  private void deleteExt037Records(orno, dlix, conn) {
+    DBAction ext037Query = null
+    DBContainer ext037Request = null
+
+    Closure<?> ext037Reader = { DBContainer ext037Result ->
+      Closure<?> ext037deleter = { LockedResult ext037LockResult ->
+        ext037LockResult.delete()
+      }
+      ext037Query.readLock(ext037Result, ext037deleter)
+    }
+    if (conn != 0) {
+      ext037Query = database.table("EXT037")
+        .index("10")
+        .build()
+      ext037Request = ext037Query.getContainer()
+      ext037Request.set("EXCONO", currentCompany)
+      ext037Request.set("EXCONN", conn)
+      if (ext037Query.readAll(ext037Request, 2, nbMaxRecord, ext037Reader)){
+      }
+    } else if (dlix != 0) {
+      ext037Query = database.table("EXT037")
+        .index("20")
+        .build()
+      ext037Request = ext037Query.getContainer()
+      ext037Request.set("EXCONO", currentCompany)
+      ext037Request.set("EXDLIX", dlix)
+      if (ext037Query.readAll(ext037Request, 2, nbMaxRecord, ext037Reader)){
+      }
+    } else {
+      ext037Query = database.table("EXT037")
+        .index("00")
+        .build()
+      ext037Request = ext037Query.getContainer()
+      ext037Request.set("EXCONO", currentCompany)
+      ext037Request.set("EXORNO", orno)
+      if (ext037Query.readAll(ext037Request, 2, nbMaxRecord, ext037Reader)){
+      }
+    }
   }
 
   /**
@@ -942,11 +918,11 @@ public class EXT037 extends ExtendM3Batch {
     }
 
     DBAction ext030Query = database.table("EXT030").index("20").matching(ext030Expression).selection("EXZCID", "EXZCOD").build()
-    DBContainer EXT030 = ext030Query.getContainer()
-    EXT030.set("EXCONO", currentCompany)
-    EXT030.set("EXSTAT", "20")
+    DBContainer ext030Request = ext030Query.getContainer()
+    ext030Request.set("EXCONO", currentCompany)
+    ext030Request.set("EXSTAT", "20")
 
-    if (!ext030Query.readAll(EXT030, 2, nbMaxRecord, ext030Reader)) {
+    if (!ext030Query.readAll(ext030Request, 2, nbMaxRecord, ext030Reader)) {
     }
   }
 

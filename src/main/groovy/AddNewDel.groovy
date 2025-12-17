@@ -972,6 +972,7 @@ public class AddNewDel extends ExtendM3Transaction {
    * @param posx
    * @param uca2
    * @param orqa
+   * @param sapr
    * @return
    */
   private executeOIS100MIChgLineBatchEnt(String orno, String ponr, String posx, String uca2, String orqa, String sapr) {

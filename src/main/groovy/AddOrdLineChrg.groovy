@@ -15,6 +15,7 @@
  YJANNIN      2024-12-11   1.4       CMD03 2.5 - Prio 7
  ARENARD      2025-04-22   1.5       Code has been checked
  PBEAUDOUIN   2025-05-20   1.6       Change NbrMaxrecord
+ FLEBARS      2025-11-06   1.7       Fix issue when creating charge on service order line
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -345,7 +346,7 @@ public class AddOrdLineChrg extends ExtendM3Transaction {
     if(orn2.trim() == "") {
       executeOIS100MIAddLineCharge(orno, ponr, posx, crid, crfa)
     } else {
-      executeOIS100MIAddLineCharge(orn2, ponr, pos2, crid, crfa)
+      executeOIS100MIAddLineCharge(orn2, pon2, pos2, crid, crfa)
     }
   }
 

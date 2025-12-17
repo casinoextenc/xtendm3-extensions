@@ -150,6 +150,10 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
     }
   }
 
+  /**
+   * Get header datas from OOHEAD
+   * @param orno
+   */
   public void getDatas(String orno){
     Map<String, String> ooheadData = getOohead(orno)
     if(ooheadData){
@@ -232,6 +236,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
    * @return
    */
   public int getDradtr(String dossier, String semaine, String annee) {
+    logger.debug("getDradtr - Dossier: ${dossier} Semaine: ${semaine} Annee: ${annee}")
 
     List listConn = new LinkedList()
     znbcDradtr = 0
@@ -258,7 +263,7 @@ public class LstMastFilShip1 extends ExtendM3Transaction {
   }
 
   /**
-   * Add EXT050 data
+   * Add record in EXT050
    * @param dossier
    * @param semaine
    * @param annee

@@ -115,7 +115,6 @@ public class LstDosMait extends ExtendM3Transaction {
       Closure<?> mitploReader = { DBContainer mitploResult ->
 
         String orno = mitploResult.get("MORIDN")
-        //rout = oolineResult.get("OBROUT")
 
         if(allowedOrders.size() > 0){
           boolean  found = allowedOrders.find { it -> it == orno}
@@ -126,7 +125,6 @@ public class LstDosMait extends ExtendM3Transaction {
           }
         }else{
           allowedOrders.add(orno)
-          //rout = oolineResult.get("OBROUT")
           getOolineData(orno)
         }
 
@@ -137,6 +135,11 @@ public class LstDosMait extends ExtendM3Transaction {
     }
   }
 
+  /**
+   * Read OOLINE data
+   * @param orno
+   * @return
+   */
   public void getOolineData(String orno){
     // Get OOLINE
     ExpressionFactory oolineExp = database.getExpressionFactory("OOLINE")

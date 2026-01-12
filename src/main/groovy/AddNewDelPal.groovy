@@ -10,6 +10,7 @@
  Name        Date        Version   Description of Changes
  SEAR        2023-05-26  1.0       LOG28 - Creation of files and containers
  ARENARD     2025-04-22  1.1       Code has been checked
+ FLEBARS     2025-12-04  1.2       Fix issues
  ******************************************************************************************/
 
 import java.time.LocalDateTime
@@ -42,40 +43,23 @@ public class AddNewDelPal extends ExtendM3Transaction {
   // Main
   public void main() {
     LocalDateTime timeOfCreation = LocalDateTime.now()
-    currentCompany = (Integer)program.getLDAZD().CONO
+    currentCompany = (Integer) program.getLDAZD().CONO
 
     if (mi.in.get("BJNO") == null) {
       jobNumber = program.getJobNumber() + timeOfCreation.format(DateTimeFormatter.ofPattern("yyMMdd")) + timeOfCreation.format(DateTimeFormatter.ofPattern("HHmmss"))
     } else {
-      jobNumber = (String)mi.in.get("BJNO")
+      jobNumber = (String) mi.in.get("BJNO")
     }
 
     //Get mi inputs
-    String camu = (mi.in.get("CAMU") != null ? (String)mi.in.get("CAMU") : "")
-    long tlix  = (Long)(mi.in.get("TLIX") != null ? mi.in.get("TLIX") : 0)
-    String uca4 = (mi.in.get("UCA4") != null ? (String)mi.in.get("UCA4") : "")
-    String uca5 = (mi.in.get("UCA5") != null ? (String)mi.in.get("UCA5") : "")
-    String uca6 = (mi.in.get("UCA6") != null ? (String)mi.in.get("UCA6") : "")
+    String camu = (mi.in.get("CAMU") != null ? (String) mi.in.get("CAMU") : "")
+    String orno = (mi.in.get("ORNO") != null ? (String) mi.in.get("ORNO") : "")
+    long tlix = (Long) (mi.in.get("TLIX") != null ? mi.in.get("TLIX") : 0)
+    String uca4 = (mi.in.get("UCA4") != null ? (String) mi.in.get("UCA4") : "")
+    String uca5 = (mi.in.get("UCA5") != null ? (String) mi.in.get("UCA5") : "")
+    String uca6 = (mi.in.get("UCA6") != null ? (String) mi.in.get("UCA6") : "")
 
     logger.debug("EXT050MI.AddNewDelPal bjno:${jobNumber}")
-
-
-    ExpressionFactory mitaloExpr = database.getExpressionFactory("MITALO")
-    mitaloExpr = mitaloExpr.eq("MQCAMU", camu)
-
-    DBAction mitaloQuery = database.table("MITALO").index("10").matching(mitaloExpr).selection("MQRIDN").build()
-    DBContainer mitaloRequest = mitaloQuery.getContainer()
-    mitaloRequest.set("MQCONO", currentCompany)
-    mitaloRequest.set("MQTTYP", 31)
-
-
-    Closure<?> mitaloReader = { DBContainer mitaloResult ->
-    }
-
-    if(!mitaloQuery.readAll(mitaloRequest, 2, nbMaxRecord, mitaloReader)) {
-      mi.error("Le numéro de palette " + camu + " n'existe pas")
-      return
-    }
 
     if (mi.in.get("TLIX") != null) {
       DBAction queryMhdish = database.table("MHDISH").index("00").selection("OQDLIX").build()
@@ -83,10 +67,32 @@ public class AddNewDelPal extends ExtendM3Transaction {
       MHDISH.set("OQCONO", currentCompany)
       MHDISH.set("OQINOU", 1)
       MHDISH.set("OQDLIX", tlix)
-      if(!queryMhdish.read(MHDISH)){
+      if (!queryMhdish.read(MHDISH)) {
         mi.error("Index de livraison  " + tlix + " n'existe pas")
         return
       }
+    }
+
+
+    ExpressionFactory mitaloExpr = database.getExpressionFactory("MITALO")
+    mitaloExpr = mitaloExpr.eq("MQCAMU", camu)
+    mitaloExpr = mitaloExpr.eq("MQRIDN", orno)
+
+    DBAction mitaloQuery = database.table("MITALO").index("10").matching(mitaloExpr).selection("MQRIDN").build()
+    DBContainer mitaloRequest = mitaloQuery.getContainer()
+    mitaloRequest.set("MQCONO", currentCompany)
+    mitaloRequest.set("MQTTYP", 31)
+
+    if (!checkOrder(orno, uca4, uca5, uca6)) {
+      mi.error("La commande ${orno} ne correspond pas au dossier selectionné ${uca4} ${uca5} ${uca6}")
+      return
+    }
+    Closure<?> mitaloReader = { DBContainer mitaloResult ->
+    }
+
+    if (!mitaloQuery.readAll(mitaloRequest, 2, nbMaxRecord, mitaloReader)) {
+      mi.error("Le numéro de palette " + camu + " n'existe pas")
+      return
     }
 
     //Check if record exists
@@ -123,7 +129,7 @@ public class AddNewDelPal extends ExtendM3Transaction {
         lockedResultEXT059.set("EXUCA5", uca5)
         lockedResultEXT059.set("EXUCA6", uca6)
         lockedResultEXT059.set("EXLMDT", utility.call("DateUtil", "currentDateY8AsInt"))
-        lockedResultEXT059.setInt("EXCHNO", ((Integer)lockedResultEXT059.get("EXCHNO") + 1))
+        lockedResultEXT059.setInt("EXCHNO", ((Integer) lockedResultEXT059.get("EXCHNO") + 1))
         lockedResultEXT059.set("EXCHID", program.getUser())
         lockedResultEXT059.update()
       }
@@ -131,6 +137,7 @@ public class AddNewDelPal extends ExtendM3Transaction {
     } else {
       containerEXT059.set("EXBJNO", jobNumber)
       containerEXT059.set("EXCONO", currentCompany)
+      containerEXT059.set("EXORNO", orno)
       containerEXT059.set("EXCAMU", camu)
       containerEXT059.set("EXTLIX", tlix)
       containerEXT059.set("EXUCA4", uca4)
@@ -143,8 +150,42 @@ public class AddNewDelPal extends ExtendM3Transaction {
       containerEXT059.set("EXCHID", program.getUser())
       queryEXT059.insert(containerEXT059)
     }
-
     mi.outData.put("BJNO", jobNumber)
     mi.write()
   }
+
+  /**
+   * Control if order match with uca4, uca5, uca6
+   * @param orno
+   * @param uca4
+   * @param uca5
+   * @param uca6
+   * @return
+   */
+  private boolean checkOrder(String orno, String uca4, String uca5, String uca6) {
+    DBAction ooheadQuery = database.table("OOHEAD")
+      .index("00")
+      .selection("OAUCA4"
+        , "OAUCA5"
+        , "OAUCA6"
+      )
+      .build()
+
+    DBContainer ooheadRequest = ooheadQuery.getContainer()
+    ooheadRequest.set("OACONO", currentCompany)
+    ooheadRequest.set("OAORNO", orno)
+    if (ooheadQuery.read(ooheadRequest)) {
+      String tUca4 = ooheadRequest.getString("OAUCA4").trim()
+      String tUca5 = ooheadRequest.getString("OAUCA5").trim()
+      String tUca6 = ooheadRequest.getString("OAUCA6").trim()
+      logger.debug("checkorno ${tUca4} ${tUca5} ${tUca6}" + (tUca4.equals(uca4) && tUca5.equals(uca5) && tUca6.equals(uca6)))
+      if (tUca4.equals(uca4) && tUca5.equals(uca5) && tUca6.equals(uca6)) {
+        return true
+      }
+    }
+    return false
+
+
+  }
+
 }
